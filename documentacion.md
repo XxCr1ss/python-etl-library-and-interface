@@ -143,28 +143,27 @@ Generación de dimensiones de tiempo y manejo de fechas.
 
 ```mermaid
 flowchart TD
-    subgraph Data Sources
-        DB[(Base de Datos\nPostgres/Oracle/MySQL)]
-        CSV[Archivos CSV]
-        XLSX[Archivos Excel]
+    subgraph DataSources [Data Sources]
+        DB[("Base de Datos\nPostgres/Oracle/MySQL")]
+        CSV["Archivos CSV"]
+        XLSX["Archivos Excel"]
     end
 
-    subgraph ETL Process
-        direction TB
-        E[Extractors] -->|Get DataFrame| T[Transformers]
-        T -->|Clean & Transform| L[Loaders]
+    subgraph ETLProcess [ETL Process]
+        E["Extractors"] -->|Get DataFrame| T["Transformers"]
+        T -->|Clean & Transform| L["Loaders"]
     end
 
-    subgraph Data Warehouse
-        DIM[(Dimensiones)]
-        FACT[(Hechos)]
+    subgraph DataWarehouse [Data Warehouse]
+        DIM[("Dimensiones")]
+        FACT[("Hechos")]
     end
 
     DB --> E
     CSV --> E
     XLSX --> E
     
-    T -->|DataFrames| T
+    %% Self-loop removed for better compatibility
     
     L -->|Validate FKs| DIM
     L -->|Insert| DIM
@@ -218,8 +217,8 @@ erDiagram
         string sexo
     }
 
-    FACT_FORMULAS }|--|| DIM_MEDICO : prescribe
-    FACT_FORMULAS }|--|| DIM_PERSONAS : recibe
+    FACT_FORMULAS }|--|| DIM_MEDICO : "prescribe"
+    FACT_FORMULAS }|--|| DIM_PERSONAS : "recibe"
 ```
 
 ### Métricas y Granularidad
