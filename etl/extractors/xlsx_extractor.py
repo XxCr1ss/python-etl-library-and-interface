@@ -54,8 +54,8 @@ class XLSXExtractor:
         :return: Lista con los nombres de las hojas.
         """
         try:
-            xls = pd.ExcelFile(self.file_path)
-            return xls.sheet_names
+            with pd.ExcelFile(self.file_path) as xls:
+                return xls.sheet_names
         except Exception as e:
             print(f"Error al obtener los nombres de las hojas: {e}")
             raise

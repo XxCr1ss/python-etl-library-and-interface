@@ -1,0 +1,20 @@
+# Excluir el frontend completo para el despliegue del backend
+frontend/
+
+# Excluir material de tesis y scripts de desarrollo local
+pruebas/
+sustentacion/
+conexion.py
+pagos__.py
+
+# Excluir bases de datos y configuraciones locales
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+.vscode/
+
+# Excluir subidas temporales
+backend/uploads/*
+!backend/uploads/.gitkeep

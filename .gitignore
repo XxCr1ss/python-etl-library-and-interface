@@ -1,15 +1,30 @@
 # Entorno virtual
 venv/
 .env/
+.venv/
+env/
+ENV/
+
+# Variables de entorno locales
+.env
+.env.local
+.env.*.local
 
 # Archivos de Python
 __pycache__/
 *.pyc
 *.pyo
 
-# Archivos temporales
+# Archivos temporales e ingestas locales
 *.log
 *.tmp
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Bases de datos locales SQLite
+*.db
+*.sqlite
+*.sqlite3
 
 # Archivos de VS Code
 .vscode/

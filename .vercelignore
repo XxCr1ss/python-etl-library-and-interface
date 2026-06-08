@@ -1,0 +1,14 @@
+# Excluir material de tesis y scripts locales
+pruebas/
+sustentacion/
+conexion.py
+pagos__.py
+
+# Excluir archivos locales temporales y de desarrollo
+.env*.local
+.vscode/
+*.db
+*.sqlite
+*.sqlite3
+backend/uploads/*
+!backend/uploads/.gitkeep
