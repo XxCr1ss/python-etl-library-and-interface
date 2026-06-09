@@ -23,13 +23,23 @@ app = FastAPI(
 )
 
 # Configuración de CORS para permitir peticiones del frontend (Next.js)
+cors_origins = [
+    "http://localhost:3000", 
+    "https://etl-flow.vercel.app",
+    "https://etl-flow-frontend.vercel.app"
+]
+env_origins = os.getenv("CORS_ORIGINS")
+if env_origins:
+    cors_origins.extend([origin.strip() for origin in env_origins.split(",")])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://etl-flow.vercel.app"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Registrar routers
 app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"])
