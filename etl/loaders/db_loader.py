@@ -191,7 +191,7 @@ class DB_Loader:
 
         except Exception as e:
             print(f"❌ Error al cargar hechos '{table_name}': {e}")
-            # No se vuelve a lanzar el error para evitar doble impresión
+            raise
 
     def truncate_table(self, table_name, engine=None):
         """
