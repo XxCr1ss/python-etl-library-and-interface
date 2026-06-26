@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Database, 
@@ -8,7 +8,12 @@ import {
   UploadCloud, 
   CheckCircle2,
   Table as TableIcon,
-  AlertCircle
+  AlertCircle,
+  Terminal,
+  Copy,
+  Check,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -31,6 +36,12 @@ export default function ExtractPage() {
   const [password, setPassword] = useState("");
   const [serviceName, setServiceName] = useState("");
 
+  // Estados de Agente Local Híbrido
+  const [useAgent, setUseAgent] = useState(false);
+  const [agentId, setAgentId] = useState("");
+  const [agentConnected, setAgentConnected] = useState<boolean | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const [tables, setTables] = useState<string[]>([]);
   const [selectedTable, setSelectedTable] = useState("");
   const [previewData, setPreviewData] = useState<Record<string, unknown>[] | null>(null);
@@ -41,6 +52,49 @@ export default function ExtractPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Inicializar Agent ID en montaje cliente
+  useEffect(() => {
+    let savedId = localStorage.getItem("etl_agent_id");
+    if (!savedId) {
+      savedId = `agent-${Math.random().toString(36).substring(2, 10)}`;
+      localStorage.setItem("etl_agent_id", savedId);
+    }
+    setAgentId(savedId);
+  }, []);
+
+  // Poll de estado del agente
+  useEffect(() => {
+    if (!useAgent || !agentId) {
+      setAgentConnected(null);
+      return;
+    }
+
+    let active = true;
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/extract/agent/status/${agentId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            setAgentConnected(data.connected);
+          }
+        }
+      } catch (err) {
+        if (active) {
+          setAgentConnected(false);
+        }
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [useAgent, agentId]);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -104,7 +158,9 @@ export default function ExtractPage() {
       database: database,
       user: user,
       password: password,
-      service_name: serviceName || null
+      service_name: serviceName || null,
+      use_agent: useAgent,
+      agent_id: useAgent ? agentId : null
     };
 
     try {
@@ -153,7 +209,9 @@ export default function ExtractPage() {
       user: user,
       password: password,
       table_name: tableName,
-      service_name: serviceName || null
+      service_name: serviceName || null,
+      use_agent: useAgent,
+      agent_id: useAgent ? agentId : null
     };
 
     try {
@@ -206,7 +264,9 @@ export default function ExtractPage() {
         password: password,
         table_name: selectedTable,
         service_name: serviceName || null,
-        total_rows: totalRows
+        total_rows: totalRows,
+        use_agent: useAgent,
+        agent_id: useAgent ? agentId : null
       };
       sessionStorage.setItem("etl_active_source", JSON.stringify(source));
       sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
@@ -327,6 +387,102 @@ export default function ExtractPage() {
 
           {activeTab === "database" && (
             <div className="space-y-6 max-w-2xl mx-auto">
+              {/* Opción de Agente Local Híbrido */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-full">
+                      <Terminal className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        Agente Local Híbrido
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Conecta a bases de datos locales (localhost) de forma segura y sin abrir puertos.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useAgent}
+                      onChange={(e) => {
+                        setUseAgent(e.target.checked);
+                        setErrorMsg(null);
+                        setSuccessMsg(null);
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {useAgent && (
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    {/* Status Badge */}
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <span className="text-xs font-medium text-slate-500">Estado del Túnel:</span>
+                      <div className="flex items-center gap-2">
+                        {agentConnected === null ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300">
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse"></span>
+                            Comprobando...
+                          </span>
+                        ) : agentConnected ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            🟢 Agente Conectado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                            🔴 Agente Desconectado
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Instrucciones */}
+                    <div className="text-xs space-y-2">
+                      <p className="font-semibold text-slate-700 dark:text-slate-300">Instrucciones de ejecución:</p>
+                      <ol className="list-decimal pl-4 space-y-1 text-slate-500">
+                        <li>Asegúrate de tener instalado <code>websockets</code> ejecutando <code>pip install websockets</code>.</li>
+                        <li>Ejecuta el agente local en la terminal de tu PC:</li>
+                      </ol>
+                      
+                      <div className="relative mt-2 bg-slate-900 text-slate-200 p-3 rounded-lg font-mono text-[11px] group border border-slate-800">
+                        <div className="overflow-x-auto whitespace-pre">
+                          {`python etl_agent.py`}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText("python etl_agent.py");
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          className="absolute right-2 top-2 p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                          title="Copiar comando"
+                        >
+                          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+
+                      <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-3 rounded-lg space-y-1.5 text-[11px] text-blue-700 dark:text-blue-300">
+                        <p className="font-semibold">Parámetros requeridos cuando el script los solicite:</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          <span className="font-mono text-slate-400">URL Backend:</span>
+                          <span className="col-span-2 font-mono break-all">{API_URL.replace("/api/v1", "")}</span>
+                          <span className="font-mono text-slate-400">ID Agente:</span>
+                          <span className="col-span-2 font-mono select-all bg-blue-100 dark:bg-blue-900/50 px-1 rounded font-bold text-blue-800 dark:text-blue-200">{agentId}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Motor de Base de Datos</label>

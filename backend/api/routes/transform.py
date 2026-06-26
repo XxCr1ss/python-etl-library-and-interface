@@ -17,6 +17,8 @@ class SourceModel(BaseModel):
     password: Optional[str] = None
     table_name: Optional[str] = None
     service_name: Optional[str] = None
+    use_agent: Optional[bool] = False
+    agent_id: Optional[str] = None
 
 class StepModel(BaseModel):
     type: str
@@ -101,7 +103,7 @@ CATALOG_OPERATIONS = [
     {
         "type": "split_column",
         "name": "Dividir Columna de Texto",
-        "description": "Divide una columna de texto en múltiples columnas utilizando un delimitador.",
+        "description": "Dividir una columna de texto en múltiples columnas utilizando un delimitador.",
         "params": {
             "column": { "type": "str", "description": "Columna a dividir", "required": True },
             "delimiter": { "type": "str", "description": "Carácter delimitador", "required": True },
@@ -127,7 +129,7 @@ async def transform_preview(req: TransformPreviewReq):
         source_dict = req.source.model_dump(exclude_none=True)
         steps_dict = [step.model_dump() for step in req.steps]
         
-        result = transform_service.process_transform_preview(
+        result = await transform_service.process_transform_preview(
             source=source_dict,
             steps=steps_dict,
             limit=req.limit

@@ -46,7 +46,7 @@ def test_target_connection(target_config: Dict[str, Any]) -> Dict[str, Any]:
             )
         raise ValueError(f"No se pudo conectar a la base de datos destino: {str(e)}")
 
-def execute_load(
+async def execute_load(
     source: Dict[str, Any],
     target_config: Dict[str, Any],
     load_config: Dict[str, Any],
@@ -61,8 +61,8 @@ def execute_load(
     """
     # 1. Procesamiento de Transformaciones
     try:
-        df_src = load_source_df(source)
-        df_final = apply_transformation_steps(df_src, recipe)
+        df_src = await load_source_df(source)
+        df_final = await apply_transformation_steps(df_src, recipe)
     except Exception as e:
         raise ValueError(f"Error en la ejecución del pipeline de transformación: {str(e)}")
 

@@ -12,9 +12,10 @@ root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import extract, transform, load
+from services.agent_manager import agent_manager
 
 app = FastAPI(
     title="ETL Flow API",
@@ -40,6 +41,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# WebSocket Endpoint para el Agente Local Híbrido
+@app.websocket("/api/v1/ws/agent/{agent_id}")
+async def websocket_endpoint(websocket: WebSocket, agent_id: str):
+    await websocket.accept()
+    agent_manager.register_agent(agent_id, websocket)
+    try:
+        while True:
+            # Escuchar respuestas en formato JSON del agente
+            data = await websocket.receive_json()
+            request_id = data.get("request_id")
+            if request_id:
+                agent_manager.resolve_request(request_id, data)
+    except WebSocketDisconnect:
+        agent_manager.unregister_agent(agent_id)
+    except Exception as e:
+        print(f"⚠️ Error en canal WebSocket del agente {agent_id}: {e}")
+        agent_manager.unregister_agent(agent_id)
 
 # Registrar routers
 app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"])
