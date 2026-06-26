@@ -14,7 +14,7 @@ import {
 import clsx from "clsx";
 
 const NAV_ITEMS = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Extracción", href: "/extract", icon: UploadCloud },
   { name: "Transformación", href: "/transform", icon: Workflow },
   { name: "Carga", href: "/load", icon: FileDown },
@@ -32,12 +32,12 @@ export function Sidebar() {
   return (
     <aside className="w-64 h-screen bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col fixed left-0 top-0">
       <div className="h-16 flex items-center px-6 border-b border-[var(--sidebar-border)]">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <Workflow className="w-5 h-5 text-white" />
           </div>
           <span className="font-semibold text-lg tracking-tight">ETL Flow</span>
-        </div>
+        </Link>
       </div>
 
       <nav className="flex-1 py-6 px-3 flex flex-col gap-1">
