@@ -7,10 +7,14 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
-# Configurar path para permitir la importación del paquete etl
+# Configurar path para permitir la importación de los paquetes etl y backend
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
+
+backend_dir = os.path.join(root_dir, "backend")
+if backend_dir not in sys.path:
+    sys.path.append(backend_dir)
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
