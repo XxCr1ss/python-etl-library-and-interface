@@ -83,6 +83,12 @@ async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
             service_name=service_name
         ) as extractor:
             return extractor.get_table(table_name)
+    elif source_type == "date_dimension":
+        start_year = int(source.get("start_year", 2020))
+        end_year = int(source.get("end_year", 2025))
+        from etl import DateTime
+        date_dim = DateTime(start_year, end_year)
+        return date_dim.df
     else:
         raise ValueError(f"Tipo de origen '{source_type}' no soportado.")
 

@@ -177,12 +177,16 @@ async def execute_load(
             }
 
     except UnicodeDecodeError as e:
+        print(f"⚠️ Error de decodificación en execute_load: {e}")
         raise ValueError(
-            f"Error de conexión a la base de datos destino durante la carga: error de decodificación del mensaje en Windows (habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión)."
+            f"Error de conexión a la base de datos destino durante la carga: error de decodificación del mensaje en Windows ({str(e)}). Habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión."
         ) from e
     except Exception as e:
+        print(f"⚠️ Error genérico en execute_load: {e}")
+        import traceback
+        traceback.print_exc()
         if "codec can't decode" in str(e) or "UnicodeDecodeError" in type(e).__name__:
             raise ValueError(
-                f"Error de conexión a la base de datos destino durante la carga: error de decodificación en Windows (habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión)."
+                f"Error de conexión a la base de datos destino durante la carga: error de decodificación en Windows ({str(e)}). Habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión."
             )
         raise ValueError(f"Fallo en el proceso de carga a la base de datos destino: {str(e)}")

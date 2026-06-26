@@ -128,3 +128,32 @@ async def preview_database_table(conn_data: DatabasePreviewReq):
         raise HTTPException(status_code=500, detail=f"Error al obtener la vista previa de la tabla: {str(e)}")
 
 
+class DateDimensionReq(BaseModel):
+    start_year: int
+    end_year: int
+
+
+@router.post("/date-dimension/preview")
+async def preview_date_dimension(req: DateDimensionReq):
+    """
+    Endpoint para generar y previsualizar la dimensión de fechas (DateTime del core).
+    """
+    if req.start_year > req.end_year:
+        raise HTTPException(status_code=400, detail="El año de inicio debe ser menor o igual al año de fin.")
+        
+    try:
+        from etl import DateTime
+        date_dim = DateTime(req.start_year, req.end_year)
+        preview_data = extract_service.clean_records(date_dim.df, limit=5)
+        
+        return {
+            "status": "success",
+            "message": "Dimensión de fechas generada correctamente para vista previa.",
+            "preview_data": preview_data,
+            "total_rows": len(date_dim.df)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar la dimensión fecha: {str(e)}")
+
+
+

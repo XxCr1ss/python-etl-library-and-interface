@@ -4,18 +4,17 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Database, 
-  FileSpreadsheet, 
   UploadCloud, 
   CheckCircle2,
   Table as TableIcon,
   AlertCircle,
   Terminal,
   Copy,
-  Check
+  Check,
+  Calendar
 } from "lucide-react";
-import clsx from "clsx";
 
-type Tab = "file" | "database";
+type Tab = "file" | "database" | "date_dimension";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -50,6 +49,10 @@ export default function ExtractPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Estados de Dimensión Fecha
+  const [startYear, setStartYear] = useState<string>(String(new Date().getFullYear() - 5));
+  const [endYear, setEndYear] = useState<string>(String(new Date().getFullYear()));
 
   // Inicializar Agent ID en montaje cliente
   useEffect(() => {
@@ -237,6 +240,41 @@ export default function ExtractPage() {
     }
   };
 
+  const handleDateDimensionGenerate = async () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsPreviewing(false);
+
+    try {
+      const res = await fetch(`${API_URL}/extract/date-dimension/preview`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          start_year: parseInt(startYear),
+          end_year: parseInt(endYear)
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Error al generar la dimensión fecha");
+      }
+
+      setPreviewData(data.preview_data || []);
+      setTotalRows(data.total_rows || 0);
+      setFilename(`dim_fecha_${startYear}_to_${endYear}`);
+      setIsPreviewing(true);
+      setSuccessMsg(data.message || "Dimensión de fechas generada correctamente.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Error al generar la dimensión fecha");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleContinueToTransform = () => {
     if (activeTab === "file") {
       if (!filepath || !filename) return;
@@ -250,7 +288,7 @@ export default function ExtractPage() {
       sessionStorage.setItem("etl_active_source", JSON.stringify(source));
       sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
       router.push("/transform");
-    } else {
+    } else if (activeTab === "database") {
       if (!selectedTable) return;
       const source = {
         type: "database",
@@ -265,6 +303,16 @@ export default function ExtractPage() {
         total_rows: totalRows,
         use_agent: useAgent,
         agent_id: useAgent ? agentId : null
+      };
+      sessionStorage.setItem("etl_active_source", JSON.stringify(source));
+      sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
+      router.push("/transform");
+    } else {
+      const source = {
+        type: "date_dimension",
+        start_year: parseInt(startYear),
+        end_year: parseInt(endYear),
+        total_rows: totalRows
       };
       sessionStorage.setItem("etl_active_source", JSON.stringify(source));
       sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
@@ -302,30 +350,39 @@ export default function ExtractPage() {
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
         {/* Tabs Header */}
-        <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-          <button 
+        <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl mb-8 border border-slate-200 dark:border-slate-800">
+          <button
             onClick={() => handleTabChange("file")}
-            className={clsx(
-              "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-colors border-b-2",
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
               activeTab === "file" 
-                ? "border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800" 
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-            )}
+                ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Archivo (CSV / Excel)
+            <UploadCloud className="w-4 h-4" />
+            Archivo Local
           </button>
-          <button 
+          <button
             onClick={() => handleTabChange("database")}
-            className={clsx(
-              "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-colors border-b-2",
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
               activeTab === "database" 
-                ? "border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800" 
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-            )}
+                ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
           >
             <Database className="w-4 h-4" />
             Base de Datos Relacional
+          </button>
+          <button
+            onClick={() => handleTabChange("date_dimension")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+              activeTab === "date_dimension" 
+                ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Dimensión Temporal (Fecha)
           </button>
         </div>
 
@@ -594,6 +651,65 @@ export default function ExtractPage() {
                   </select>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "date_dimension" && (
+            <div className="space-y-6 max-w-2xl mx-auto p-6 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-full">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Generador de Dimensión Temporal
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Crea un dataset maestro de fechas con año, mes, día, semana, trimestre y festivos colombianos.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Año de Inicio</label>
+                  <input
+                    type="number"
+                    value={startYear}
+                    onChange={(e) => setStartYear(e.target.value)}
+                    min="1900"
+                    max="2100"
+                    required
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Año de Fin</label>
+                  <input
+                    type="number"
+                    value={endYear}
+                    onChange={(e) => setEndYear(e.target.value)}
+                    min="1900"
+                    max="2100"
+                    required
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={handleDateDimensionGenerate}
+                  disabled={isLoading}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></span>
+                  ) : (
+                    <Calendar className="w-4 h-4" />
+                  )}
+                  Generar Dimensión Temporal
+                </button>
+              </div>
             </div>
           )}
         </div>

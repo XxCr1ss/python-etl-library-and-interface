@@ -100,7 +100,7 @@ class DB_Extractor:
             elif self.db_type == "postgresql":
                 self.engine = create_engine(
                     f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
-                    connect_args={'client_encoding': 'latin1'}
+                    connect_args={'client_encoding': 'utf8'}
                 )
             elif self.db_type == "oracle":
                 if not self.service_name:
