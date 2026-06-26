@@ -109,6 +109,14 @@ CATALOG_OPERATIONS = [
             "delimiter": { "type": "str", "description": "Carácter delimitador", "required": True },
             "new_columns": { "type": "list", "description": "Lista opcional con nombres de las nuevas columnas", "required": False }
         }
+    },
+    {
+        "type": "union",
+        "name": "Unión Vertical (Union All)",
+        "description": "Une verticalmente las filas del dataset principal con un dataset secundario.",
+        "params": {
+            "secondary_source": { "type": "dict", "description": "Configuración de origen del dataset secundario", "required": True }
+        }
     }
 ]
 

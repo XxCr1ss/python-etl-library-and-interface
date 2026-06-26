@@ -87,6 +87,13 @@ export default function SidebarSteps({
           title: "Dividir Columna",
           desc: `Dividir '${params.column as string}' por "${params.delimiter as string}"`,
         };
+      case "union":
+        const secSource = params.secondary_source as Record<string, unknown> | undefined;
+        const filename = secSource?.filename ? String(secSource.filename) : "archivo secundario";
+        return {
+          title: "Unión de Datos (Union All)",
+          desc: `Unir verticalmente con: ${filename}`,
+        };
       default:
         return {
           title: "Operación Personalizada",
