@@ -48,7 +48,7 @@ export default function LoadReport({ report, onReset }: LoadReportProps) {
             Nueva Carga
           </button>
           <Link
-            href="/"
+            href="/dashboard"
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 rounded-xl transition-colors text-sm font-semibold shadow-sm"
           >
             Dashboard

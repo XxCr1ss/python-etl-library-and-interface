@@ -28,7 +28,7 @@ export default function ExtractPage() {
   const [dbType, setDbType] = useState("postgresql");
   const [host, setHost] = useState("localhost");
   const [port, setPort] = useState("5432");
-  const [database, setDatabase] = useState("colombia_saludable");
+  const [database, setDatabase] = useState("mi_base_de_datos");
   const [user, setUser] = useState("postgres");
   const [password, setPassword] = useState("");
   const [serviceName, setServiceName] = useState("");
@@ -582,7 +582,7 @@ export default function ExtractPage() {
                     type="text" 
                     value={database}
                     onChange={(e) => setDatabase(e.target.value)}
-                    placeholder="colombia_saludable" 
+                    placeholder="mi_base_de_datos" 
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   />
                 </div>

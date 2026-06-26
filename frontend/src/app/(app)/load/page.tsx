@@ -42,7 +42,7 @@ export default function LoadPage() {
     db_type: "postgresql",
     host: "localhost",
     port: 5432,
-    database: "carga_colombia",
+    database: "base_de_destino",
     user: "postgres",
     password: "",
   });
