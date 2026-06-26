@@ -166,6 +166,13 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
                 raise ValueError("split_column requiere parámetros 'column' y 'delimiter'.")
             working_df = ConvertOperations.split_string_column(working_df, column, delimiter, new_columns, show=0)
             
+        elif step_type == "union":
+            secondary_source = params.get("secondary_source")
+            if not secondary_source:
+                raise ValueError("La operación de unión requiere un parámetro 'secondary_source'.")
+            df2 = await load_source_df(secondary_source)
+            working_df = TransformOperations.union_all([working_df, df2], show=0)
+            
         else:
             raise ValueError(f"Operación de transformación '{step_type}' no soportada en el pipeline.")
             

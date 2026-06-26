@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   X, 
   Edit3, 
@@ -10,8 +10,12 @@ import {
   CheckSquare, 
   Trash, 
   Layers, 
-  Plus
+  Plus,
+  UploadCloud,
+  Check
 } from "lucide-react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 interface AddStepModalProps {
   isOpen: boolean;
@@ -27,7 +31,8 @@ type StepType =
   | "filter_value" 
   | "select_columns" 
   | "remove_columns" 
-  | "group_by";
+  | "group_by"
+  | "union";
 
 export default function AddStepModal({
   isOpen,
@@ -40,6 +45,80 @@ export default function AddStepModal({
   // Form states
   const [renameOld, setRenameOld] = useState("");
   const [renameNew, setRenameNew] = useState("");
+
+  const [unionUploading, setUnionUploading] = useState(false);
+  const [unionMetadata, setUnionMetadata] = useState<{
+    filepath: string;
+    filename: string;
+    unique_filename: string;
+  } | null>(null);
+  const [unionError, setUnionError] = useState<string | null>(null);
+
+  // Estados de unión de base de datos
+  const [unionSourceType, setUnionSourceType] = useState<"file" | "database">("file");
+  const [unionDbType, setUnionDbType] = useState("postgresql");
+  const [unionHost, setUnionHost] = useState("localhost");
+  const [unionPort, setUnionPort] = useState("5432");
+  const [unionDatabase, setUnionDatabase] = useState("");
+  const [unionUser, setUnionUser] = useState("");
+  const [unionPassword, setUnionPassword] = useState("");
+  const [unionTable, setUnionTable] = useState("");
+  const [unionServiceName, setUnionServiceName] = useState("");
+  const [unionUseAgent, setUnionUseAgent] = useState(false);
+
+  // Auto-completar datos si la fuente activa es base de datos
+  useEffect(() => {
+    if (isOpen) {
+      const storedSource = sessionStorage.getItem("etl_active_source");
+      if (storedSource) {
+        const parsed = JSON.parse(storedSource);
+        if (parsed.type === "database") {
+          setUnionDbType(parsed.db_type || "postgresql");
+          setUnionHost(parsed.host || "localhost");
+          setUnionPort(parsed.port ? String(parsed.port) : "5432");
+          setUnionDatabase(parsed.database || "");
+          setUnionUser(parsed.user || "");
+          setUnionPassword(parsed.password || "");
+          setUnionServiceName(parsed.service_name || "");
+          setUnionUseAgent(!!parsed.use_agent);
+          setUnionSourceType("database");
+        } else {
+          setUnionSourceType("file");
+        }
+      }
+    }
+  }, [isOpen]);
+
+  const handleUnionFileUpload = async (file: File) => {
+    setUnionUploading(true);
+    setUnionError(null);
+    setUnionMetadata(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${API_URL}/extract/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Error al subir el archivo secundario");
+      }
+
+      setUnionMetadata({
+        filepath: data.filepath,
+        filename: data.filename,
+        unique_filename: data.unique_filename
+      });
+    } catch (err) {
+      setUnionError(err instanceof Error ? err.message : "Error al procesar el archivo");
+    } finally {
+      setUnionUploading(false);
+    }
+  };
 
   const [convertCol, setConvertCol] = useState("");
   const [convertType, setConvertType] = useState("str");
@@ -140,6 +219,36 @@ export default function AddStepModal({
           column: groupValCol
         };
         break;
+      case "union":
+        if (unionSourceType === "file") {
+          if (!unionMetadata) return;
+          stepParams = {
+            secondary_source: {
+              type: "file",
+              filepath: unionMetadata.filepath,
+              filename: unionMetadata.filename,
+              unique_filename: unionMetadata.unique_filename
+            }
+          };
+        } else {
+          if (!unionTable || !unionDatabase || !unionHost || !unionUser) return;
+          stepParams = {
+            secondary_source: {
+              type: "database",
+              db_type: unionDbType,
+              host: unionHost,
+              port: unionPort ? parseInt(unionPort) : null,
+              database: unionDatabase,
+              user: unionUser,
+              password: unionPassword,
+              table_name: unionTable,
+              service_name: unionServiceName || null,
+              use_agent: unionUseAgent,
+              agent_id: unionUseAgent ? localStorage.getItem("etl_agent_id") : null
+            }
+          };
+        }
+        break;
     }
 
     onAddStep({
@@ -161,6 +270,10 @@ export default function AddStepModal({
     setRemovedCols({});
     setGroupByCol("");
     setGroupValCol("");
+    setUnionUploading(false);
+    setUnionMetadata(null);
+    setUnionError(null);
+    setUnionTable("");
 
     onClose();
   };
@@ -173,6 +286,7 @@ export default function AddStepModal({
     { id: "select_columns" as StepType, name: "Mantener Cols", icon: <CheckSquare className="w-4 h-4" />, desc: "Seleccionar columnas a mantener" },
     { id: "remove_columns" as StepType, name: "Eliminar Cols", icon: <Trash className="w-4 h-4" />, desc: "Eliminar columnas del dataset" },
     { id: "group_by" as StepType, name: "Agrupar", icon: <Layers className="w-4 h-4" />, desc: "Agrupar y calcular promedio" },
+    { id: "union" as StepType, name: "Unión Vertical", icon: <Plus className="w-4 h-4" />, desc: "Apilar filas de otro archivo (Union All)" },
   ];
 
   return (
@@ -191,7 +305,7 @@ export default function AddStepModal({
               className={`flex items-start gap-3 p-3 rounded-xl text-left border transition-all ${
                 selectedType === cat.id
                   ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/10"
-                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
               }`}
             >
               <div className={`mt-0.5 p-1.5 rounded-lg ${
@@ -212,7 +326,7 @@ export default function AddStepModal({
         {/* Right Side: Form Configuration */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="flex items-center justify-between p-5 border-b border-slate-150 dark:border-slate-800">
+          <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white">
                 {categories.find(c => c.id === selectedType)?.name}
@@ -223,7 +337,7 @@ export default function AddStepModal({
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -241,7 +355,7 @@ export default function AddStepModal({
                     value={renameOld}
                     onChange={(e) => setRenameOld(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Columna --</option>
                     {availableColumns.map((col) => (
@@ -257,7 +371,7 @@ export default function AddStepModal({
                     onChange={(e) => setRenameNew(e.target.value)}
                     required
                     placeholder="ej. primer_nombre"
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -272,7 +386,7 @@ export default function AddStepModal({
                     value={convertCol}
                     onChange={(e) => setConvertCol(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Columna --</option>
                     {availableColumns.map((col) => (
@@ -286,7 +400,7 @@ export default function AddStepModal({
                     value={convertType}
                     onChange={(e) => setConvertType(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="str">Texto (str)</option>
                     <option value="int">Entero (int)</option>
@@ -307,7 +421,7 @@ export default function AddStepModal({
                     value={fillCol}
                     onChange={(e) => setFillCol(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Columna --</option>
                     {availableColumns.map((col) => (
@@ -323,9 +437,9 @@ export default function AddStepModal({
                     onChange={(e) => setFillVal(e.target.value)}
                     required
                     placeholder="ej. Sin asignar o 0"
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-[10px] text-slate-450 mt-1 block">
+                  <span className="text-[10px] text-slate-400 mt-1 block">
                     Los valores numéricos se parsearán a número de forma automática.
                   </span>
                 </div>
@@ -341,7 +455,7 @@ export default function AddStepModal({
                     value={filterCol}
                     onChange={(e) => setFilterCol(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Columna --</option>
                     {availableColumns.map((col) => (
@@ -355,7 +469,7 @@ export default function AddStepModal({
                     value={filterOp}
                     onChange={(e) => setFilterOp(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="eq">Igual a (=)</option>
                     <option value="ne">Diferente de (!=)</option>
@@ -373,7 +487,7 @@ export default function AddStepModal({
                     onChange={(e) => setFilterVal(e.target.value)}
                     required
                     placeholder="ej. Bogotá o 30"
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -385,11 +499,11 @@ export default function AddStepModal({
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Marca las columnas a MANTENER (las demás se eliminarán)
                 </label>
-                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 border border-slate-150 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-950/20">
+                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-950/20">
                   {availableColumns.map((col) => (
                     <label
                       key={col}
-                      className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer select-none animate-in fade-in duration-100"
+                      className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer select-none animate-in fade-in duration-100"
                     >
                       <input
                         type="checkbox"
@@ -412,11 +526,11 @@ export default function AddStepModal({
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Marca las columnas a ELIMINAR
                 </label>
-                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 border border-slate-150 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-955/20">
+                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-950/20">
                   {availableColumns.map((col) => (
                     <label
                       key={col}
-                      className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer select-none animate-in fade-in duration-100"
+                      className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer select-none animate-in fade-in duration-100"
                     >
                       <input
                         type="checkbox"
@@ -442,7 +556,7 @@ export default function AddStepModal({
                     value={groupByCol}
                     onChange={(e) => setGroupByCol(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Columna --</option>
                     {availableColumns.map((col) => (
@@ -456,7 +570,7 @@ export default function AddStepModal({
                     value={groupValCol}
                     onChange={(e) => setGroupValCol(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Columna --</option>
                     {availableColumns.map((col) => (
@@ -467,14 +581,225 @@ export default function AddStepModal({
               </div>
             )}
 
+            {/* Union Form */}
+            {selectedType === "union" && (
+              <div className="space-y-4">
+                {/* Selector de tipo de origen secundario */}
+                <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl mb-4 border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setUnionSourceType("file")}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      unionSourceType === "file"
+                        ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Archivo (CSV / Excel)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUnionSourceType("database")}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      unionSourceType === "database"
+                        ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Base de Datos
+                  </button>
+                </div>
+
+                {unionSourceType === "file" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                      Seleccionar Archivo Secundario (.csv / .xlsx)
+                    </label>
+                    
+                    {!unionMetadata && !unionUploading ? (
+                      <div 
+                        className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors cursor-pointer"
+                        onClick={() => document.getElementById("union-file-input")?.click()}
+                      >
+                        <UploadCloud className="w-8 h-8 text-blue-500 mb-2 animate-bounce" />
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Haz clic para subir el archivo de unión
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Debe poseer la misma estructura de columnas.
+                        </p>
+                        <input 
+                          type="file" 
+                          id="union-file-input" 
+                          className="hidden" 
+                          accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleUnionFileUpload(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : unionUploading ? (
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20">
+                        <RefreshCw className="w-6 h-6 text-blue-500 animate-spin mb-2" />
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                          Subiendo y validando archivo secundario...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-xl border border-emerald-200 dark:border-emerald-900/30 animate-in fade-in duration-300">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center animate-scale-in">
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {unionMetadata?.filename}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              Archivo cargado listo para unir.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUnionMetadata(null);
+                          }}
+                          className="text-xs text-rose-500 hover:text-rose-600 font-semibold transition-colors"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    )}
+
+                    {unionError && (
+                      <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-lg text-[11px] text-rose-600 dark:text-rose-400 animate-in fade-in duration-200">
+                        {unionError}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Motor</label>
+                        <select
+                          value={unionDbType}
+                          onChange={(e) => {
+                            setUnionDbType(e.target.value);
+                            if (e.target.value === "postgresql") setUnionPort("5432");
+                            else if (e.target.value === "mysql") setUnionPort("3306");
+                            else if (e.target.value === "oracle") setUnionPort("1521");
+                          }}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="postgresql">PostgreSQL</option>
+                          <option value="mysql">MySQL</option>
+                          <option value="oracle">Oracle</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Host</label>
+                        <input
+                          type="text"
+                          value={unionHost}
+                          onChange={(e) => setUnionHost(e.target.value)}
+                          placeholder="localhost"
+                          required
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Puerto</label>
+                        <input
+                          type="text"
+                          value={unionPort}
+                          onChange={(e) => setUnionPort(e.target.value)}
+                          placeholder="5432"
+                          required
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Base de Datos</label>
+                        <input
+                          type="text"
+                          value={unionDatabase}
+                          onChange={(e) => setUnionDatabase(e.target.value)}
+                          placeholder="nombre_db"
+                          required
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Usuario</label>
+                        <input
+                          type="text"
+                          value={unionUser}
+                          onChange={(e) => setUnionUser(e.target.value)}
+                          placeholder="postgres"
+                          required
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Contraseña</label>
+                        <input
+                          type="password"
+                          value={unionPassword}
+                          onChange={(e) => setUnionPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      {unionDbType === "oracle" && (
+                        <div className="col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Nombre de Servicio (Oracle)</label>
+                          <input
+                            type="text"
+                            value={unionServiceName}
+                            onChange={(e) => setUnionServiceName(e.target.value)}
+                            placeholder="xe"
+                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
+                      <div className="col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Tabla a Unir</label>
+                        <input
+                          type="text"
+                          value={unionTable}
+                          onChange={(e) => setUnionTable(e.target.value)}
+                          placeholder="ej. hospital_2"
+                          required
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="col-span-2 flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+                        <span className="text-xs text-slate-500 font-medium">¿Usar Agente Local Híbrido?</span>
+                        <input
+                          type="checkbox"
+                          checked={unionUseAgent}
+                          onChange={(e) => setUnionUseAgent(e.target.checked)}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
           </form>
 
           {/* Footer Controls */}
-          <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-150 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+          <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-slate-250 dark:border-slate-850 rounded-lg text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-405 transition-colors"
+              className="px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 transition-colors"
             >
               Cancelar
             </button>
