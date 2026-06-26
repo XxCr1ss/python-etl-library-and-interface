@@ -52,7 +52,7 @@ async def execute_load_pipeline(req: LoadExecutionReq):
         load_dict = req.load_config.model_dump(exclude_none=True)
         recipe_dict = [step.model_dump() for step in req.recipe]
         
-        result = load_service.execute_load(
+        result = await load_service.execute_load(
             source=source_dict,
             target_config=target_dict,
             load_config=load_dict,

@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from services import extract_service
+from services.agent_manager import agent_manager
 
 router = APIRouter()
 
@@ -13,6 +14,9 @@ class DatabaseConnectionReq(BaseModel):
     user: str
     password: str
     service_name: Optional[str] = None
+    use_agent: Optional[bool] = False
+    agent_id: Optional[str] = None
+
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -31,15 +35,38 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")
 
+@router.get("/agent/status/{agent_id}")
+async def get_agent_status(agent_id: str):
+    """
+    Verifica si un agente local específico está conectado vía WebSocket.
+    """
+    connected = agent_manager.is_agent_connected(agent_id)
+    return {"agent_id": agent_id, "connected": connected}
+
 @router.post("/database")
 async def connect_database(conn_data: DatabaseConnectionReq):
     """
     Endpoint para probar conexión y extraer metadata de una base de datos relacional.
-    Usa el DB_Extractor de la librería core.
+    Usa el DB_Extractor de la librería core o delega la consulta al agente local.
     """
     if conn_data.db_type.lower() not in ["postgresql", "mysql", "oracle"]:
         raise HTTPException(status_code=400, detail="Motor de base de datos no soportado. Debe ser 'postgresql', 'mysql' o 'oracle'.")
         
+    if conn_data.use_agent:
+        if not conn_data.agent_id:
+            raise HTTPException(status_code=400, detail="Falta el 'agent_id' para utilizar el agente local.")
+        try:
+            result = await agent_manager.send_command_and_wait(
+                agent_id=conn_data.agent_id,
+                action="get_metadata",
+                payload=conn_data.model_dump(exclude={"use_agent", "agent_id"})
+            )
+            if result.get("status") == "error":
+                raise HTTPException(status_code=500, detail=result.get("message"))
+            return result.get("data")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error a través del agente local: {str(e)}")
+
     try:
         result = extract_service.get_database_metadata(
             db_type=conn_data.db_type,
@@ -68,6 +95,21 @@ async def preview_database_table(conn_data: DatabasePreviewReq):
     if conn_data.db_type.lower() not in ["postgresql", "mysql", "oracle"]:
         raise HTTPException(status_code=400, detail="Motor de base de datos no soportado. Debe ser 'postgresql', 'mysql' o 'oracle'.")
         
+    if conn_data.use_agent:
+        if not conn_data.agent_id:
+            raise HTTPException(status_code=400, detail="Falta el 'agent_id' para utilizar el agente local.")
+        try:
+            result = await agent_manager.send_command_and_wait(
+                agent_id=conn_data.agent_id,
+                action="get_preview",
+                payload=conn_data.model_dump(exclude={"use_agent", "agent_id"})
+            )
+            if result.get("status") == "error":
+                raise HTTPException(status_code=500, detail=result.get("message"))
+            return result.get("data")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error a través del agente local: {str(e)}")
+
     try:
         result = extract_service.get_table_preview(
             db_type=conn_data.db_type,
@@ -84,4 +126,5 @@ async def preview_database_table(conn_data: DatabasePreviewReq):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener la vista previa de la tabla: {str(e)}")
+
 

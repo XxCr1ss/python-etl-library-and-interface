@@ -14,10 +14,31 @@ from etl import (
 )
 from services.extract_service import clean_records, clean_value
 
-def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
+async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
     """
     Carga un DataFrame a partir de la configuración de origen (archivo o base de datos).
+    Soporta extracción delegada a través del agente local si se especifica use_agent.
     """
+    if source.get("use_agent"):
+        agent_id = source.get("agent_id")
+        if not agent_id:
+            raise ValueError("Falta el 'agent_id' para utilizar el agente local.")
+        
+        # Eliminar las banderas del payload para el extractor
+        payload = {k: v for k, v in source.items() if k not in ["use_agent", "agent_id"]}
+        
+        from services.agent_manager import agent_manager
+        result = await agent_manager.send_command_and_wait(
+            agent_id=agent_id,
+            action="get_table",
+            payload=payload
+        )
+        if result.get("status") == "error":
+            raise ValueError(result.get("message"))
+            
+        records = result.get("data", {}).get("records", [])
+        return pd.DataFrame(records)
+
     source_type = source.get("type")
     if source_type == "file":
         filepath = source.get("filepath")
@@ -65,7 +86,7 @@ def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
     else:
         raise ValueError(f"Tipo de origen '{source_type}' no soportado.")
 
-def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.DataFrame:
+async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.DataFrame:
     """
     Aplica una lista ordenada de pasos de transformación sobre el DataFrame dado.
     """
@@ -113,7 +134,7 @@ def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) ->
             if not right_source or not on:
                 raise ValueError("left_join requiere parámetros 'right_source' y 'on'.")
             
-            df2 = load_source_df(right_source)
+            df2 = await load_source_df(right_source)
             
             # Convertir 'on' a tupla para pandas si son claves diferentes (ej. [clave1, clave2])
             if isinstance(on, list) and len(on) == 2 and all(isinstance(x, str) for x in on):
@@ -150,15 +171,15 @@ def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) ->
             
     return working_df
 
-def process_transform_preview(source: Dict[str, Any], steps: List[Dict[str, Any]], limit: int = 5) -> Dict[str, Any]:
+async def process_transform_preview(source: Dict[str, Any], steps: List[Dict[str, Any]], limit: int = 5) -> Dict[str, Any]:
     """
     Ejecuta el pipeline de transformación completo sobre el origen y retorna una vista previa.
     """
     # 1. Cargar origen
-    df = load_source_df(source)
+    df = await load_source_df(source)
     
     # 2. Aplicar transformaciones
-    df_transformed = apply_transformation_steps(df, steps)
+    df_transformed = await apply_transformation_steps(df, steps)
     
     # 3. Obtener metadatos resultantes
     total_rows = len(df_transformed)
