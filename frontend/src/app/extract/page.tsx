@@ -11,9 +11,7 @@ import {
   AlertCircle,
   Terminal,
   Copy,
-  Check,
-  Wifi,
-  WifiOff
+  Check
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -80,7 +78,7 @@ export default function ExtractPage() {
             setAgentConnected(data.connected);
           }
         }
-      } catch (err) {
+      } catch {
         if (active) {
           setAgentConnected(false);
         }
