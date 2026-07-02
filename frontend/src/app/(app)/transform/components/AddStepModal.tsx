@@ -30,7 +30,6 @@ import {
   Search,
   ListPlus,
   CopyMinus,
-  Replace,
   Sigma,
   Ruler,
   ChevronRight,
@@ -94,6 +93,89 @@ type StepType =
   | "filter_in_list"
   | "filter_is_null"
   | "select_not_none";
+
+const categoryGroups = [
+  {
+    name: "Limpieza y Preparación",
+    icon: <Trash className="w-4 h-4 text-emerald-500" />,
+    items: [
+      { id: "rename_columns" as StepType, name: "Renombrar", icon: <Edit3 className="w-4 h-4" />, desc: "Cambiar nombres de columnas" },
+      { id: "convert_types" as StepType, name: "Cambiar Tipo", icon: <RefreshCw className="w-4 h-4" />, desc: "Castear a Texto, Entero, etc." },
+      { id: "fill_nulls" as StepType, name: "Rellenar Nulos", icon: <Sliders className="w-4 h-4" />, desc: "Imputar nulos con default" },
+      { id: "clean_numeric_columns" as StepType, name: "Limpiar Números", icon: <Hash className="w-4 h-4" />, desc: "Eliminar símbolos monetarios o texto de números" },
+      { id: "boolean_to_binary" as StepType, name: "Booleano a Binario", icon: <ToggleLeft className="w-4 h-4" />, desc: "Convertir lógicos a 0 y 1" },
+    ]
+  },
+  {
+    name: "Filtrado y Selección",
+    icon: <Filter className="w-4 h-4 text-blue-500" />,
+    items: [
+      { id: "filter_value" as StepType, name: "Filtrar Datos", icon: <Filter className="w-4 h-4" />, desc: "Filtrar por comparación" },
+      { id: "select_columns" as StepType, name: "Mantener Cols", icon: <CheckSquare className="w-4 h-4" />, desc: "Seleccionar columnas a mantener" },
+      { id: "remove_columns" as StepType, name: "Eliminar Cols", icon: <Trash className="w-4 h-4" />, desc: "Eliminar columnas del dataset" },
+      { id: "search_in_column" as StepType, name: "Buscar en Columna", icon: <Search className="w-4 h-4" />, desc: "Filtrar por patrón Regex en columna específica" },
+      { id: "search_in_table" as StepType, name: "Buscar en Tabla", icon: <Search className="w-4 h-4" />, desc: "Filtrar filas buscando Regex en todo el dataset" },
+      { id: "filter_in_range" as StepType, name: "Filtrar por Rango", icon: <Sliders className="w-4 h-4" />, desc: "Filtrar columna dentro de límites mínimo y máximo" },
+      { id: "filter_in_list" as StepType, name: "Filtrar por Lista", icon: <ListChecks className="w-4 h-4" />, desc: "Filtrar si el valor pertenece a un conjunto de elementos" },
+      { id: "filter_is_null" as StepType, name: "Filtrar Vacíos", icon: <FileQuestion className="w-4 h-4" />, desc: "Mantener registros con campos nulos o vacíos" },
+      { id: "select_not_none" as StepType, name: "Filtrar Completos", icon: <FileCheck className="w-4 h-4" />, desc: "Mantener registros con campos llenos/no nulos" },
+    ]
+  },
+  {
+    name: "Cálculos y Estructura",
+    icon: <Calculator className="w-4 h-4 text-purple-500" />,
+    items: [
+      { id: "add_new_column" as StepType, name: "Columna Calculada", icon: <Calculator className="w-4 h-4" />, desc: "Crear columna con fórmula o cálculo" },
+      { id: "transform_column" as StepType, name: "Transformar Col", icon: <Wand2 className="w-4 h-4" />, desc: "Modificar valores con una fórmula" },
+      { id: "filter_by_condition" as StepType, name: "Filtro Condicional", icon: <ListFilter className="w-4 h-4" />, desc: "Filtrar usando expresión compleja" },
+      { id: "normalize_delimited_column" as StepType, name: "Normalizar Celda", icon: <ColumnsIcon className="w-4 h-4" />, desc: "Separar valores delimitados en filas" },
+      { id: "split_column" as StepType, name: "Dividir Columna", icon: <Scissors className="w-4 h-4" />, desc: "Dividir columna de texto usando un delimitador" },
+      { id: "split_column_into_rows" as StepType, name: "Dividir en Filas", icon: <ListPlus className="w-4 h-4" />, desc: "Expandir columna de texto verticalmente en filas" },
+      { id: "convert_column_to_list" as StepType, name: "Texto a Lista", icon: <ListIcon className="w-4 h-4" />, desc: "Convertir cadena a array de valores" },
+      { id: "explode_column_list" as StepType, name: "Desglosar Lista", icon: <GridIcon className="w-4 h-4" />, desc: "Convertir lista en múltiples filas" },
+    ]
+  },
+  {
+    name: "Cruces y Combinación",
+    icon: <GitMerge className="w-4 h-4 text-orange-500" />,
+    items: [
+      { id: "left_join" as StepType, name: "Unión Horizontal", icon: <GitMerge className="w-4 h-4" />, desc: "Cruce relacional (Left, Right, Inner, Outer) con otro origen" },
+      { id: "union" as StepType, name: "Unión Vertical", icon: <Plus className="w-4 h-4" />, desc: "Apilar filas de otro archivo (Union All)" },
+    ]
+  },
+  {
+    name: "Agrupamientos",
+    icon: <Layers className="w-4 h-4 text-cyan-500" />,
+    items: [
+      { id: "group_by" as StepType, name: "Agrupar (Promedio)", icon: <Layers className="w-4 h-4" />, desc: "Agrupar y calcular promedio" },
+      { id: "group_by_sum" as StepType, name: "Agrupar por Suma", icon: <Sigma className="w-4 h-4" />, desc: "Agrupar registros y sumar columna de valores" },
+      { id: "group_by_count" as StepType, name: "Agrupar por Conteo", icon: <GridIcon className="w-4 h-4" />, desc: "Agrupar y contar cantidad de registros por grupo" },
+      { id: "group_by_shift" as StepType, name: "Desfase Temporal", icon: <ArrowUpDown className="w-4 h-4" />, desc: "Agrupar y desfasar filas (shift) para series temporales" },
+      { id: "filter_by_list_length" as StepType, name: "Filtrar por Longitud", icon: <Ruler className="w-4 h-4" />, desc: "Filtrar registros por tamaño de sus listas" },
+    ]
+  },
+  {
+    name: "Tratamiento de Cabeceras",
+    icon: <Heading className="w-4 h-4 text-rose-500" />,
+    items: [
+      { id: "replace_all_headers" as StepType, name: "Reemplazar Cabeceras", icon: <Heading className="w-4 h-4" />, desc: "Sobrescribir todos los nombres de columnas a la vez" },
+      { id: "prefix_header" as StepType, name: "Agregar Prefijo", icon: <ChevronRight className="w-4 h-4" />, desc: "Añadir prefijo a todos los nombres de columnas" },
+      { id: "suffix_header" as StepType, name: "Agregar Sufijo", icon: <ChevronLeft className="w-4 h-4" />, desc: "Añadir sufijo a todos los nombres de columnas" },
+      { id: "add_sequential_index" as StepType, name: "Índice Secuencial", icon: <Hash className="w-4 h-4" />, desc: "Añadir columna autoincremental de ID" },
+    ]
+  },
+  {
+    name: "Ordenación y Categorización",
+    icon: <ArrowDownAZ className="w-4 h-4 text-indigo-500" />,
+    items: [
+      { id: "sort_columns" as StepType, name: "Ordenar Filas", icon: <SortAscIcon className="w-4 h-4" />, desc: "Ordenar dataset por columnas" },
+      { id: "sort_by" as StepType, name: "Ordenar Registros", icon: <ArrowDownAZ className="w-4 h-4" />, desc: "Ordenar dataset por columnas clave" },
+      { id: "drop_duplicates" as StepType, name: "Eliminar Duplicados", icon: <CopyMinus className="w-4 h-4" />, desc: "Remover filas repetidas por columna o fila completa" },
+      { id: "clean_date_format" as StepType, name: "Estandarizar Fecha", icon: <CalendarRange className="w-4 h-4" />, desc: "Normalizar formato de fechas" },
+      { id: "convert_to_ordered_category" as StepType, name: "Categoría Ordenada", icon: <Layers3 className="w-4 h-4" />, desc: "Convertir a categoría con orden (Bajo/Medio/Alto)" },
+    ]
+  }
+];
 
 export default function AddStepModal({
   isOpen,
@@ -330,6 +412,30 @@ export default function AddStepModal({
   // Select Not None States
   const [selectNotNullCol, setSelectNotNullCol] = useState("");
   const [selectNotNullComplement, setSelectNotNullComplement] = useState(false);
+
+  // Expanded groups state
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    "Limpieza y Preparación": true,
+    "Filtrado y Selección": false,
+    "Cálculos y Estructura": false,
+    "Cruces y Combinación": false,
+    "Agrupamientos": false,
+    "Tratamiento de Cabeceras": false,
+    "Ordenación y Categorización": false,
+  });
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
+  };
+
+  useEffect(() => {
+    if (selectedType) {
+      const groupContainingType = categoryGroups.find(g => g.items.some(item => item.id === selectedType));
+      if (groupContainingType) {
+        setExpandedGroups(prev => ({ ...prev, [groupContainingType.name]: true }));
+      }
+    }
+  }, [selectedType]);
 
   if (!isOpen) return null;
 
@@ -827,80 +933,65 @@ export default function AddStepModal({
     onClose();
   };
 
-  const categories = [
-    { id: "rename_columns" as StepType, name: "Renombrar", icon: <Edit3 className="w-4 h-4" />, desc: "Cambiar nombres de columnas" },
-    { id: "convert_types" as StepType, name: "Cambiar Tipo", icon: <RefreshCw className="w-4 h-4" />, desc: "Castear a Texto, Entero, etc." },
-    { id: "fill_nulls" as StepType, name: "Rellenar Nulos", icon: <Sliders className="w-4 h-4" />, desc: "Imputar nulos con default" },
-    { id: "filter_value" as StepType, name: "Filtrar Datos", icon: <Filter className="w-4 h-4" />, desc: "Filtrar por comparación" },
-    { id: "select_columns" as StepType, name: "Mantener Cols", icon: <CheckSquare className="w-4 h-4" />, desc: "Seleccionar columnas a mantener" },
-    { id: "remove_columns" as StepType, name: "Eliminar Cols", icon: <Trash className="w-4 h-4" />, desc: "Eliminar columnas del dataset" },
-    { id: "group_by" as StepType, name: "Agrupar", icon: <Layers className="w-4 h-4" />, desc: "Agrupar y calcular promedio" },
-    { id: "union" as StepType, name: "Unión Vertical", icon: <Plus className="w-4 h-4" />, desc: "Apilar filas de otro archivo (Union All)" },
-    { id: "left_join" as StepType, name: "Unión Horizontal", icon: <GitMerge className="w-4 h-4" />, desc: "Cruce relacional (Left, Right, Inner, Outer) con otro origen" },
-    { id: "split_column" as StepType, name: "Dividir Columna", icon: <Scissors className="w-4 h-4" />, desc: "Dividir columna de texto usando un delimitador" },
-    { id: "add_new_column" as StepType, name: "Columna Calculada", icon: <Calculator className="w-4 h-4" />, desc: "Crear columna con fórmula o cálculo" },
-    { id: "transform_column" as StepType, name: "Transformar Col", icon: <Wand2 className="w-4 h-4" />, desc: "Modificar valores con una fórmula" },
-    { id: "filter_by_condition" as StepType, name: "Filtro Condicional", icon: <ListFilter className="w-4 h-4" />, desc: "Filtrar usando expresión compleja" },
-    { id: "normalize_delimited_column" as StepType, name: "Normalizar Celda", icon: <ColumnsIcon className="w-4 h-4" />, desc: "Separar valores delimitados en filas" },
-    { id: "sort_columns" as StepType, name: "Ordenar Filas", icon: <SortAscIcon className="w-4 h-4" />, desc: "Ordenar dataset por columnas" },
-    { id: "convert_column_to_list" as StepType, name: "Texto a Lista", icon: <ListIcon className="w-4 h-4" />, desc: "Convertir cadena a array de valores" },
-    { id: "explode_column_list" as StepType, name: "Desglosar Lista", icon: <GridIcon className="w-4 h-4" />, desc: "Convertir lista en múltiples filas" },
-    { id: "clean_numeric_columns" as StepType, name: "Limpiar Números", icon: <Hash className="w-4 h-4" />, desc: "Eliminar símbolos monetarios o texto de números" },
-    { id: "clean_date_format" as StepType, name: "Estandarizar Fecha", icon: <CalendarRange className="w-4 h-4" />, desc: "Normalizar formato de fechas" },
-    { id: "convert_to_ordered_category" as StepType, name: "Categoría Ordenada", icon: <Layers3 className="w-4 h-4" />, desc: "Convertir a categoría con orden (Bajo/Medio/Alto)" },
-    { id: "boolean_to_binary" as StepType, name: "Booleano a Binario", icon: <ToggleLeft className="w-4 h-4" />, desc: "Convertir lógicos a 0 y 1" },
-    { id: "sort_by" as StepType, name: "Ordenar Registros", icon: <ArrowDownAZ className="w-4 h-4" />, desc: "Ordenar dataset por columnas clave" },
-    { id: "search_in_column" as StepType, name: "Buscar en Columna", icon: <Search className="w-4 h-4" />, desc: "Filtrar por patrón Regex en columna específica" },
-    { id: "search_in_table" as StepType, name: "Buscar en Tabla", icon: <Search className="w-4 h-4" />, desc: "Filtrar filas buscando Regex en todo el dataset" },
-    { id: "split_column_into_rows" as StepType, name: "Dividir en Filas", icon: <ListPlus className="w-4 h-4" />, desc: "Expandir columna de texto verticalmente en filas" },
-    { id: "drop_duplicates" as StepType, name: "Eliminar Duplicados", icon: <CopyMinus className="w-4 h-4" />, desc: "Remover filas repetidas por columna o fila completa" },
-    { id: "replace_values" as StepType, name: "Reemplazar Valores", icon: <Replace className="w-4 h-4" />, desc: "Sustituir un valor exacto por otro en una columna" },
-    { id: "group_by_sum" as StepType, name: "Agrupar por Suma", icon: <Sigma className="w-4 h-4" />, desc: "Agrupar registros y sumar columna de valores" },
-    { id: "group_by_count" as StepType, name: "Agrupar por Conteo", icon: <GridIcon className="w-4 h-4" />, desc: "Agrupar y contar cantidad de registros por grupo" },
-    { id: "group_by_shift" as StepType, name: "Desfase Temporal", icon: <ArrowUpDown className="w-4 h-4" />, desc: "Agrupar y desfasar filas (shift) para series temporales" },
-    { id: "filter_by_list_length" as StepType, name: "Filtrar por Longitud", icon: <Ruler className="w-4 h-4" />, desc: "Filtrar registros por tamaño de sus listas" },
-    { id: "replace_all_headers" as StepType, name: "Reemplazar Cabeceras", icon: <Heading className="w-4 h-4" />, desc: "Sobrescribir todos los nombres de columnas a la vez" },
-    { id: "prefix_header" as StepType, name: "Agregar Prefijo", icon: <ChevronRight className="w-4 h-4" />, desc: "Añadir prefijo a todos los nombres de columnas" },
-    { id: "suffix_header" as StepType, name: "Agregar Sufijo", icon: <ChevronLeft className="w-4 h-4" />, desc: "Añadir sufijo a todos los nombres de columnas" },
-    { id: "add_sequential_index" as StepType, name: "Índice Secuencial", icon: <Hash className="w-4 h-4" />, desc: "Añadir columna autoincremental de ID" },
-    { id: "filter_in_range" as StepType, name: "Filtrar por Rango", icon: <Sliders className="w-4 h-4" />, desc: "Filtrar columna dentro de límites mínimo y máximo" },
-    { id: "filter_in_list" as StepType, name: "Filtrar por Lista", icon: <ListChecks className="w-4 h-4" />, desc: "Filtrar si el valor pertenece a un conjunto de elementos" },
-    { id: "filter_is_null" as StepType, name: "Filtrar Vacíos", icon: <FileQuestion className="w-4 h-4" />, desc: "Mantener registros con campos nulos o vacíos" },
-    { id: "select_not_none" as StepType, name: "Filtrar Completos", icon: <FileCheck className="w-4 h-4" />, desc: "Mantener registros con campos llenos/no nulos" },
-  ];
-
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-205">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col md:flex-row overflow-hidden h-[760px] max-h-[90vh] animate-in zoom-in-95 duration-200">
         
         {/* Left Side: Operations Menu */}
-        <div className="w-full md:w-80 bg-slate-50 dark:bg-slate-950 border-r border-slate-100 dark:border-slate-800 p-5 flex flex-col gap-2 overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">Operación</h3>
+        <div className="w-full md:w-80 bg-slate-50 dark:bg-slate-950 border-r border-slate-100 dark:border-slate-800 p-4 flex flex-col gap-3 overflow-y-auto">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+            <h3 className="font-bold text-slate-800 dark:text-slate-200">Operaciones</h3>
           </div>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedType(cat.id)}
-              className={`flex items-start gap-3 p-3 rounded-xl text-left border transition-all ${
-                selectedType === cat.id
-                  ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/10"
-                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
-              }`}
-            >
-              <div className={`mt-0.5 p-1.5 rounded-lg ${
-                selectedType === cat.id ? "bg-white/20 text-white" : "bg-blue-50 dark:bg-blue-950/30 text-blue-500"
-              }`}>
-                {cat.icon}
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{cat.name}</p>
-                <p className={`text-[10px] mt-0.5 ${selectedType === cat.id ? "text-blue-100" : "text-slate-400"}`}>
-                  {cat.desc}
-                </p>
-              </div>
-            </button>
-          ))}
+          <div className="space-y-2">
+            {categoryGroups.map((group) => {
+              const isExpanded = !!expandedGroups[group.name];
+              return (
+                <div key={group.name} className="border border-slate-200/60 dark:border-slate-800/80 rounded-xl bg-white dark:bg-slate-900 overflow-hidden transition-all shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.name)}
+                    className="w-full px-3 py-2.5 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/20 hover:bg-slate-50 dark:hover:bg-slate-950/40 text-left font-semibold text-xs text-slate-700 dark:text-slate-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {group.icon}
+                      <span>{group.name}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      {isExpanded ? "▲" : "▼"}
+                    </span>
+                  </button>
+                  {isExpanded && (
+                    <div className="p-2 space-y-1 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/50">
+                      {group.items.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setSelectedType(cat.id)}
+                          className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-all ${
+                            selectedType === cat.id
+                              ? "bg-blue-600 text-white shadow-sm shadow-blue-500/10"
+                              : "hover:bg-slate-50 dark:hover:bg-slate-950/50 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <div className={`mt-0.5 p-1 rounded-md ${
+                            selectedType === cat.id ? "bg-white/20 text-white" : "bg-blue-50 dark:bg-blue-950/30 text-blue-500"
+                          }`}>
+                            {cat.icon}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold truncate">{cat.name}</p>
+                            <p className={`text-[9px] truncate mt-0.5 ${selectedType === cat.id ? "text-blue-100" : "text-slate-400"}`}>
+                              {cat.desc}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Right Side: Form Configuration */}
@@ -909,7 +1000,7 @@ export default function AddStepModal({
           <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white">
-                {categories.find(c => c.id === selectedType)?.name}
+                {categoryGroups.flatMap(g => g.items).find(c => c.id === selectedType)?.name}
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 Configura los parámetros de esta transformación.
