@@ -179,6 +179,97 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
             df2 = await load_source_df(secondary_source)
             working_df = TransformOperations.union_all([working_df, df2], show=0)
             
+        elif step_type == "add_new_column":
+            new_column_name = params.get("new_column_name")
+            expression = params.get("expression")
+            if not new_column_name or not expression:
+                raise ValueError("add_new_column requiere parámetros 'new_column_name' y 'expression'.")
+            try:
+                code = compile(expression, "<string>", "eval")
+                def safe_evaluator(row):
+                    allowed_globals = {
+                        "__builtins__": {
+                            "abs": abs, "round": round, "str": str, "int": int,
+                            "float": float, "len": len, "bool": bool
+                        }
+                    }
+                    return eval(code, allowed_globals, row.to_dict())
+            except Exception as compile_err:
+                raise ValueError(f"Fórmula inválida: {str(compile_err)}")
+            working_df = BasicsTransformOperations.add_new_column(working_df, new_column_name, safe_evaluator, show=0)
+
+        elif step_type == "transform_column":
+            column = params.get("column")
+            expression = params.get("expression")
+            if not column or not expression:
+                raise ValueError("transform_column requiere parámetros 'column' y 'expression'.")
+            try:
+                code = compile(expression, "<string>", "eval")
+                def safe_evaluator(x):
+                    allowed_globals = {
+                        "__builtins__": {
+                            "abs": abs, "round": round, "str": str, "int": int,
+                            "float": float, "len": len, "bool": bool
+                        }
+                    }
+                    return eval(code, allowed_globals, {"x": x})
+            except Exception as compile_err:
+                raise ValueError(f"Fórmula de celda inválida: {str(compile_err)}")
+            working_df = BasicsTransformOperations.transform_column(working_df, column, safe_evaluator, show=0)
+
+        elif step_type == "filter_by_condition":
+            expression = params.get("expression")
+            if not expression:
+                raise ValueError("filter_by_condition requiere el parámetro 'expression'.")
+            try:
+                code = compile(expression, "<string>", "eval")
+                def safe_evaluator(row):
+                    allowed_globals = {
+                        "__builtins__": {
+                            "abs": abs, "round": round, "str": str, "int": int,
+                            "float": float, "len": len, "bool": bool
+                        }
+                    }
+                    return bool(eval(code, allowed_globals, row.to_dict()))
+            except Exception as compile_err:
+                raise ValueError(f"Fórmula de filtro inválida: {str(compile_err)}")
+            working_df = BasicsTransformOperations.filter_by_condition(working_df, safe_evaluator, show=0)
+
+        elif step_type == "normalize_delimited_column":
+            columna = params.get("column")
+            delimitador = params.get("delimiter", ",")
+            mantener_original = params.get("keep_original", True)
+            if not columna:
+                raise ValueError("normalize_delimited_column requiere el parámetro 'column'.")
+            working_df = BasicsTransformOperations.normalize_delimited_column(
+                working_df, columna, delimitador, mantener_original, show=0
+            )
+
+        elif step_type == "sort_columns":
+            columns = params.get("columns")
+            ascending = params.get("ascending", True)
+            if not columns:
+                raise ValueError("sort_columns requiere el parámetro 'columns'.")
+            working_df = BasicsTransformOperations.sort_columns(working_df, columns, ascending)
+
+        elif step_type == "convert_column_to_list":
+            columna = params.get("column")
+            delimitador = params.get("delimiter", ";")
+            nueva_columna = params.get("new_column") or None
+            if not columna:
+                raise ValueError("convert_column_to_list requiere el parámetro 'column'.")
+            working_df = BasicsTransformOperations.convert_column_to_list(
+                working_df, columna, delimitador, nueva_columna, show=0
+            )
+
+        elif step_type == "explode_column_list":
+            columna_lista = params.get("column")
+            if not columna_lista:
+                raise ValueError("explode_column_list requiere el parámetro 'column'.")
+            working_df = BasicsTransformOperations.explode_column_list(
+                working_df, columna_lista, mantener_original=True, show=0
+            )
+
         else:
             raise ValueError(f"Operación de transformación '{step_type}' no soportada en el pipeline.")
             

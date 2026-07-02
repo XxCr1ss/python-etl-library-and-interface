@@ -14,7 +14,14 @@ import {
   UploadCloud,
   Check,
   GitMerge,
-  Scissors
+  Scissors,
+  Calculator,
+  Wand2,
+  ListFilter,
+  Columns as ColumnsIcon,
+  SortAsc as SortAscIcon,
+  List as ListIcon,
+  Grid as GridIcon
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -36,7 +43,14 @@ type StepType =
   | "group_by"
   | "union"
   | "left_join"
-  | "split_column";
+  | "split_column"
+  | "add_new_column"
+  | "transform_column"
+  | "filter_by_condition"
+  | "normalize_delimited_column"
+  | "sort_columns"
+  | "convert_column_to_list"
+  | "explode_column_list";
 
 export default function AddStepModal({
   isOpen,
@@ -148,6 +162,34 @@ export default function AddStepModal({
   const [splitCol, setSplitCol] = useState("");
   const [splitDelimiter, setSplitDelimiter] = useState(";");
   const [splitNewCols, setSplitNewCols] = useState("");
+
+  // Add New Column States
+  const [calcNewColName, setCalcNewColName] = useState("");
+  const [calcExpression, setCalcExpression] = useState("");
+
+  // Transform Column States
+  const [transCol, setTransCol] = useState("");
+  const [transExpression, setTransExpression] = useState("");
+
+  // Filter by Condition States
+  const [condExpression, setCondExpression] = useState("");
+
+  // Normalize Delimited Column States
+  const [normCol, setNormCol] = useState("");
+  const [normDelimiter, setNormDelimiter] = useState(",");
+  const [normKeepOrig, setNormKeepOrig] = useState(true);
+
+  // Sort Columns States
+  const [sortCols, setSortCols] = useState<Record<string, boolean>>({});
+  const [sortAscending, setSortAscending] = useState(true);
+
+  // Convert Column to List States
+  const [convCol, setConvCol] = useState("");
+  const [convDelimiter, setConvDelimiter] = useState(";");
+  const [convNewCol, setConvNewCol] = useState("");
+
+  // Explode Column List States
+  const [expCol, setExpCol] = useState("");
 
   if (!isOpen) return null;
 
@@ -306,6 +348,58 @@ export default function AddStepModal({
           new_columns: newColsArray
         };
         break;
+      case "add_new_column":
+        if (!calcNewColName || !calcExpression) return;
+        stepParams = {
+          new_column_name: calcNewColName,
+          expression: calcExpression
+        };
+        break;
+      case "transform_column":
+        if (!transCol || !transExpression) return;
+        stepParams = {
+          column: transCol,
+          expression: transExpression
+        };
+        break;
+      case "filter_by_condition":
+        if (!condExpression) return;
+        stepParams = {
+          expression: condExpression
+        };
+        break;
+      case "normalize_delimited_column":
+        if (!normCol || !normDelimiter) return;
+        stepParams = {
+          column: normCol,
+          delimiter: normDelimiter,
+          keep_original: normKeepOrig
+        };
+        break;
+      case "sort_columns":
+        const sortList = Object.entries(sortCols)
+          .filter(entry => entry[1])
+          .map(entry => entry[0]);
+        if (sortList.length === 0) return;
+        stepParams = {
+          columns: sortList,
+          ascending: sortAscending
+        };
+        break;
+      case "convert_column_to_list":
+        if (!convCol || !convDelimiter) return;
+        stepParams = {
+          column: convCol,
+          delimiter: convDelimiter,
+          new_column: convNewCol || null
+        };
+        break;
+      case "explode_column_list":
+        if (!expCol) return;
+        stepParams = {
+          column: expCol
+        };
+        break;
     }
 
     onAddStep({
@@ -336,6 +430,20 @@ export default function AddStepModal({
     setSplitDelimiter(";");
     setSplitNewCols("");
     setUnionTable("");
+    setCalcNewColName("");
+    setCalcExpression("");
+    setTransCol("");
+    setTransExpression("");
+    setCondExpression("");
+    setNormCol("");
+    setNormDelimiter(",");
+    setNormKeepOrig(true);
+    setSortCols({});
+    setSortAscending(true);
+    setConvCol("");
+    setConvDelimiter(";");
+    setConvNewCol("");
+    setExpCol("");
 
     onClose();
   };
@@ -351,6 +459,13 @@ export default function AddStepModal({
     { id: "union" as StepType, name: "Unión Vertical", icon: <Plus className="w-4 h-4" />, desc: "Apilar filas de otro archivo (Union All)" },
     { id: "left_join" as StepType, name: "Unión Horizontal", icon: <GitMerge className="w-4 h-4" />, desc: "Left join con otro origen mediante clave" },
     { id: "split_column" as StepType, name: "Dividir Columna", icon: <Scissors className="w-4 h-4" />, desc: "Dividir columna de texto usando un delimitador" },
+    { id: "add_new_column" as StepType, name: "Columna Calculada", icon: <Calculator className="w-4 h-4" />, desc: "Crear columna con fórmula o cálculo" },
+    { id: "transform_column" as StepType, name: "Transformar Col", icon: <Wand2 className="w-4 h-4" />, desc: "Modificar valores con una fórmula" },
+    { id: "filter_by_condition" as StepType, name: "Filtro Condicional", icon: <ListFilter className="w-4 h-4" />, desc: "Filtrar usando expresión compleja" },
+    { id: "normalize_delimited_column" as StepType, name: "Normalizar Celda", icon: <ColumnsIcon className="w-4 h-4" />, desc: "Separar valores delimitados en filas" },
+    { id: "sort_columns" as StepType, name: "Ordenar Filas", icon: <SortAscIcon className="w-4 h-4" />, desc: "Ordenar dataset por columnas" },
+    { id: "convert_column_to_list" as StepType, name: "Texto a Lista", icon: <ListIcon className="w-4 h-4" />, desc: "Convertir cadena a array de valores" },
+    { id: "explode_column_list" as StepType, name: "Desglosar Lista", icon: <GridIcon className="w-4 h-4" />, desc: "Convertir lista en múltiples filas" },
   ];
 
   return (
@@ -1142,6 +1257,231 @@ export default function AddStepModal({
                     Escribe los nuevos nombres separados por comas. Si lo dejas en blanco, se autogenerarán (ej. columna_1, columna_2).
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Add New Column Form */}
+            {selectedType === "add_new_column" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Nombre de la Nueva Columna</label>
+                  <input
+                    type="text"
+                    value={calcNewColName}
+                    onChange={(e) => setCalcNewColName(e.target.value)}
+                    required={selectedType === "add_new_column"}
+                    placeholder="ej. precio_total"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Expresión / Fórmula (Python)</label>
+                  <input
+                    type="text"
+                    value={calcExpression}
+                    onChange={(e) => setCalcExpression(e.target.value)}
+                    required={selectedType === "add_new_column"}
+                    placeholder="ej. cantidad * precio_unitario"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    Puedes usar nombres de columnas directamente y operadores matemáticos básicos (*, /, +, -). Ej: subtotal * 1.19 o str(cedula) + &apos;_&apos; + nombre.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Transform Column Form */}
+            {selectedType === "transform_column" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna a Modificar</label>
+                  <select
+                    value={transCol}
+                    onChange={(e) => setTransCol(e.target.value)}
+                    required={selectedType === "transform_column"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Fórmula de Transformación</label>
+                  <input
+                    type="text"
+                    value={transExpression}
+                    onChange={(e) => setTransExpression(e.target.value)}
+                    required={selectedType === "transform_column"}
+                    placeholder="ej. x.lower() o x + 10"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    Usa la letra x para representar el valor original de la celda. Ej: x.strip() o x.upper().
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Filter by Condition Form */}
+            {selectedType === "filter_by_condition" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Expresión Lógica del Filtro</label>
+                  <input
+                    type="text"
+                    value={condExpression}
+                    onChange={(e) => setCondExpression(e.target.value)}
+                    required={selectedType === "filter_by_condition"}
+                    placeholder="ej. edad >= 18 and estado == &apos;Activo&apos;"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    El dataset mantendrá solo los registros que cumplan esta condición. Puedes usar and, or, not y nombres de columnas directos. Ej: ciudad == &apos;Bogotá&apos; or estrato &lt; 3.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Normalize Delimited Column Form */}
+            {selectedType === "normalize_delimited_column" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna con Delimitadores</label>
+                  <select
+                    value={normCol}
+                    onChange={(e) => setNormCol(e.target.value)}
+                    required={selectedType === "normalize_delimited_column"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Delimitador</label>
+                  <input
+                    type="text"
+                    value={normDelimiter}
+                    onChange={(e) => setNormDelimiter(e.target.value)}
+                    required={selectedType === "normalize_delimited_column"}
+                    placeholder="ej. , o ; o |"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+                  <span className="text-xs text-slate-500 font-medium">¿Conservar Columna Original?</span>
+                  <input
+                    type="checkbox"
+                    checked={normKeepOrig}
+                    onChange={(e) => setNormKeepOrig(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Sort Columns Form */}
+            {selectedType === "sort_columns" && (
+              <div className="space-y-4">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Selecciona Columna(s) para Ordenar
+                </label>
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-white dark:bg-slate-950">
+                  {availableColumns.map((col) => (
+                    <label key={col} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!sortCols[col]}
+                        onChange={() => {
+                          setSortCols(prev => ({ ...prev, [col]: !prev[col] }));
+                        }}
+                        className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                      />
+                      {col}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+                  <span className="text-xs text-slate-500 font-medium">¿Orden Ascendente (Menor a Mayor)?</span>
+                  <input
+                    type="checkbox"
+                    checked={sortAscending}
+                    onChange={(e) => setSortAscending(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Convert Column to List Form */}
+            {selectedType === "convert_column_to_list" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna a Convertir</label>
+                  <select
+                    value={convCol}
+                    onChange={(e) => setConvCol(e.target.value)}
+                    required={selectedType === "convert_column_to_list"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Delimitador</label>
+                  <input
+                    type="text"
+                    value={convDelimiter}
+                    onChange={(e) => setConvDelimiter(e.target.value)}
+                    required={selectedType === "convert_column_to_list"}
+                    placeholder="ej. ; o , o |"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Nombre Nueva Columna (Opcional)</label>
+                  <input
+                    type="text"
+                    value={convNewCol}
+                    onChange={(e) => setConvNewCol(e.target.value)}
+                    placeholder="ej. nombre_columna_lista"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    Si se deja vacío, la columna original se sobrescribirá con el formato de lista.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Explode Column List Form */}
+            {selectedType === "explode_column_list" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna de Tipo Lista</label>
+                  <select
+                    value={expCol}
+                    onChange={(e) => setExpCol(e.target.value)}
+                    required={selectedType === "explode_column_list"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Esta operación tomará los elementos de tipo lista dentro de cada celda de esta columna y desglosará la fila en múltiples filas, repitiendo el resto de los valores.
+                </p>
               </div>
             )}
 
