@@ -12,7 +12,9 @@ import {
   Layers, 
   Plus,
   UploadCloud,
-  Check
+  Check,
+  GitMerge,
+  Scissors
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -32,7 +34,9 @@ type StepType =
   | "select_columns" 
   | "remove_columns" 
   | "group_by"
-  | "union";
+  | "union"
+  | "left_join"
+  | "split_column";
 
 export default function AddStepModal({
   isOpen,
@@ -135,6 +139,15 @@ export default function AddStepModal({
 
   const [groupByCol, setGroupByCol] = useState("");
   const [groupValCol, setGroupValCol] = useState("");
+
+  // Left Join States
+  const [joinOnPrimary, setJoinOnPrimary] = useState("");
+  const [joinOnSecondary, setJoinOnSecondary] = useState("");
+
+  // Split Column States
+  const [splitCol, setSplitCol] = useState("");
+  const [splitDelimiter, setSplitDelimiter] = useState(";");
+  const [splitNewCols, setSplitNewCols] = useState("");
 
   if (!isOpen) return null;
 
@@ -249,6 +262,50 @@ export default function AddStepModal({
           };
         }
         break;
+      case "left_join":
+        if (unionSourceType === "file") {
+          if (!unionMetadata || !joinOnPrimary) return;
+          stepParams = {
+            right_source: {
+              type: "file",
+              filepath: unionMetadata.filepath,
+              filename: unionMetadata.filename,
+              unique_filename: unionMetadata.unique_filename
+            },
+            on: joinOnSecondary ? [joinOnPrimary, joinOnSecondary] : joinOnPrimary
+          };
+        } else {
+          if (!unionTable || !unionDatabase || !unionHost || !unionUser || !joinOnPrimary) return;
+          stepParams = {
+            right_source: {
+              type: "database",
+              db_type: unionDbType,
+              host: unionHost,
+              port: unionPort ? parseInt(unionPort) : null,
+              database: unionDatabase,
+              user: unionUser,
+              password: unionPassword,
+              table_name: unionTable,
+              service_name: unionServiceName || null,
+              use_agent: unionUseAgent,
+              agent_id: unionUseAgent ? localStorage.getItem("etl_agent_id") : null
+            },
+            on: joinOnSecondary ? [joinOnPrimary, joinOnSecondary] : joinOnPrimary
+          };
+        }
+        break;
+      case "split_column":
+        if (!splitCol || !splitDelimiter) return;
+        let newColsArray: string[] | null = null;
+        if (splitNewCols.trim() !== "") {
+          newColsArray = splitNewCols.split(",").map(c => c.trim()).filter(c => c.length > 0);
+        }
+        stepParams = {
+          column: splitCol,
+          delimiter: splitDelimiter,
+          new_columns: newColsArray
+        };
+        break;
     }
 
     onAddStep({
@@ -273,6 +330,11 @@ export default function AddStepModal({
     setUnionUploading(false);
     setUnionMetadata(null);
     setUnionError(null);
+    setJoinOnPrimary("");
+    setJoinOnSecondary("");
+    setSplitCol("");
+    setSplitDelimiter(";");
+    setSplitNewCols("");
     setUnionTable("");
 
     onClose();
@@ -287,6 +349,8 @@ export default function AddStepModal({
     { id: "remove_columns" as StepType, name: "Eliminar Cols", icon: <Trash className="w-4 h-4" />, desc: "Eliminar columnas del dataset" },
     { id: "group_by" as StepType, name: "Agrupar", icon: <Layers className="w-4 h-4" />, desc: "Agrupar y calcular promedio" },
     { id: "union" as StepType, name: "Unión Vertical", icon: <Plus className="w-4 h-4" />, desc: "Apilar filas de otro archivo (Union All)" },
+    { id: "left_join" as StepType, name: "Unión Horizontal", icon: <GitMerge className="w-4 h-4" />, desc: "Left join con otro origen mediante clave" },
+    { id: "split_column" as StepType, name: "Dividir Columna", icon: <Scissors className="w-4 h-4" />, desc: "Dividir columna de texto usando un delimitador" },
   ];
 
   return (
@@ -789,6 +853,295 @@ export default function AddStepModal({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Left Join Form */}
+            {selectedType === "left_join" && (
+              <div className="space-y-4">
+                {/* Selector de tipo de origen secundario */}
+                <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl mb-4 border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setUnionSourceType("file")}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      unionSourceType === "file"
+                        ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Archivo (CSV / Excel)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUnionSourceType("database")}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      unionSourceType === "database"
+                        ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Base de Datos
+                  </button>
+                </div>
+
+                {unionSourceType === "file" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                      Seleccionar Archivo Derecho/Secundario (.csv / .xlsx)
+                    </label>
+                    
+                    {!unionMetadata && !unionUploading ? (
+                      <div 
+                        className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors cursor-pointer"
+                        onClick={() => document.getElementById("join-file-input")?.click()}
+                      >
+                        <UploadCloud className="w-8 h-8 text-blue-500 mb-2 animate-bounce" />
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Haz clic para subir el archivo de cruce
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          CSV o Excel con datos relacionales.
+                        </p>
+                        <input 
+                          type="file" 
+                          id="join-file-input" 
+                          className="hidden" 
+                          accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleUnionFileUpload(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : unionUploading ? (
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20">
+                        <RefreshCw className="w-6 h-6 text-blue-500 animate-spin mb-2" />
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                          Subiendo y validando archivo secundario...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-xl border border-emerald-200 dark:border-emerald-900/30 animate-in fade-in duration-300">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center animate-scale-in">
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {unionMetadata?.filename}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              Archivo cargado listo para cruzar.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUnionMetadata(null);
+                          }}
+                          className="text-xs text-rose-500 hover:text-rose-600 font-semibold transition-colors"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    )}
+
+                    {unionError && (
+                      <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-lg text-[11px] text-rose-600 dark:text-rose-400 animate-in fade-in duration-200">
+                        {unionError}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[30vh] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Motor</label>
+                        <select
+                          value={unionDbType}
+                          onChange={(e) => {
+                            setUnionDbType(e.target.value);
+                            if (e.target.value === "postgresql") setUnionPort("5432");
+                            else if (e.target.value === "mysql") setUnionPort("3306");
+                            else if (e.target.value === "oracle") setUnionPort("1521");
+                          }}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="postgresql">PostgreSQL</option>
+                          <option value="mysql">MySQL</option>
+                          <option value="oracle">Oracle</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Host</label>
+                        <input
+                          type="text"
+                          value={unionHost}
+                          onChange={(e) => setUnionHost(e.target.value)}
+                          placeholder="localhost"
+                          required={selectedType === "left_join"}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Puerto</label>
+                        <input
+                          type="text"
+                          value={unionPort}
+                          onChange={(e) => setUnionPort(e.target.value)}
+                          placeholder="5432"
+                          required={selectedType === "left_join"}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Base de Datos</label>
+                        <input
+                          type="text"
+                          value={unionDatabase}
+                          onChange={(e) => setUnionDatabase(e.target.value)}
+                          placeholder="nombre_db"
+                          required={selectedType === "left_join"}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Usuario</label>
+                        <input
+                          type="text"
+                          value={unionUser}
+                          onChange={(e) => setUnionUser(e.target.value)}
+                          placeholder="postgres"
+                          required={selectedType === "left_join"}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Contraseña</label>
+                        <input
+                          type="password"
+                          value={unionPassword}
+                          onChange={(e) => setUnionPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      {unionDbType === "oracle" && (
+                        <div className="col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Nombre de Servicio (Oracle)</label>
+                          <input
+                            type="text"
+                            value={unionServiceName}
+                            onChange={(e) => setUnionServiceName(e.target.value)}
+                            placeholder="xe"
+                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
+                      <div className="col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Tabla a Cruzar</label>
+                        <input
+                          type="text"
+                          value={unionTable}
+                          onChange={(e) => setUnionTable(e.target.value)}
+                          placeholder="ej. hospital_2"
+                          required={selectedType === "left_join"}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="col-span-2 flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+                        <span className="text-[11px] text-slate-500 font-medium">¿Usar Agente Local Híbrido?</span>
+                        <input
+                          type="checkbox"
+                          checked={unionUseAgent}
+                          onChange={(e) => setUnionUseAgent(e.target.checked)}
+                          className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Columnas clave para el cruce */}
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-4 mt-4 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">Claves de Asociación (Join Keys)</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Clave Origen (Actual)</label>
+                      <select
+                        value={joinOnPrimary}
+                        onChange={(e) => setJoinOnPrimary(e.target.value)}
+                        required={selectedType === "left_join"}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Seleccionar --</option>
+                        {availableColumns.map((col) => (
+                          <option key={col} value={col}>{col}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Clave Destino (Secundario)</label>
+                      <input
+                        type="text"
+                        value={joinOnSecondary}
+                        onChange={(e) => setJoinOnSecondary(e.target.value)}
+                        placeholder="ej. id_usuario"
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                    Si la columna clave secundaria tiene el mismo nombre que en el origen actual, puedes dejar la Clave Destino en blanco.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Split Column Form */}
+            {selectedType === "split_column" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna a Dividir</label>
+                  <select
+                    value={splitCol}
+                    onChange={(e) => setSplitCol(e.target.value)}
+                    required={selectedType === "split_column"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Delimitador</label>
+                  <input
+                    type="text"
+                    value={splitDelimiter}
+                    onChange={(e) => setSplitDelimiter(e.target.value)}
+                    required={selectedType === "split_column"}
+                    placeholder="ej. ; o , o |"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Nombres de Nuevas Columnas (Opcional)</label>
+                  <input
+                    type="text"
+                    value={splitNewCols}
+                    onChange={(e) => setSplitNewCols(e.target.value)}
+                    placeholder="ej. medicamento1, medicamento2, medicamento3"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    Escribe los nuevos nombres separados por comas. Si lo dejas en blanco, se autogenerarán (ej. columna_1, columna_2).
+                  </span>
+                </div>
               </div>
             )}
 
