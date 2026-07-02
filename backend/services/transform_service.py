@@ -270,6 +270,40 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
                 working_df, columna_lista, mantener_original=True, show=0
             )
 
+        elif step_type == "clean_numeric_columns":
+            columns = params.get("columns")
+            if not columns:
+                raise ValueError("clean_numeric_columns requiere el parámetro 'columns'.")
+            working_df = ConvertOperations.clean_numeric_columns(working_df, columns, show=0)
+
+        elif step_type == "clean_date_format":
+            column = params.get("column")
+            format_output = params.get("format_output", "%Y-%m-%d")
+            if not column:
+                raise ValueError("clean_date_format requiere el parámetro 'column'.")
+            working_df = ConvertOperations.clean_date_format(working_df, column, format_output, show=0)
+
+        elif step_type == "convert_to_ordered_category":
+            column = params.get("column")
+            categories = params.get("categories")
+            ordered = params.get("ordered", True)
+            if not column or not categories:
+                raise ValueError("convert_to_ordered_category requiere parámetros 'column' y 'categories'.")
+            working_df = ConvertOperations.convert_to_ordered_category(working_df, column, categories, ordered, show=0)
+
+        elif step_type == "boolean_to_binary":
+            columns = params.get("columns")
+            if not columns:
+                raise ValueError("boolean_to_binary requiere el parámetro 'columns'.")
+            working_df = ConvertOperations.boolean_to_binary(working_df, columns, show=0)
+
+        elif step_type == "sort_by":
+            columns = params.get("columns")
+            ascending = params.get("ascending", True)
+            if not columns:
+                raise ValueError("sort_by requiere el parámetro 'columns'.")
+            working_df = ConvertOperations.sort_by(working_df, columns, ascending, show=0)
+
         else:
             raise ValueError(f"Operación de transformación '{step_type}' no soportada en el pipeline.")
             

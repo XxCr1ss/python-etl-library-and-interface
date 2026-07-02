@@ -21,7 +21,12 @@ import {
   Columns as ColumnsIcon,
   SortAsc as SortAscIcon,
   List as ListIcon,
-  Grid as GridIcon
+  Grid as GridIcon,
+  Hash,
+  CalendarRange,
+  Layers3,
+  ToggleLeft,
+  ArrowDownAZ
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -50,7 +55,12 @@ type StepType =
   | "normalize_delimited_column"
   | "sort_columns"
   | "convert_column_to_list"
-  | "explode_column_list";
+  | "explode_column_list"
+  | "clean_numeric_columns"
+  | "clean_date_format"
+  | "convert_to_ordered_category"
+  | "boolean_to_binary"
+  | "sort_by";
 
 export default function AddStepModal({
   isOpen,
@@ -190,6 +200,25 @@ export default function AddStepModal({
 
   // Explode Column List States
   const [expCol, setExpCol] = useState("");
+
+  // Clean Numeric Columns States
+  const [cleanNumCols, setCleanNumCols] = useState<Record<string, boolean>>({});
+
+  // Clean Date Format States
+  const [cleanDateCol, setCleanDateCol] = useState("");
+  const [cleanDateFormat, setCleanDateFormat] = useState("%Y-%m-%d");
+
+  // Convert to Ordered Category States
+  const [orderedCatCol, setOrderedCatCol] = useState("");
+  const [orderedCatList, setOrderedCatList] = useState("");
+  const [orderedCatIsOrdered, setOrderedCatIsOrdered] = useState(true);
+
+  // Boolean to Binary States
+  const [boolBinCols, setBoolBinCols] = useState<Record<string, boolean>>({});
+
+  // Sort By States
+  const [sortByCols, setSortByCols] = useState<Record<string, boolean>>({});
+  const [sortByAscending, setSortByAscending] = useState(true);
 
   if (!isOpen) return null;
 
@@ -400,6 +429,50 @@ export default function AddStepModal({
           column: expCol
         };
         break;
+      case "clean_numeric_columns":
+        const cleanList = Object.entries(cleanNumCols)
+          .filter(entry => entry[1])
+          .map(entry => entry[0]);
+        if (cleanList.length === 0) return;
+        stepParams = {
+          columns: cleanList
+        };
+        break;
+      case "clean_date_format":
+        if (!cleanDateCol || !cleanDateFormat) return;
+        stepParams = {
+          column: cleanDateCol,
+          format_output: cleanDateFormat
+        };
+        break;
+      case "convert_to_ordered_category":
+        if (!orderedCatCol || !orderedCatList) return;
+        const catArray = orderedCatList.split(",").map(c => c.trim()).filter(c => c.length > 0);
+        stepParams = {
+          column: orderedCatCol,
+          categories: catArray,
+          ordered: orderedCatIsOrdered
+        };
+        break;
+      case "boolean_to_binary":
+        const boolList = Object.entries(boolBinCols)
+          .filter(entry => entry[1])
+          .map(entry => entry[0]);
+        if (boolList.length === 0) return;
+        stepParams = {
+          columns: boolList
+        };
+        break;
+      case "sort_by":
+        const sortByList = Object.entries(sortByCols)
+          .filter(entry => entry[1])
+          .map(entry => entry[0]);
+        if (sortByList.length === 0) return;
+        stepParams = {
+          columns: sortByList,
+          ascending: sortByAscending
+        };
+        break;
     }
 
     onAddStep({
@@ -444,6 +517,15 @@ export default function AddStepModal({
     setConvDelimiter(";");
     setConvNewCol("");
     setExpCol("");
+    setCleanNumCols({});
+    setCleanDateCol("");
+    setCleanDateFormat("%Y-%m-%d");
+    setOrderedCatCol("");
+    setOrderedCatList("");
+    setOrderedCatIsOrdered(true);
+    setBoolBinCols({});
+    setSortByCols({});
+    setSortByAscending(true);
 
     onClose();
   };
@@ -466,6 +548,11 @@ export default function AddStepModal({
     { id: "sort_columns" as StepType, name: "Ordenar Filas", icon: <SortAscIcon className="w-4 h-4" />, desc: "Ordenar dataset por columnas" },
     { id: "convert_column_to_list" as StepType, name: "Texto a Lista", icon: <ListIcon className="w-4 h-4" />, desc: "Convertir cadena a array de valores" },
     { id: "explode_column_list" as StepType, name: "Desglosar Lista", icon: <GridIcon className="w-4 h-4" />, desc: "Convertir lista en múltiples filas" },
+    { id: "clean_numeric_columns" as StepType, name: "Limpiar Números", icon: <Hash className="w-4 h-4" />, desc: "Eliminar símbolos monetarios o texto de números" },
+    { id: "clean_date_format" as StepType, name: "Estandarizar Fecha", icon: <CalendarRange className="w-4 h-4" />, desc: "Normalizar formato de fechas" },
+    { id: "convert_to_ordered_category" as StepType, name: "Categoría Ordenada", icon: <Layers3 className="w-4 h-4" />, desc: "Convertir a categoría con orden (Bajo/Medio/Alto)" },
+    { id: "boolean_to_binary" as StepType, name: "Booleano a Binario", icon: <ToggleLeft className="w-4 h-4" />, desc: "Convertir lógicos a 0 y 1" },
+    { id: "sort_by" as StepType, name: "Ordenar Registros", icon: <ArrowDownAZ className="w-4 h-4" />, desc: "Ordenar dataset por columnas clave" },
   ];
 
   return (
@@ -1482,6 +1569,170 @@ export default function AddStepModal({
                 <p className="text-[10px] text-slate-400 leading-relaxed">
                   Esta operación tomará los elementos de tipo lista dentro de cada celda de esta columna y desglosará la fila en múltiples filas, repitiendo el resto de los valores.
                 </p>
+              </div>
+            )}
+
+            {/* Clean Numeric Columns Form */}
+            {selectedType === "clean_numeric_columns" && (
+              <div className="space-y-4">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Selecciona Columna(s) a Limpiar
+                </label>
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-white dark:bg-slate-950">
+                  {availableColumns.map((col) => (
+                    <label key={col} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!cleanNumCols[col]}
+                        onChange={() => {
+                          setCleanNumCols(prev => ({ ...prev, [col]: !prev[col] }));
+                        }}
+                        className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                      />
+                      {col}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Eliminará automáticamente símbolos de moneda, comas de miles, espacios y cualquier letra para dejar valores puramente numéricos.
+                </p>
+              </div>
+            )}
+
+            {/* Clean Date Format Form */}
+            {selectedType === "clean_date_format" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna de Fecha</label>
+                  <select
+                    value={cleanDateCol}
+                    onChange={(e) => setCleanDateCol(e.target.value)}
+                    required={selectedType === "clean_date_format"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Formato Destino (ej. %Y-%m-%d)</label>
+                  <input
+                    type="text"
+                    value={cleanDateFormat}
+                    onChange={(e) => setCleanDateFormat(e.target.value)}
+                    required={selectedType === "clean_date_format"}
+                    placeholder="ej. %Y-%m-%d o %d/%m/%Y"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    Formato estándar: %Y para año (4 dígitos), %m para mes (2 dígitos), %d para día (2 dígitos).
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Convert to Ordered Category Form */}
+            {selectedType === "convert_to_ordered_category" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna a Categorizar</label>
+                  <select
+                    value={orderedCatCol}
+                    onChange={(e) => setOrderedCatCol(e.target.value)}
+                    required={selectedType === "convert_to_ordered_category"}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Seleccionar Columna --</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Lista de Categorías Ordenadas (separadas por comas)</label>
+                  <input
+                    type="text"
+                    value={orderedCatList}
+                    onChange={(e) => setOrderedCatList(e.target.value)}
+                    required={selectedType === "convert_to_ordered_category"}
+                    placeholder="ej. Bajo, Medio, Alto o Enero, Febrero, Marzo"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-relaxed">
+                    Especifica el orden jerárquico de menor a mayor.
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+                  <span className="text-xs text-slate-500 font-medium">¿Establecer orden categórico estricto?</span>
+                  <input
+                    type="checkbox"
+                    checked={orderedCatIsOrdered}
+                    onChange={(e) => setOrderedCatIsOrdered(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Boolean to Binary Form */}
+            {selectedType === "boolean_to_binary" && (
+              <div className="space-y-4">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Selecciona Columna(s) a Binario
+                </label>
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-white dark:bg-slate-950">
+                  {availableColumns.map((col) => (
+                    <label key={col} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!boolBinCols[col]}
+                        onChange={() => {
+                          setBoolBinCols(prev => ({ ...prev, [col]: !prev[col] }));
+                        }}
+                        className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                      />
+                      {col}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Convierte valores booleanos o lógicos (True/False, Verdadero/Falso) en sus representaciones numéricas binarias (1/0).
+                </p>
+              </div>
+            )}
+
+            {/* Sort By Form */}
+            {selectedType === "sort_by" && (
+              <div className="space-y-4">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Selecciona Columna(s) para Ordenar Dataset
+                </label>
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2 bg-white dark:bg-slate-950">
+                  {availableColumns.map((col) => (
+                    <label key={col} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!sortByCols[col]}
+                        onChange={() => {
+                          setSortByCols(prev => ({ ...prev, [col]: !prev[col] }));
+                        }}
+                        className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                      />
+                      {col}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+                  <span className="text-xs text-slate-500 font-medium">¿Orden Ascendente (Menor a Mayor)?</span>
+                  <input
+                    type="checkbox"
+                    checked={sortByAscending}
+                    onChange={(e) => setSortByAscending(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                </div>
               </div>
             )}
 
