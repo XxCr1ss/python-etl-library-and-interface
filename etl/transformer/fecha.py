@@ -22,8 +22,13 @@ class DateTime:
         df["día"] = pd.to_datetime(df["fecha"]).dt.day
         df["semana_del_año"] = pd.to_datetime(df["fecha"]).dt.isocalendar().week
         df["día_de_la_semana"] = pd.to_datetime(df["fecha"]).dt.dayofweek + 1
-        df["nombre_día"] = pd.to_datetime(df["fecha"]).dt.day_name(locale="es_ES")
-        df["nombre_mes"] = pd.to_datetime(df["fecha"]).dt.month_name(locale="es_ES")
+        dias_es = {1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado", 7: "Domingo"}
+        meses_es = {
+            1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
+            7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+        }
+        df["nombre_día"] = df["día_de_la_semana"].map(dias_es)
+        df["nombre_mes"] = df["mes"].map(meses_es)
         df["trimestre"] = pd.to_datetime(df["fecha"]).dt.quarter
         df["es_fin_de_semana"] = df["día_de_la_semana"].apply(lambda x: 1 if x >= 6 else 0)
         df["es_festivo"] = df["fecha"].apply(lambda x: 1 if pd.to_datetime(x) in self.holidays_colombia else 0)
