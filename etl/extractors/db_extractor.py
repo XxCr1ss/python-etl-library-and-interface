@@ -1,3 +1,4 @@
+from etl.error_utils import public_error
 from sqlalchemy import create_engine, text, inspect
 import pandas as pd
 from typing import Optional, List, Dict, Any
@@ -115,7 +116,7 @@ class DB_Extractor:
             with self.engine.connect():
                 print(f"✅ Conexión exitosa a {self.db_type.upper()} en la base de datos '{self.database}'.")
         except Exception as e:
-            print(f"❌ Error al conectar a la base de datos: {e}")
+            print(f"❌ Error al conectar a la base de datos: {public_error(e, {'password': self.password})}")
             raise
 
     def close_connection(self) -> None:
@@ -162,7 +163,7 @@ class DB_Extractor:
             print(f"✅ Consulta ejecutada con éxito. Resultados: {len(df)} registros.")
             return df
         except Exception as e:
-            print(f"❌ Error al ejecutar la consulta SQL: {e}")
+            print(f"❌ Error al ejecutar la consulta SQL: {public_error(e, {'password': self.password})}")
             raise
 
     def get_table(self, table_name: str) -> pd.DataFrame:
@@ -199,7 +200,7 @@ class DB_Extractor:
             print(f"✅ Tabla '{table_name}' extraída con éxito. Registros: {len(df)}.")
             return df
         except Exception as e:
-            print(f"❌ Error al extraer la tabla '{table_name}': {e}")
+            print(f"❌ Error al extraer la tabla '{table_name}': {public_error(e, {'password': self.password})}")
             raise
 
     # NUEVAS FUNCIONES ADICIONALES
@@ -227,7 +228,7 @@ class DB_Extractor:
             print(f"📊 Tablas encontradas: {len(table_names)}")
             return table_names
         except Exception as e:
-            print(f"❌ Error al obtener nombres de tablas: {e}")
+            print(f"❌ Error al obtener nombres de tablas: {public_error(e, {'password': self.password})}")
             raise
 
     def get_table_schema(self, table_name: str) -> Dict[str, Any]:
@@ -269,7 +270,7 @@ class DB_Extractor:
             print(f"📋 Esquema de '{table_name}': {len(schema['columns'])} columnas")
             return schema
         except Exception as e:
-            print(f"❌ Error al obtener esquema de '{table_name}': {e}")
+            print(f"❌ Error al obtener esquema de '{table_name}': {public_error(e, {'password': self.password})}")
             raise
 
     def get_database_info(self) -> Dict[str, Any]:
@@ -309,7 +310,7 @@ class DB_Extractor:
             
             return info
         except Exception as e:
-            print(f"❌ Error al obtener información de la BD: {e}")
+            print(f"❌ Error al obtener información de la BD: {public_error(e, {'password': self.password})}")
             raise
 
     def execute_procedure(self, procedure_name: str, params: Optional[Dict] = None) -> pd.DataFrame:
@@ -357,7 +358,7 @@ class DB_Extractor:
                     return pd.DataFrame()
                     
         except Exception as e:
-            print(f"❌ Error al ejecutar procedure '{procedure_name}': {e}")
+            print(f"❌ Error al ejecutar procedure '{procedure_name}': {public_error(e, {'password': self.password})}")
             raise
 
     def sample_data(self, table_name: str, n: int = 5) -> pd.DataFrame:
@@ -385,7 +386,7 @@ class DB_Extractor:
                 
             return self.execute_query(query)
         except Exception as e:
-            print(f"❌ Error al obtener muestra de '{table_name}': {e}")
+            print(f"❌ Error al obtener muestra de '{table_name}': {public_error(e, {'password': self.password})}")
             raise
 
     def check_connection_status(self) -> bool:

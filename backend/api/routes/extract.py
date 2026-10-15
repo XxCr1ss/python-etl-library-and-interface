@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from services import extract_service
 from services.agent_manager import agent_manager
+from source_models import DateDimensionReq
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ async def upload_file(file: UploadFile = File(...)):
     Endpoint para subir archivos CSV o Excel.
     Guarda temporalmente el archivo y extrae datos usando la lógica core de ETL.
     """
-    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
+    if not (file.filename or '').lower().endswith(('.csv', '.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Usa .csv, .xlsx o .xls")
     
     try:
@@ -128,19 +129,11 @@ async def preview_database_table(conn_data: DatabasePreviewReq):
         raise HTTPException(status_code=500, detail=f"Error al obtener la vista previa de la tabla: {str(e)}")
 
 
-class DateDimensionReq(BaseModel):
-    start_year: int
-    end_year: int
-
-
 @router.post("/date-dimension/preview")
 async def preview_date_dimension(req: DateDimensionReq):
     """
     Endpoint para generar y previsualizar la dimensión de fechas (DateTime del core).
     """
-    if req.start_year > req.end_year:
-        raise HTTPException(status_code=400, detail="El año de inicio debe ser menor o igual al año de fin.")
-        
     try:
         from etl import DateTime
         date_dim = DateTime(req.start_year, req.end_year)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Dict, Any, Optional, Literal, Tuple
 from services import load_service
 from api.routes.transform import SourceModel, StepModel
 
@@ -15,11 +15,25 @@ class TargetConnectionModel(BaseModel):
     password: str
     service_name: Optional[str] = None
 
+    @field_validator("db_type")
+    @classmethod
+    def supported_engine(cls, value):
+        if value.lower() not in ("postgresql", "mysql", "oracle"):
+            raise ValueError("db_type debe ser postgresql, mysql u oracle.")
+        return value
+
 class LoadConfigModel(BaseModel):
-    table_name: str
-    table_type: str  # "dimension" o "fact"
-    foreign_keys: Optional[Dict[str, List[str]]] = None
-    if_exists: Optional[str] = None  # "replace" o "append" o "fail"
+    table_name: str = Field(min_length=1)
+    table_type: Literal["dimension", "fact"]
+    foreign_keys: Optional[Dict[str, Tuple[str, str]]] = None
+    if_exists: Optional[Literal["replace", "append", "fail"]] = None
+
+    @field_validator("foreign_keys")
+    @classmethod
+    def valid_foreign_keys(cls, value):
+        if value and any(not key.strip() or not all(item.strip() for item in pair) for key, pair in value.items()):
+            raise ValueError("foreign_keys requiere columna y par [tabla_dimension, columna_pk] no vacíos.")
+        return value
 
 class LoadExecutionReq(BaseModel):
     source: SourceModel

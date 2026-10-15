@@ -252,14 +252,13 @@ class DataExpresion:
             df_copy = df.copy()
             
             # Dividir la columna y expandir a filas
-            df_exploded = df_copy.assign(**{field: df_copy[field].astype(str).str.split(delimiter)}).explode(field)
-            
-            # Renombrar la columna si se especifica
-            if new_column_name:
-                df_exploded = df_exploded.rename(columns={field: new_column_name})
+            output_field = new_column_name or field
+            df_exploded = df_copy.assign(**{
+                output_field: df_copy[field].astype(str).str.split(delimiter)
+            }).explode(output_field)
             
             # Eliminar la columna original si se solicita
-            if drop_original and new_column_name:
+            if drop_original and new_column_name and new_column_name != field:
                 df_exploded = df_exploded.drop(columns=[field])
             
             # Resetear el índice

@@ -1,0 +1,252 @@
+{
+  "sales": [
+    {
+      "id": 1,
+      "cliente_id": 1,
+      "col_monto": 0,
+      "fecha": "2024-01-01",
+      "activo": false,
+      "etiquetas": "a;b"
+    },
+    {
+      "id": 2,
+      "cliente_id": 2,
+      "col_monto": 10,
+      "fecha": "2024-01-01",
+      "activo": true,
+      "etiquetas": null
+    },
+    {
+      "id": 3,
+      "cliente_id": 3,
+      "col_monto": 20,
+      "fecha": "2024-01-01",
+      "activo": false,
+      "etiquetas": null
+    },
+    {
+      "id": 4,
+      "cliente_id": 1,
+      "col_monto": 30,
+      "fecha": "2024-01-01",
+      "activo": true,
+      "etiquetas": "a;b"
+    },
+    {
+      "id": 5,
+      "cliente_id": 2,
+      "col_monto": 40,
+      "fecha": "2024-01-01",
+      "activo": false,
+      "etiquetas": null
+    },
+    {
+      "id": 6,
+      "cliente_id": 3,
+      "col_monto": 50,
+      "fecha": "2024-01-01",
+      "activo": true,
+      "etiquetas": null
+    },
+    {
+      "id": 7,
+      "cliente_id": 1,
+      "col_monto": 60,
+      "fecha": "2024-01-01",
+      "activo": false,
+      "etiquetas": "a;b"
+    },
+    {
+      "id": 8,
+      "cliente_id": 2,
+      "col_monto": 70,
+      "fecha": "2024-01-01",
+      "activo": true,
+      "etiquetas": null
+    },
+    {
+      "id": 9,
+      "cliente_id": 3,
+      "col_monto": 80,
+      "fecha": "2024-01-01",
+      "activo": false,
+      "etiquetas": null
+    },
+    {
+      "id": 10,
+      "cliente_id": 1,
+      "col_monto": 90,
+      "fecha": "2024-01-01",
+      "activo": true,
+      "etiquetas": "a;b"
+    },
+    {
+      "id": 11,
+      "cliente_id": 2,
+      "col_monto": 100,
+      "fecha": "2024-01-01",
+      "activo": false,
+      "etiquetas": null
+    },
+    {
+      "id": 12,
+      "cliente_id": 3,
+      "col_monto": 110,
+      "fecha": "2024-01-01",
+      "activo": true,
+      "etiquetas": null
+    }
+  ],
+  "uploadResponse": {
+    "status": "success",
+    "filename": "sample_sales.csv",
+    "filepath": "/synthetic/etl_uploads/sample_sales.csv",
+    "unique_filename": "synthetic_sample_sales.csv",
+    "message": "Archivo recibido y procesado para vista previa",
+    "preview_data": [
+      {
+        "id": 1,
+        "cliente_id": 1,
+        "col_monto": 0,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": "a;b"
+      },
+      {
+        "id": 2,
+        "cliente_id": 2,
+        "col_monto": 10,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": null
+      },
+      {
+        "id": 3,
+        "cliente_id": 3,
+        "col_monto": 20,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": null
+      },
+      {
+        "id": 4,
+        "cliente_id": 1,
+        "col_monto": 30,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": "a;b"
+      },
+      {
+        "id": 5,
+        "cliente_id": 2,
+        "col_monto": 40,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": null
+      }
+    ],
+    "total_rows": 12
+  },
+  "previewResponse": {
+    "status": "success",
+    "total_rows": 12,
+    "columns": [
+      "id",
+      "cliente_id",
+      "col_monto",
+      "fecha",
+      "activo",
+      "etiquetas"
+    ],
+    "dtypes": {
+      "id": "int64",
+      "cliente_id": "int64",
+      "col_monto": "int64",
+      "fecha": "str",
+      "activo": "bool",
+      "etiquetas": "str"
+    },
+    "preview_data": [
+      {
+        "id": 1,
+        "cliente_id": 1,
+        "col_monto": 0,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": "a;b"
+      },
+      {
+        "id": 2,
+        "cliente_id": 2,
+        "col_monto": 10,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": null
+      },
+      {
+        "id": 3,
+        "cliente_id": 3,
+        "col_monto": 20,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": null
+      },
+      {
+        "id": 4,
+        "cliente_id": 1,
+        "col_monto": 30,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": "a;b"
+      },
+      {
+        "id": 5,
+        "cliente_id": 2,
+        "col_monto": 40,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": null
+      },
+      {
+        "id": 6,
+        "cliente_id": 3,
+        "col_monto": 50,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": null
+      },
+      {
+        "id": 7,
+        "cliente_id": 1,
+        "col_monto": 60,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": "a;b"
+      },
+      {
+        "id": 8,
+        "cliente_id": 2,
+        "col_monto": 70,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": null
+      },
+      {
+        "id": 9,
+        "cliente_id": 3,
+        "col_monto": 80,
+        "fecha": "2024-01-01",
+        "activo": false,
+        "etiquetas": null
+      },
+      {
+        "id": 10,
+        "cliente_id": 1,
+        "col_monto": 90,
+        "fecha": "2024-01-01",
+        "activo": true,
+        "etiquetas": "a;b"
+      }
+    ]
+  }
+}

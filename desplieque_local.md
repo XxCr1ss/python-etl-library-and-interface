@@ -8,7 +8,7 @@ Este documento contiene las instrucciones paso a paso y los comandos de terminal
 
 Asegúrate de tener instalados los siguientes componentes en tu sistema:
 
-* **Python**: Versión 3.9 o superior.
+* **Python**: 3.14.0, versión comprobada con los manifiestos fijados de Fase 01A. No se certifica Python 3.9 con estas dependencias.
 * **Node.js**: Versión 18.x o superior (incluye `npm`).
 * **Git** (Opcional, para gestión de versiones).
 
@@ -150,15 +150,13 @@ python etl_agent.py
 
 ## Verificación de Funcionalidad y Pruebas
 
-Para ejecutar las pruebas automatizadas de los endpoints del backend, abre una terminal con el entorno virtual activado y ejecuta:
+Para ejecutar la suite automatizada aislada del backend, desde la raíz y con el entorno virtual activado:
 
 ```bash
-# Pruebas de extracción
-python backend/test_api_extract.py
-
-# Pruebas de transformación
-python backend/test_api_transform.py
-
-# Pruebas de carga
-python backend/test_api_load.py
+python -m pip install -r backend/requirements-dev.txt
+python -m pytest -c backend/pytest.ini backend/tests -m "not integration" -q
 ```
+
+Los scripts heredados `backend/test_api_*.py` son manuales y pueden modificar una BD;
+no forman parte de esta suite. Los detalles de aislamiento, fixtures y comprobación
+de las entradas local/despliegue están en `backend/tests/README.md`.
