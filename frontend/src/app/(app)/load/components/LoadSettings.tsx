@@ -3,12 +3,8 @@
 import { useState } from "react";
 import { Settings, Plus, Trash2, HelpCircle, KeyRound } from "lucide-react";
 
-export interface LoadConfig {
-  table_name: string;
-  table_type: "dimension" | "fact";
-  if_exists: "replace" | "append";
-  foreign_keys?: Record<string, [string, string]>; // Map of { col_fk: [dim_table, dim_pk] }
-}
+import type { LoadConfigDto } from "@/types/etl";
+export type LoadConfig = LoadConfigDto;
 
 interface LoadSettingsProps {
   config: LoadConfig;
@@ -52,18 +48,14 @@ export default function LoadSettings({
     }
 
     const fkMap: Record<string, [string, string]> = {};
-    let hasValidFks = false;
-
     updatedRows.forEach((row) => {
-      if (row.col_fk && row.dim_table && row.dim_pk) {
-        fkMap[row.col_fk] = [row.dim_table, row.dim_pk];
-        hasValidFks = true;
-      }
+      // Keep incomplete tuples visible to readiness validation instead of dropping them.
+      fkMap[row.col_fk] = [row.dim_table, row.dim_pk];
     });
 
     onChange({
       ...config,
-      foreign_keys: hasValidFks ? fkMap : undefined,
+      foreign_keys: updatedRows.length ? fkMap : undefined,
     });
   };
 

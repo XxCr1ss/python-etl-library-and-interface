@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { PipelineProvider } from "@/state/PipelineProvider";
 
 export default function AppLayout({
   children,
@@ -7,7 +8,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="flex min-h-screen">
+    <PipelineProvider><div className="flex min-h-screen">
       <Sidebar />
       <div className="flex flex-col flex-1 ml-64 min-w-0">
         <Header />
@@ -15,6 +16,6 @@ export default function AppLayout({
           {children}
         </main>
       </div>
-    </div>
+    </div></PipelineProvider>
   );
 }

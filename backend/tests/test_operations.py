@@ -36,9 +36,19 @@ def test_exact_catalog_dispatcher_frontend_parity(client):
             and node.func.attr == "get" and node.args and isinstance(node.args[0], ast.Constant)}
         branch_params.update({name: parameters for name in names})
         branch = branch.orelse[0]
-    modal = Path(__file__).resolve().parents[2] / "frontend/src/app/(app)/transform/components/AddStepModal.tsx"
-    declaration = modal.read_text(encoding="utf-8").split("type StepType =", 1)[1].split(";", 1)[0]
-    frontend = re.findall(r'"([a-z_]+)"', declaration)
+    frontend_root = Path(__file__).resolve().parents[2] / "frontend/src"
+    core_types = (frontend_root / "types/etl.ts").read_text(encoding="utf-8")
+    assert "export type StepType = keyof StepParamsByType;" in core_types
+    modal = (frontend_root / "app/(app)/transform/components/AddStepModal.tsx").read_text(encoding="utf-8")
+    assert 'import type { StepType } from "@/types/etl";' in modal
+    # Read the top-level keys of the shared parameter map, removing nested object
+    # members first. TS typecheck and the frontend tests also check this map.
+    declaration = core_types.split("export interface StepParamsByType {", 1)[1].split("\n}", 1)[0]
+    while re.search(r"\{[^{}]*\}", declaration):
+        declaration = re.sub(r"\{[^{}]*\}", "ObjectType", declaration)
+    frontend = re.findall(r"(?:^|;)\s*([a-z_]+)\s*:", declaration)
+    captured_catalog = json.loads((frontend_root / "tests/fixtures/operations-catalog.json").read_text(encoding="utf-8"))
+    assert captured_catalog == catalog
     fixtures = [case["type"] for case in CASES]
     assert len(types) == len(set(types)) == 42
     assert len(dispatched) == len(set(dispatched)) == 42

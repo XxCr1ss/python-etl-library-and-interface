@@ -1,0 +1,756 @@
+[
+  {
+    "type": "rename_columns",
+    "name": "Renombrar Columnas",
+    "description": "Cambia el nombre de una o más columnas del dataset.",
+    "params": {
+      "columns": {
+        "type": "dict",
+        "description": "Diccionario de {nombre_viejo: nombre_nuevo}",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "convert_types",
+    "name": "Cambiar Tipo de Datos",
+    "description": "Convierte una o más columnas a un tipo de dato específico (ej. entero, decimal, texto, fecha).",
+    "params": {
+      "columns": {
+        "type": "any",
+        "description": "Lista de columnas a convertir o un string para una sola",
+        "required": true
+      },
+      "dtype": {
+        "type": "any",
+        "description": "Tipo de dato destino o mapeo de columnas",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "fill_nulls",
+    "name": "Rellenar Nulos",
+    "description": "Reemplaza los valores nulos (NaN / None) en una columna por un valor específico.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Columna a rellenar",
+        "required": true
+      },
+      "value": {
+        "type": "any",
+        "description": "Valor de reemplazo",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "select_columns",
+    "name": "Seleccionar Columnas",
+    "description": "Mantiene únicamente las columnas especificadas en el dataset.",
+    "params": {
+      "columns": {
+        "type": "list",
+        "description": "Lista de columnas a mantener",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "remove_columns",
+    "name": "Eliminar Columnas",
+    "description": "Elimina del dataset las columnas indicadas.",
+    "params": {
+      "columns": {
+        "type": "any",
+        "description": "Lista de columnas a eliminar o un string para una sola",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "left_join",
+    "name": "Cruzar Datos (Left Join)",
+    "description": "Cruza los datos del dataset principal con un dataset secundario.",
+    "params": {
+      "right_source": {
+        "type": "dict",
+        "description": "Fuente secundaria con el mismo contrato que source",
+        "required": true
+      },
+      "on": {
+        "type": "any",
+        "description": "Llave común; dos llaves comunes en ambos datasets; o [llave_izquierda, llave_derecha] si no son ambas comunes",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "group_by",
+    "name": "Agrupar y Promediar",
+    "description": "Agrupa los datos por una o más columnas y calcula el promedio de otra columna numérica.",
+    "params": {
+      "by": {
+        "type": "any",
+        "description": "Columna o columnas por las cuales agrupar (string o lista)",
+        "required": true
+      },
+      "column": {
+        "type": "str",
+        "description": "Columna numérica a promediar",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "filter_value",
+    "name": "Filtrar por Valor",
+    "description": "Filtra las filas del dataset aplicando una condición lógica sobre una columna.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Columna a evaluar",
+        "required": true
+      },
+      "value": {
+        "type": "any",
+        "description": "Valor de comparación",
+        "required": true
+      },
+      "operator": {
+        "type": "str",
+        "description": "Operador lógico: 'eq' (=), 'ne' (!=), 'gt' (>), 'ge' (>=), 'lt' (<), 'le' (<=)",
+        "required": false
+      }
+    }
+  },
+  {
+    "type": "split_column",
+    "name": "Dividir Columna de Texto",
+    "description": "Dividir una columna de texto en múltiples columnas utilizando un delimitador.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Columna a dividir",
+        "required": true
+      },
+      "delimiter": {
+        "type": "str",
+        "description": "Carácter delimitador",
+        "required": true
+      },
+      "new_columns": {
+        "type": "list",
+        "description": "Lista opcional con nombres de las nuevas columnas",
+        "required": false
+      }
+    }
+  },
+  {
+    "type": "union",
+    "name": "Unión Vertical (Union All)",
+    "description": "Une verticalmente las filas del dataset principal con un dataset secundario.",
+    "params": {
+      "secondary_source": {
+        "type": "dict",
+        "description": "Configuración de origen del dataset secundario",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "right_join",
+    "name": "Cruce derecho",
+    "description": "Conserva todas las filas derechas y sus coincidencias.",
+    "params": {
+      "right_source": {
+        "type": "dict",
+        "description": "Fuente secundaria con el mismo contrato que source",
+        "required": true
+      },
+      "on": {
+        "type": "any",
+        "description": "Llave común; dos llaves comunes en ambos datasets; o [llave_izquierda, llave_derecha] si no son ambas comunes",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "inner_join",
+    "name": "Cruce interno",
+    "description": "Conserva las coincidencias de ambas fuentes.",
+    "params": {
+      "right_source": {
+        "type": "dict",
+        "description": "Fuente secundaria con el mismo contrato que source",
+        "required": true
+      },
+      "on": {
+        "type": "any",
+        "description": "Llave común; dos llaves comunes en ambos datasets; o [llave_izquierda, llave_derecha] si no son ambas comunes",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "outer_join",
+    "name": "Cruce completo",
+    "description": "Conserva todas las filas de ambas fuentes.",
+    "params": {
+      "right_source": {
+        "type": "dict",
+        "description": "Fuente secundaria con el mismo contrato que source",
+        "required": true
+      },
+      "on": {
+        "type": "any",
+        "description": "Llave común; dos llaves comunes en ambos datasets; o [llave_izquierda, llave_derecha] si no son ambas comunes",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "add_new_column",
+    "name": "Columna calculada",
+    "description": "Evalúa una expresión sobre cada fila.",
+    "params": {
+      "new_column_name": {
+        "type": "str",
+        "description": "Nombre de la columna creada",
+        "required": true
+      },
+      "expression": {
+        "type": "str",
+        "description": "Expresión Python evaluada por el servidor",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "transform_column",
+    "name": "Transformar columna",
+    "description": "Evalúa la expresión con la variable x para cada celda.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "expression": {
+        "type": "str",
+        "description": "Expresión Python evaluada por el servidor",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "filter_by_condition",
+    "name": "Filtro condicional",
+    "description": "Conserva las filas que cumplen la expresión.",
+    "params": {
+      "expression": {
+        "type": "str",
+        "description": "Expresión Python evaluada por el servidor",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "normalize_delimited_column",
+    "name": "Normalizar delimitados",
+    "description": "Expande los valores de column en column_lista.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "delimiter": {
+        "type": "str",
+        "description": "Separador",
+        "required": false,
+        "default": ","
+      },
+      "keep_original": {
+        "type": "bool",
+        "description": "Conservar la columna original",
+        "required": false,
+        "default": true
+      }
+    }
+  },
+  {
+    "type": "sort_columns",
+    "name": "Ordenar filas",
+    "description": "Ordena filas por valores de las columnas, conservando cabeceras.",
+    "params": {
+      "columns": {
+        "type": "any",
+        "description": "Columna o lista de columnas",
+        "required": true
+      },
+      "ascending": {
+        "type": "bool",
+        "description": "Orden ascendente",
+        "required": false,
+        "default": true
+      }
+    }
+  },
+  {
+    "type": "convert_column_to_list",
+    "name": "Texto a lista",
+    "description": "Divide texto en una lista JSON; el texto vacío produce [\"\"].",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "delimiter": {
+        "type": "str",
+        "description": "Separador",
+        "required": false,
+        "default": ";"
+      },
+      "new_column": {
+        "type": "str",
+        "description": "Columna nueva; si se omite reemplaza la original",
+        "required": false
+      }
+    }
+  },
+  {
+    "type": "explode_column_list",
+    "name": "Expandir listas",
+    "description": "Genera una fila por elemento en la misma columna.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "clean_numeric_columns",
+    "name": "Limpiar números",
+    "description": "Elimina caracteres excepto dígitos, punto y signo menos; inválidos se vuelven nulos.",
+    "params": {
+      "columns": {
+        "type": "any",
+        "description": "Columna o lista de columnas",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "clean_date_format",
+    "name": "Normalizar fechas",
+    "description": "Formatea fechas e interpreta valores inválidos como nulos.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "format_output": {
+        "type": "str",
+        "description": "Formato strftime",
+        "required": false,
+        "default": "%Y-%m-%d"
+      }
+    }
+  },
+  {
+    "type": "convert_to_ordered_category",
+    "name": "Categoría ordenada",
+    "description": "Convierte usando el orden de categorías indicado.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "categories": {
+        "type": "list",
+        "description": "Categorías en orden",
+        "required": true
+      },
+      "ordered": {
+        "type": "bool",
+        "description": "Aplicar orden",
+        "required": false,
+        "default": true
+      }
+    }
+  },
+  {
+    "type": "boolean_to_binary",
+    "name": "Booleano a binario",
+    "description": "Convierte true en 1 y false en 0.",
+    "params": {
+      "columns": {
+        "type": "any",
+        "description": "Columna o lista de columnas",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "sort_by",
+    "name": "Ordenar registros",
+    "description": "Ordena filas por las columnas indicadas.",
+    "params": {
+      "columns": {
+        "type": "any",
+        "description": "Columna o lista de columnas",
+        "required": true
+      },
+      "ascending": {
+        "type": "bool",
+        "description": "Orden ascendente",
+        "required": false,
+        "default": true
+      }
+    }
+  },
+  {
+    "type": "search_in_column",
+    "name": "Buscar en columna",
+    "description": "Selecciona filas por regex en una columna.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "pattern": {
+        "type": "str",
+        "description": "Patrón de expresión regular",
+        "required": true
+      },
+      "complement": {
+        "type": "bool",
+        "description": "Invertir la selección",
+        "required": false,
+        "default": false
+      },
+      "case_sensitive": {
+        "type": "bool",
+        "description": "Distinguir mayúsculas",
+        "required": false,
+        "default": false
+      }
+    }
+  },
+  {
+    "type": "search_in_table",
+    "name": "Buscar en tabla",
+    "description": "Selecciona filas por regex en cualquier columna.",
+    "params": {
+      "pattern": {
+        "type": "str",
+        "description": "Patrón de expresión regular",
+        "required": true
+      },
+      "complement": {
+        "type": "bool",
+        "description": "Invertir la selección",
+        "required": false,
+        "default": false
+      },
+      "case_sensitive": {
+        "type": "bool",
+        "description": "Distinguir mayúsculas",
+        "required": false,
+        "default": false
+      }
+    }
+  },
+  {
+    "type": "split_column_into_rows",
+    "name": "Dividir en filas",
+    "description": "Expande texto; puede conservar la columna original y crear otra.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "delimiter": {
+        "type": "str",
+        "description": "Separador de valores",
+        "required": true
+      },
+      "new_column_name": {
+        "type": "str",
+        "description": "Columna de salida",
+        "required": false
+      },
+      "drop_original": {
+        "type": "bool",
+        "description": "Eliminar columna original si se crea otra",
+        "required": false,
+        "default": false
+      }
+    }
+  },
+  {
+    "type": "drop_duplicates",
+    "name": "Eliminar duplicados",
+    "description": "Elimina filas repetidas usando todas las columnas o un subconjunto.",
+    "params": {
+      "subset": {
+        "type": "any",
+        "description": "Columna o lista; null compara todas",
+        "required": false
+      }
+    }
+  },
+  {
+    "type": "replace_values",
+    "name": "Reemplazar valores",
+    "description": "Sustituye un valor conservando el tipo del reemplazo.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "old_value": {
+        "type": "any",
+        "description": "Valor no nulo a sustituir",
+        "required": true
+      },
+      "new_value": {
+        "type": "any",
+        "description": "Valor no nulo de reemplazo; admite texto vacío",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "group_by_sum",
+    "name": "Agrupar y sumar",
+    "description": "Calcula la suma por grupo.",
+    "params": {
+      "by": {
+        "type": "any",
+        "description": "Columna o lista de columnas para agrupar",
+        "required": true
+      },
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "group_by_count",
+    "name": "Agrupar y contar",
+    "description": "Devuelve conteo de filas por grupo en conteo.",
+    "params": {
+      "by": {
+        "type": "any",
+        "description": "Columna o lista de columnas para agrupar",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "group_by_shift",
+    "name": "Desplazamiento por grupo",
+    "description": "Desplaza los valores dentro de cada grupo.",
+    "params": {
+      "by": {
+        "type": "any",
+        "description": "Columna o lista de columnas para agrupar",
+        "required": true
+      },
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "new_column_name": {
+        "type": "str",
+        "description": "Columna de salida",
+        "required": true
+      },
+      "periods": {
+        "type": "int",
+        "description": "Periodos de desplazamiento, incluido cero",
+        "required": false,
+        "default": 1
+      }
+    }
+  },
+  {
+    "type": "filter_by_list_length",
+    "name": "Filtrar longitud de listas",
+    "description": "Selecciona filas por longitud de sus listas.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "length": {
+        "type": "any",
+        "description": "Entero o lista de enteros no negativos",
+        "required": true
+      },
+      "keep_in": {
+        "type": "bool",
+        "description": "Conservar longitudes coincidentes",
+        "required": false,
+        "default": true
+      }
+    }
+  },
+  {
+    "type": "replace_all_headers",
+    "name": "Reemplazar cabeceras",
+    "description": "Asigna un nombre por columna en el orden actual.",
+    "params": {
+      "new_headers": {
+        "type": "list",
+        "description": "Lista de nombres de igual longitud al esquema",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "prefix_header",
+    "name": "Prefijo de cabeceras",
+    "description": "Añade un prefijo a todas las cabeceras.",
+    "params": {
+      "prefix": {
+        "type": "str",
+        "description": "Prefijo",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "suffix_header",
+    "name": "Sufijo de cabeceras",
+    "description": "Añade un sufijo a todas las cabeceras.",
+    "params": {
+      "suffix": {
+        "type": "str",
+        "description": "Sufijo",
+        "required": true
+      }
+    }
+  },
+  {
+    "type": "add_sequential_index",
+    "name": "Índice secuencial",
+    "description": "Añade un contador secuencial por fila.",
+    "params": {
+      "column_name": {
+        "type": "str",
+        "description": "Nombre de columna",
+        "required": false,
+        "default": "index"
+      },
+      "start": {
+        "type": "int",
+        "description": "Valor inicial, incluido cero",
+        "required": false,
+        "default": 1
+      }
+    }
+  },
+  {
+    "type": "filter_in_range",
+    "name": "Filtrar por rango",
+    "description": "Selecciona valores entre límites inclusivos.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "min_value": {
+        "type": "number",
+        "description": "Límite inferior",
+        "required": true
+      },
+      "max_value": {
+        "type": "number",
+        "description": "Límite superior",
+        "required": true
+      },
+      "complement": {
+        "type": "bool",
+        "description": "Invertir la selección",
+        "required": false,
+        "default": false
+      }
+    }
+  },
+  {
+    "type": "filter_in_list",
+    "name": "Filtrar por lista",
+    "description": "Selecciona valores presentes en la lista conservando sus tipos.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "values": {
+        "type": "list",
+        "description": "Valores aceptados",
+        "required": true
+      },
+      "complement": {
+        "type": "bool",
+        "description": "Invertir la selección",
+        "required": false,
+        "default": false
+      }
+    }
+  },
+  {
+    "type": "filter_is_null",
+    "name": "Seleccionar nulos",
+    "description": "Conserva filas con valores nulos.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "complement": {
+        "type": "bool",
+        "description": "Invertir la selección",
+        "required": false,
+        "default": false
+      }
+    }
+  },
+  {
+    "type": "select_not_none",
+    "name": "Seleccionar no nulos",
+    "description": "Conserva filas con valores no nulos.",
+    "params": {
+      "column": {
+        "type": "str",
+        "description": "Nombre de la columna de entrada",
+        "required": true
+      },
+      "complement": {
+        "type": "bool",
+        "description": "Invertir la selección",
+        "required": false,
+        "default": false
+      }
+    }
+  }
+]

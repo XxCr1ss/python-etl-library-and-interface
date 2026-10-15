@@ -16,16 +16,21 @@ import {
 
 type Tab = "file" | "database" | "date_dimension";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { API_URL } from "@/services/apiClient";
+import { uploadFile, getDatabaseMetadata, previewDatabaseTable, previewDateDimension, getAgentStatus } from "@/services/extractApi";
+import { usePipelineSession } from "@/hooks/usePipelineSession";
+import type { DatabaseType } from "@/types/etl";
 
 export default function ExtractPage() {
   const router = useRouter();
+  const session = usePipelineSession();
+  const agentId = session.agentId;
   const [activeTab, setActiveTab] = useState<Tab>("file");
   const [file, setFile] = useState<File | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
 
   // Estados de Base de Datos
-  const [dbType, setDbType] = useState("postgresql");
+  const [dbType, setDbType] = useState<DatabaseType>("postgresql");
   const [host, setHost] = useState("localhost");
   const [port, setPort] = useState("5432");
   const [database, setDatabase] = useState("mi_base_de_datos");
@@ -35,7 +40,6 @@ export default function ExtractPage() {
 
   // Estados de Agente Local Híbrido
   const [useAgent, setUseAgent] = useState(false);
-  const [agentId, setAgentId] = useState("");
   const [agentConnected, setAgentConnected] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -54,16 +58,6 @@ export default function ExtractPage() {
   const [startYear, setStartYear] = useState<string>(String(new Date().getFullYear() - 5));
   const [endYear, setEndYear] = useState<string>(String(new Date().getFullYear()));
 
-  // Inicializar Agent ID en montaje cliente
-  useEffect(() => {
-    let savedId = localStorage.getItem("etl_agent_id");
-    if (!savedId) {
-      savedId = `agent-${Math.random().toString(36).substring(2, 10)}`;
-      localStorage.setItem("etl_agent_id", savedId);
-    }
-    setAgentId(savedId);
-  }, []);
-
   // Poll de estado del agente
   useEffect(() => {
     if (!useAgent || !agentId) {
@@ -74,13 +68,8 @@ export default function ExtractPage() {
     let active = true;
     const checkStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/extract/agent/status/${agentId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (active) {
-            setAgentConnected(data.connected);
-          }
-        }
+        const data = await getAgentStatus(agentId);
+        if (active) setAgentConnected(data.connected);
       } catch {
         if (active) {
           setAgentConnected(false);
@@ -114,19 +103,8 @@ export default function ExtractPage() {
     setPreviewData(null);
     setIsPreviewing(false);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch(`${API_URL}/extract/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al procesar el archivo");
-      }
+      const data = await uploadFile(file);
 
       setFilename(data.filename);
       setFilepath(data.filepath);
@@ -165,21 +143,10 @@ export default function ExtractPage() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/extract/database`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(reqBody)
-      });
+      const data = await getDatabaseMetadata(reqBody);
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al conectar con la base de datos");
-      }
-
-      setTables(data.tables || []);
-      setSuccessMsg(`Conectado exitosamente. Se encontraron ${data.tables?.length || 0} tablas.`);
+      setTables(data.tables);
+      setSuccessMsg(`Conectado exitosamente. Se encontraron ${data.tables.length} tablas.`);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Error de conexión");
     } finally {
@@ -216,21 +183,10 @@ export default function ExtractPage() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/extract/database/preview`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(reqBody)
-      });
+      const data = await previewDatabaseTable(reqBody);
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al obtener vista previa de la tabla");
-      }
-
-      setPreviewData(data.preview_data || []);
-      setTotalRows(data.total_rows || 0);
+      setPreviewData(data.preview_data);
+      setTotalRows(data.total_rows);
       setFilename(tableName);
       setIsPreviewing(true);
     } catch (err) {
@@ -247,27 +203,12 @@ export default function ExtractPage() {
     setIsPreviewing(false);
 
     try {
-      const res = await fetch(`${API_URL}/extract/date-dimension/preview`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          start_year: parseInt(startYear),
-          end_year: parseInt(endYear)
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al generar la dimensión fecha");
-      }
-
-      setPreviewData(data.preview_data || []);
-      setTotalRows(data.total_rows || 0);
+      const data = await previewDateDimension({ start_year: Number(startYear), end_year: Number(endYear) });
+      setPreviewData(data.preview_data);
+      setTotalRows(data.total_rows);
       setFilename(`dim_fecha_${startYear}_to_${endYear}`);
       setIsPreviewing(true);
-      setSuccessMsg(data.message || "Dimensión de fechas generada correctamente.");
+      setSuccessMsg("Dimensión de fechas generada correctamente.");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Error al generar la dimensión fecha");
     } finally {
@@ -276,47 +217,50 @@ export default function ExtractPage() {
   };
 
   const handleContinueToTransform = () => {
-    if (activeTab === "file") {
-      if (!filepath || !filename) return;
-      const source = {
-        type: "file",
-        filepath: filepath,
-        filename: filename,
-        unique_filename: uniqueFilename,
-        total_rows: totalRows
-      };
-      sessionStorage.setItem("etl_active_source", JSON.stringify(source));
-      sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
-      router.push("/transform");
-    } else if (activeTab === "database") {
-      if (!selectedTable) return;
-      const source = {
-        type: "database",
-        db_type: dbType,
-        host: host,
-        port: port ? parseInt(port) : null,
-        database: database,
-        user: user,
-        password: password,
-        table_name: selectedTable,
-        service_name: serviceName || null,
-        total_rows: totalRows,
-        use_agent: useAgent,
-        agent_id: useAgent ? agentId : null
-      };
-      sessionStorage.setItem("etl_active_source", JSON.stringify(source));
-      sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
-      router.push("/transform");
-    } else {
-      const source = {
-        type: "date_dimension",
-        start_year: parseInt(startYear),
-        end_year: parseInt(endYear),
-        total_rows: totalRows
-      };
-      sessionStorage.setItem("etl_active_source", JSON.stringify(source));
-      sessionStorage.setItem("etl_transform_recipe", JSON.stringify([]));
-      router.push("/transform");
+    if (session.state.execution?.status === "running" || session.state.hydrationStatus === "hydrating" || session.state.recoveryRequired) return;
+    if (session.state.source && !window.confirm("Reemplazar el origen descartará la receta, preview y configuración de carga actuales. ¿Continuar?")) return;
+    try {
+      if (activeTab === "file") {
+        if (!filepath || !filename) return;
+        const source = {
+          type: "file",
+          filepath: filepath,
+          filename: filename,
+          unique_filename: uniqueFilename,
+          total_rows: totalRows
+        };
+        if (!session.confirmSource(source)) return;
+        router.push("/transform");
+      } else if (activeTab === "database") {
+        if (!selectedTable) return;
+        const source = {
+          type: "database",
+          db_type: dbType,
+          host: host,
+          port: port ? parseInt(port) : null,
+          database: database,
+          user: user,
+          password: password,
+          table_name: selectedTable,
+          service_name: serviceName || null,
+          total_rows: totalRows,
+          use_agent: useAgent,
+          agent_id: useAgent ? agentId : null
+        };
+        if (!session.confirmSource(source)) return;
+        router.push("/transform");
+      } else {
+        const source = {
+          type: "date_dimension",
+          start_year: parseInt(startYear),
+          end_year: parseInt(endYear),
+          total_rows: totalRows
+        };
+        if (!session.confirmSource(source)) return;
+        router.push("/transform");
+      }
+    } catch {
+      setErrorMsg("La configuración del origen es inválida. Revisa los campos y genera de nuevo su vista previa.");
     }
   };
 
@@ -545,7 +489,7 @@ export default function ExtractPage() {
                   <select 
                     value={dbType}
                     onChange={(e) => {
-                      setDbType(e.target.value);
+                      setDbType(e.target.value as DatabaseType);
                       if (e.target.value === "postgresql") setPort("5432");
                       else if (e.target.value === "mysql") setPort("3306");
                       else if (e.target.value === "oracle") setPort("1521");
@@ -758,7 +702,7 @@ export default function ExtractPage() {
           </div>
           <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
             <span className="text-xs text-slate-500">
-              Mostrando {previewData.length} de {totalRows} registros extraídos
+              {activeTab === "database" ? `Mostrando ${previewData.length} filas de muestra (total del dataset desconocido)` : `Mostrando ${previewData.length} de ${totalRows} registros extraídos`}
             </span>
             <button 
               onClick={handleContinueToTransform}

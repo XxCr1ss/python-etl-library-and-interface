@@ -1,103 +1,63 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Database, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
 
-export interface TargetConfig {
-  db_type: string;
-  host: string;
-  port?: number;
-  database: string;
-  user: string;
-  password?: string;
-  service_name?: string;
-}
-
+import type { TargetConnectionDto, MessageResponse, DatabaseType } from "@/types/etl";
+export type TargetConfig = Omit<TargetConnectionDto, "password"> & { password?: string };
 interface TargetConfigFormProps {
   config: TargetConfig;
   onChange: (newConfig: TargetConfig) => void;
-  onConnectionStatusChange: (connected: boolean) => void;
+  onTestConnection: () => Promise<MessageResponse>;
+  connectionVersion: number;
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export default function TargetConfigForm({
   config,
   onChange,
-  onConnectionStatusChange,
+  onTestConnection,
+  connectionVersion,
 }: TargetConfigFormProps) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
 
-  // Set default port when db_type changes
-  useEffect(() => {
-    let defaultPort = 5432;
-    if (config.db_type === "mysql") defaultPort = 3306;
-    else if (config.db_type === "oracle") defaultPort = 1521;
-    
-    if (config.port === undefined || config.port === 5432 || config.port === 3306 || config.port === 1521) {
-      onChange({ ...config, port: defaultPort });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.db_type]);
+  const currentVersion = useRef(connectionVersion);
+  currentVersion.current = connectionVersion;
+  useEffect(() => { setTestResult(null); }, [connectionVersion]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === "port") {
       onChange({ ...config, [name]: value ? parseInt(value, 10) : undefined });
+    } else if (name === "db_type") {
+      const db_type = value as DatabaseType;
+      onChange({ ...config, db_type, port: db_type === "mysql" ? 3306 : db_type === "oracle" ? 1521 : 5432 });
     } else {
       onChange({ ...config, [name]: value });
     }
     // Reset connection status on form changes
     setTestResult(null);
-    onConnectionStatusChange(false);
   };
 
   const handleTestConnection = async (e: React.FormEvent) => {
     e.preventDefault();
     setTesting(true);
     setTestResult(null);
-    onConnectionStatusChange(false);
 
+    const version = connectionVersion;
     try {
-      const payload: Record<string, unknown> = {
-        db_type: config.db_type,
-        host: config.host || "localhost",
-        port: config.port,
-        database: config.database,
-        user: config.user,
-        password: config.password || "",
-      };
-
-      if (config.db_type === "oracle" && config.service_name) {
-        payload.service_name = config.service_name;
-      }
-
-      const res = await fetch(`${API_URL}/load/test-connection`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.detail || "No se pudo conectar a la base de datos destino.");
-      }
-
+      const data = await onTestConnection();
+      if (version !== currentVersion.current) return;
       setTestResult({
         status: "success",
         message: data.message || "¡Conexión verificada exitosamente!",
       });
-      onConnectionStatusChange(true);
     } catch (err) {
+      if (version !== currentVersion.current) return;
       setTestResult({
         status: "error",
         message: err instanceof Error ? err.message : "Error al conectar.",
       });
-      onConnectionStatusChange(false);
     } finally {
       setTesting(false);
     }
@@ -124,6 +84,7 @@ export default function TargetConfigForm({
         )}
       </div>
 
+      {config.password === undefined && <button type="button" className="underline text-sm" onClick={() => onChange({ ...config, password: "" })}>Usar contraseña vacía explícitamente</button>}
       <form onSubmit={handleTestConnection} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -212,7 +173,7 @@ export default function TargetConfigForm({
             <input
               type="password"
               name="password"
-              value={config.password || ""}
+              value={config.password ?? ""}
               onChange={handleChange}
               placeholder="••••••••"
               className="w-full px-3.5 py-2 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-550 transition-all text-slate-900 dark:text-white"

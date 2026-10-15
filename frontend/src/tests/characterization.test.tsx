@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { render, screen, userEvent, waitFor } from "./render";
+import { render as baseRender, screen, userEvent, waitFor } from "./render";
+import { PipelineProvider } from "@/state/PipelineProvider";
+import { SESSION_KEY } from "@/state/pipelineStorage";
+import type { ReactElement } from "react";
+const render = (ui: ReactElement) => baseRender(<PipelineProvider>{ui}</PipelineProvider>);
+const wireSource = { type: "file", filepath: fileSource.filepath };
+const savedSession = () => JSON.parse(sessionStorage.getItem(SESSION_KEY)!);
 import { navigation, resetNavigation, router } from "./navigation";
 import { API_URL, fileSource, previewResponse, uploadResponse } from "./fixtures/api";
 import salesCsv from "./fixtures/sample_sales.csv?raw";
@@ -47,8 +53,8 @@ describe("caracterización del pipeline existente", () => {
     expect(uploaded).toMatchObject({ name: "sample_sales.csv", type: "text/csv" });
     expect(await uploaded!.text()).toBe(salesCsv);
     await user.click(screen.getByRole("button", { name: "Continuar a Transformación" }));
-    expect(JSON.parse(sessionStorage.getItem("etl_active_source")!)).toEqual(fileSource);
-    expect(JSON.parse(sessionStorage.getItem("etl_transform_recipe")!)).toEqual([]);
+    expect(savedSession().source).toMatchObject(wireSource);
+    expect(savedSession().recipe.map(({ type, params }: { type: string; params: unknown }) => ({ type, params }))).toEqual([]);
     expect(router.push).toHaveBeenCalledExactlyOnceWith("/transform");
   });
 
@@ -87,7 +93,7 @@ describe("caracterización del pipeline existente", () => {
     }));
     render(<TransformPage />);
     expect(await screen.findByRole("cell", { name: "muestra del servidor" })).toBeVisible();
-    expect(requests[0]).toEqual({ source: fileSource, steps: [first], limit: 10 });
+    expect(requests[0]).toEqual({ source: wireSource, steps: [first], limit: 10 });
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Agregar Transformación" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Columna Original" }), "col_monto");
@@ -95,12 +101,12 @@ describe("caracterización del pipeline existente", () => {
     await user.click(screen.getByRole("button", { name: "Aplicar Operación" }));
     const second = { type: "rename_columns", params: { columns: { col_monto: "ingreso_total" } } };
     await waitFor(() => expect(requests).toHaveLength(2));
-    expect(requests[1]).toEqual({ source: fileSource, steps: [first, second], limit: 10 });
-    expect(JSON.parse(sessionStorage.getItem("etl_transform_recipe")!)).toEqual([first, second]);
+    expect(requests[1]).toEqual({ source: wireSource, steps: [first, second], limit: 10 });
+    expect(savedSession().recipe.map(({ type, params }: { type: string; params: unknown }) => ({ type, params }))).toEqual([first, second]);
     await user.click(screen.getAllByRole("button", { name: "Eliminar este paso" })[0]);
     await waitFor(() => expect(requests).toHaveLength(3));
-    expect(requests[2]).toEqual({ source: fileSource, steps: [second], limit: 10 });
-    expect(JSON.parse(sessionStorage.getItem("etl_transform_recipe")!)).toEqual([second]);
+    expect(requests[2]).toEqual({ source: wireSource, steps: [second], limit: 10 });
+    expect(savedSession().recipe.map(({ type, params }: { type: string; params: unknown }) => ({ type, params }))).toEqual([second]);
   });
 
   it("Transform muestra error HTTP del motor", async () => {
@@ -108,6 +114,20 @@ describe("caracterización del pipeline existente", () => {
     server.use(http.post(`${API_URL}/transform/preview`, () => HttpResponse.json({ detail: "Archivo no encontrado" }, { status: 404 })));
     render(<TransformPage />);
     expect(await screen.findByText("Archivo no encontrado")).toBeVisible();
+    expect(screen.getByRole("link", { name: /continuar a la carga/i })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("reemplazar fuente exige confirmación y reinicia atómicamente la receta", async () => {
+    sessionStorage.setItem("etl_active_source", JSON.stringify(fileSource));
+    sessionStorage.setItem("etl_transform_recipe", JSON.stringify([{ type: "prefix_header", params: { prefix: "pre_" } }]));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<ExtractPage />); const user = await selectFile();
+    await user.click(screen.getByRole("button", { name: "Procesar Archivo" })); await screen.findByText("Archivo procesado exitosamente para vista previa.");
+    await user.click(screen.getByRole("button", { name: "Continuar a Transformación" }));
+    expect(confirm).toHaveBeenCalledOnce(); expect(savedSession().recipe).toHaveLength(1); expect(router.push).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Continuar a Transformación" }));
+    expect(savedSession().recipe).toEqual([]); expect(savedSession().source).toMatchObject(wireSource); expect(router.push).toHaveBeenCalledExactlyOnceWith("/transform");
   });
 
   it("receta vacía conserva fuente, preview limit 1 y carga simulada con recipe vacío", async () => {
@@ -132,16 +152,17 @@ describe("caracterización del pipeline existente", () => {
     );
     render(<LoadPage />);
     expect(screen.getByText("Carga directa (sin pasos de transformación en cola).")).toBeVisible();
-    await waitFor(() => expect(requests).toEqual([{ source: fileSource, steps: [], limit: 1 }]));
-    expect(JSON.parse(sessionStorage.getItem("etl_active_source")!)).toEqual(fileSource);
+    await waitFor(() => expect(requests).toEqual([{ source: wireSource, steps: [], limit: 1 }]));
+    expect(savedSession().source).toMatchObject(wireSource);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("ej. dim_medico o fact_consulta"), "dim_muestra");
+    await user.click(screen.getByRole("button", { name: "Usar contraseña vacía explícitamente" }));
     await user.click(screen.getByRole("button", { name: "Probar Conexión Bodega" }));
     await screen.findByText("Conectado Correctamente");
     await user.click(screen.getByRole("button", { name: "Iniciar Carga en Bodega de Datos" }));
     expect(await screen.findByRole("heading", { name: "¡Pipeline de Carga Completado!" })).toBeVisible();
     expect(loadPayload).toEqual({
-      source: fileSource, recipe: [],
+      source: wireSource, recipe: [],
       target_connection: { db_type: "postgresql", host: "localhost", port: 5432, database: "base_de_destino", user: "postgres", password: "" },
       load_config: { table_name: "dim_muestra", table_type: "dimension", if_exists: "replace" },
     });
