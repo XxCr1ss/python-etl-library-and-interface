@@ -31,7 +31,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Run tests and generate LCOV coverage report
         working-directory: frontend
