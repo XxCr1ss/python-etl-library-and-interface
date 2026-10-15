@@ -32,3 +32,13 @@ backend/uploads/*
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+# Antigravity agent and skills configs
+.agents/
+.gemini/
+
+# Planes de refactorización y desarrollo
+Planes/
+
+# figuras_svg
+figuras_svg/
