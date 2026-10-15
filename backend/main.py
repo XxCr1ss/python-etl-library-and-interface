@@ -18,6 +18,11 @@ if backend_dir not in sys.path:
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from etl.error_utils import public_error
 from api.routes import extract, transform, load
 from services.agent_manager import agent_manager
 
@@ -26,6 +31,24 @@ app = FastAPI(
     description="API para la herramienta de integración de datos (ETL)",
     version="1.0.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    # Pydantic input/ctx can contain the full source, including nested passwords.
+    detail = [{"loc": error["loc"], "type": error["type"],
+               "msg": public_error(error["msg"], exc.body)} for error in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": detail})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def public_http_error_handler(request: Request, exc: StarletteHTTPException):
+    try:
+        payload = await request.json()
+    except (ValueError, RuntimeError):
+        payload = None
+    detail = public_error(exc.detail, payload) if isinstance(exc.detail, str) else exc.detail
+    return JSONResponse(status_code=exc.status_code, content={"detail": detail}, headers=exc.headers)
 
 # Configuración de CORS para permitir peticiones del frontend (Next.js)
 cors_origins = [

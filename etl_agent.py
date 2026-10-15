@@ -2,15 +2,15 @@ import sys
 import os
 import json
 import asyncio
-import datetime
 import pandas as pd
-import numpy as np
 from typing import Any, Dict, List
 
 # Añadir el directorio actual al path para poder importar la librería etl
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from etl.extractors.db_extractor import DB_Extractor
+from etl.error_utils import public_error
+from etl.json_utils import clean_value
 
 # Intentar importar websockets, informar si no está instalado
 try:
@@ -19,20 +19,6 @@ except ImportError:
     print("❌ Error: La librería 'websockets' no está instalada en tu entorno de Python.")
     print("👉 Por favor, instálala ejecutando: pip install websockets")
     sys.exit(1)
-
-def clean_value(val: Any) -> Any:
-    """Convierte un valor de pandas/numpy a un tipo nativo de Python serializable en JSON."""
-    if pd.isna(val) or val is pd.NaT:
-        return None
-    if isinstance(val, (np.integer, np.int64, np.int32, np.int16, np.int8)):
-        return int(val)
-    if isinstance(val, (np.floating, np.float64, np.float32)):
-        if np.isnan(val) or np.isinf(val):
-            return None
-        return float(val)
-    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
-        return val.isoformat()
-    return val
 
 def clean_records(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
     """Convierte las primeras filas de un DataFrame en una lista de diccionarios JSON-serializables."""
@@ -182,11 +168,11 @@ async def agent_loop(server_url: str, agent_id: str):
                     print(f"📤 Comando procesado con éxito. Enviando respuesta...")
                     
                 except Exception as e:
-                    print(f"❌ Error al procesar comando: {e}")
+                    print(f"❌ Error al procesar comando: {public_error(e, payload)}")
                     response = {
                         "request_id": request_id,
                         "status": "error",
-                        "message": str(e)
+                        "message": public_error(e, payload)
                     }
                 
                 await websocket.send(json.dumps(response))

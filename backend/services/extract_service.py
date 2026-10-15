@@ -2,36 +2,19 @@ import os
 import uuid
 import tempfile
 import pandas as pd
-import numpy as np
-import datetime
+import re
+from pathlib import Path
 from fastapi import UploadFile
 from etl.extractors.csv_extractor import CSVExtractor
 from etl.extractors.xlsx_extractor import XLSXExtractor
 from etl.extractors.db_extractor import DB_Extractor
+from etl.json_utils import clean_value
+from etl.error_utils import public_error
 from typing import Dict, Any, List, Optional
-
-# UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
-# os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "etl_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-def clean_value(val: Any) -> Any:
-    """
-    Convierte un valor de pandas/numpy a un tipo nativo de Python que sea compatible con JSON.
-    """
-    if pd.isna(val) or val is pd.NaT:
-        return None
-    if isinstance(val, (np.integer, np.int64, np.int32, np.int16, np.int8)):
-        return int(val)
-    if isinstance(val, (np.floating, np.float64, np.float32)):
-        if np.isnan(val) or np.isinf(val):
-            return None
-        return float(val)
-    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
-        return val.isoformat()
-    return val
 
 def clean_records(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
     """
@@ -46,15 +29,22 @@ def clean_records(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
 
 async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict[str, Any]:
     """
-    Guarda el archivo subido de forma persistente en backend/uploads/, lo lee usando CSVExtractor o XLSXExtractor,
+    Guarda el archivo en UPLOAD_DIR temporal, lo lee usando CSVExtractor o XLSXExtractor,
     y genera una vista previa de los datos y su información general.
     """
-    suffix = os.path.splitext(file.filename)[1].lower()
+    filename = re.sub(r'[^\w. -]', '_', (file.filename or '').replace('\\', '/').split('/')[-1])
+    suffix = os.path.splitext(filename)[1].lower()
+    if suffix not in ('.csv', '.xlsx', '.xls'):
+        raise ValueError("Formato de archivo no soportado. Usa .csv, .xlsx o .xls")
     
     # Generar un nombre único para evitar colisiones
     unique_id = uuid.uuid4().hex
-    unique_filename = f"{unique_id}_{file.filename}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    unique_filename = f"{unique_id}_{filename}"
+    directory = Path(UPLOAD_DIR).resolve()
+    destination = (directory / unique_filename).resolve()
+    if destination.parent != directory:
+        raise ValueError("Nombre de archivo inválido.")
+    file_path = str(destination)
     
     # Escribir el contenido binario del UploadFile en el archivo persistente
     with open(file_path, 'wb') as f:
@@ -62,19 +52,16 @@ async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict
         f.write(content)
         
     # Procesar según el tipo de archivo
-    if suffix == '.csv':
-        extractor = CSVExtractor(file_path)
-        df = extractor.read_csv()
-    elif suffix in ['.xlsx', '.xls']:
-        extractor = XLSXExtractor(file_path)
-        sheet_names = extractor.get_sheet_names()
-        sheet_name = sheet_names[0] if sheet_names else None
-        df = extractor.read_sheet(sheet_name=sheet_name)
-    else:
-        # Limpiar archivo si no es compatible
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        raise ValueError(f"Formato de archivo '{suffix}' no soportado.")
+    try:
+        if suffix == '.csv':
+            df = CSVExtractor(file_path).read_csv()
+        else:
+            extractor = XLSXExtractor(file_path)
+            sheet_names = extractor.get_sheet_names()
+            df = extractor.read_sheet(sheet_name=sheet_names[0] if sheet_names else None)
+    except Exception as exc:
+        destination.unlink(missing_ok=True)
+        raise ValueError("No se pudo leer el archivo: contenido vacío, corrupto o incompatible con su formato.") from exc
         
     # Generar vista previa y conteo de filas
     total_rows = len(df)
@@ -82,7 +69,7 @@ async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict
     
     return {
         "status": "success",
-        "filename": file.filename,
+        "filename": filename,
         "filepath": file_path,
         "unique_filename": unique_filename,
         "message": "Archivo recibido y procesado para vista previa",
@@ -123,7 +110,7 @@ def get_database_metadata(
                     schema = extractor.get_table_schema(table)
                     schema_preview[table] = schema.get('columns', [])
                 except Exception as e:
-                    print(f"Error al obtener esquema para la tabla '{table}': {e}")
+                    print(f"Error al obtener esquema para la tabla '{table}': {public_error(e, {'password': password})}")
                     schema_preview[table] = []
                     
             return {

@@ -1,4 +1,5 @@
 import pandas as pd
+import uuid
 from tabulate import tabulate
 
 class ConvertOperations:
@@ -114,7 +115,7 @@ class ConvertOperations:
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif target_type == "uuid":
                     df[col] = df[col].apply(
-                        lambda x: str(id.UUID(str(x))) if pd.notnull(x) else None
+                        lambda x: str(uuid.UUID(str(x))) if pd.notnull(x) else None
                     )
                 elif target_type == "object":
                     df[col] = df[col].astype(object)

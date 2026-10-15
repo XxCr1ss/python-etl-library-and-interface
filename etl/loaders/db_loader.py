@@ -1,6 +1,7 @@
 import pandas as pd
 import sqlalchemy as sqlch
 from tabulate import tabulate
+from etl.error_utils import public_error
 
 
 class DB_Loader:
@@ -48,6 +49,11 @@ class DB_Loader:
             return self.engine
         else:
             raise ValueError("❌ No se ha proporcionado un engine de base de datos.")
+
+    def _public_error(self, error, engine=None):
+        active_engine = engine if engine is not None else self.engine
+        password = getattr(getattr(active_engine, "url", None), "password", None)
+        return public_error(error, {"password": password})
 
     def load_dimension(self, dfs, table_names, if_exists="replace", index=False, engine=None):
         """
@@ -98,7 +104,7 @@ class DB_Loader:
                 print(f"✅ Dimensión '{table_name}' cargada exitosamente en la base de datos '{db_backend} (modo: {if_exists}).")
                 
         except Exception as e:
-            print(f"❌ Error al cargar dimensión: {e}")
+            print(f"❌ Error al cargar dimensión: {self._public_error(e, engine)}")
             raise
 
     def load_fact(self, df, table_name, foreign_keys_map=None, if_exists="append", index=False, engine=None, dtype=None, validate_foreign_keys=True):
@@ -190,7 +196,7 @@ class DB_Loader:
             print(f"✅ Hechos cargados exitosamente en la tabla '{table_name}' (modo: {if_exists}).")
 
         except Exception as e:
-            print(f"❌ Error al cargar hechos '{table_name}': {e}")
+            print(f"❌ Error al cargar hechos '{table_name}': {self._public_error(e, engine)}")
             raise
 
     def truncate_table(self, table_name, engine=None):
@@ -217,7 +223,7 @@ class DB_Loader:
                 conn.execute(f"TRUNCATE TABLE {table_name}")
             print(f"🧹 Tabla '{table_name}' truncada exitosamente.")
         except Exception as e:
-            print(f"❌ Error al truncar la tabla '{table_name}': {e}")
+            print(f"❌ Error al truncar la tabla '{table_name}': {self._public_error(e, engine)}")
             raise
 
     def load_data(self, dataframe, table_name="Transformacion", if_exists="append", index=False, engine=None):
@@ -249,7 +255,7 @@ class DB_Loader:
             dataframe.to_sql(name=table_name, con=eng, if_exists=if_exists, index=index)
             print(f"✅ Datos cargados exitosamente en la tabla '{table_name}'.")
         except Exception as e:
-            print(f"❌ Error al cargar datos: {e}")
+            print(f"❌ Error al cargar datos: {self._public_error(e, engine)}")
             raise
 
     def check_connection(self, engine=None):
@@ -274,7 +280,7 @@ class DB_Loader:
                 conn.execute(sqlch.text("SELECT 1"))
             print("✅ Conexión a base de datos verificada.")
         except Exception as e:
-            print(f"❌ Error al verificar conexión: {e}")
+            print(f"❌ Error al verificar conexión: {self._public_error(e, engine)}")
 
 
     def verify_table_load(self, table_name, engine=None, show_sample=5):

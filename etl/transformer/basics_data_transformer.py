@@ -252,7 +252,7 @@ class BasicsTransformOperations:
         try:
             # Paso 1: Convertir a lista
             df_con_lista = BasicsTransformOperations.convert_column_to_list(
-                df, columna, delimitador, show=show
+                df, columna, delimitador=delimitador, nueva_columna=f'{columna}_lista', show=show
             )
             
             # Paso 2: Hacer explode
@@ -263,6 +263,8 @@ class BasicsTransformOperations:
                 show=show
             )
             
+            if not mantener_original:
+                df_normalizado = df_normalizado.drop(columns=[columna])
             return df_normalizado
             
         except Exception as e:
@@ -338,7 +340,7 @@ class BasicsTransformOperations:
 
         except Exception as e:
             print(f"Error en convert_column_to_list: {e}")
-            return df
+            raise
 
 
     @staticmethod

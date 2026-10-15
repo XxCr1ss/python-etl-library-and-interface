@@ -1,28 +1,23 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Dict, Any, Optional
 from services import transform_service
+from source_models import SourceModel
+from operation_catalog import EXTRA_OPERATIONS, JOIN_PARAMS
 
 router = APIRouter()
-
-class SourceModel(BaseModel):
-    type: str # "file" o "database"
-    filepath: Optional[str] = None
-    sheet_name: Optional[str] = None
-    db_type: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    database: Optional[str] = None
-    user: Optional[str] = None
-    password: Optional[str] = None
-    table_name: Optional[str] = None
-    service_name: Optional[str] = None
-    use_agent: Optional[bool] = False
-    agent_id: Optional[str] = None
 
 class StepModel(BaseModel):
     type: str
     params: Dict[str, Any]
+
+    @field_validator("params")
+    @classmethod
+    def validate_nested_sources(cls, params):
+        for key in ("right_source", "secondary_source"):
+            if key in params:
+                SourceModel.model_validate(params[key])
+        return params
 
 class TransformPreviewReq(BaseModel):
     source: SourceModel
@@ -119,6 +114,9 @@ CATALOG_OPERATIONS = [
         }
     }
 ]
+
+CATALOG_OPERATIONS.extend(EXTRA_OPERATIONS)
+next(item for item in CATALOG_OPERATIONS if item["type"] == "left_join")["params"] = JOIN_PARAMS
 
 @router.get("/operations", response_model=List[Dict[str, Any]])
 async def get_supported_operations():

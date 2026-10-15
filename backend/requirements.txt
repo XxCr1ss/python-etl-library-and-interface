@@ -1,6 +1,2 @@
-fastapi>=0.110.0
-uvicorn>=0.29.0
-python-multipart>=0.0.9
-pydantic>=2.6.4
-pandas>=2.2.1
-sqlalchemy>=2.0.28
+# One runtime manifest, also used by api/index.py deployments.
+-r ../requirements.txt

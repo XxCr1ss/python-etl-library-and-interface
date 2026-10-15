@@ -13,12 +13,14 @@ from etl import (
     XLSXExtractor
 )
 from services.extract_service import clean_records, clean_value
+from source_models import SourceModel
 
 async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
     """
     Carga un DataFrame a partir de la configuración de origen (archivo o base de datos).
     Soporta extracción delegada a través del agente local si se especifica use_agent.
     """
+    source = SourceModel.model_validate(source).model_dump(exclude_none=True)
     if source.get("use_agent"):
         agent_id = source.get("agent_id")
         if not agent_id:
@@ -84,8 +86,8 @@ async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
         ) as extractor:
             return extractor.get_table(table_name)
     elif source_type == "date_dimension":
-        start_year = int(source.get("start_year", 2020))
-        end_year = int(source.get("end_year", 2025))
+        start_year = source["start_year"]
+        end_year = source["end_year"]
         from etl import DateTime
         date_dim = DateTime(start_year, end_year)
         return date_dim.df
@@ -144,7 +146,8 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
             
             # Convertir 'on' a tupla para pandas si son claves diferentes (ej. [clave1, clave2])
             if isinstance(on, list) and len(on) == 2 and all(isinstance(x, str) for x in on):
-                if on[0] not in working_df.columns or on[1] not in df2.columns:
+                # Two shared columns mean a composite key; otherwise use left/right names.
+                if not all(key in working_df.columns and key in df2.columns for key in on):
                     on = tuple(on)
             
             how_map = {
@@ -277,7 +280,7 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
             if not columna:
                 raise ValueError("convert_column_to_list requiere el parámetro 'column'.")
             working_df = BasicsTransformOperations.convert_column_to_list(
-                working_df, columna, delimitador, nueva_columna, show=0
+                working_df, columna, delimitador=delimitador, nueva_columna=nueva_columna, show=0
             )
 
         elif step_type == "explode_column_list":
@@ -394,12 +397,19 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
             keep_in = params.get("keep_in", True)
             if not column or length is None:
                 raise ValueError("filter_by_list_length requiere parámetros 'column' y 'length'.")
+            lengths = length if isinstance(length, (list, tuple)) else [length]
+            if not lengths or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in lengths):
+                raise ValueError("length debe ser un entero o lista de enteros no negativos.")
             working_df = TransformOperations.filter_by_list_length(working_df, column, longitud=length, keep_in=keep_in, show=0)
 
         elif step_type == "replace_all_headers":
             new_headers = params.get("new_headers")
             if not new_headers:
                 raise ValueError("replace_all_headers requiere el parámetro 'new_headers'.")
+            if not isinstance(new_headers, list) or not all(isinstance(item, str) for item in new_headers):
+                raise ValueError("new_headers debe ser una lista de nombres de columnas.")
+            if len(set(new_headers)) != len(new_headers):
+                raise ValueError("new_headers no admite nombres duplicados.")
             working_df = HeaderOperations.replace_all_headers(working_df, new_headers, show=0)
 
         elif step_type == "prefix_header":
@@ -417,6 +427,8 @@ async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any
         elif step_type == "add_sequential_index":
             column_name = params.get("column_name", "index")
             start = params.get("start", 1)
+            if column_name in working_df.columns:
+                raise ValueError("column_name ya existe; el índice no debe sobrescribir datos.")
             working_df = HeaderOperations.add_sequential_index(working_df, column_name, start, show=0)
 
         elif step_type == "filter_in_range":
