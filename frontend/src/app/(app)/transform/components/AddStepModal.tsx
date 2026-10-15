@@ -1024,6 +1024,7 @@ export default function AddStepModal({
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Columna Original</label>
                   <select
                     value={renameOld}
+                    aria-label="Columna Original"
                     onChange={(e) => setRenameOld(e.target.value)}
                     required
                     className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1039,6 +1040,7 @@ export default function AddStepModal({
                   <input
                     type="text"
                     value={renameNew}
+                    aria-label="Nuevo Nombre"
                     onChange={(e) => setRenameNew(e.target.value)}
                     required
                     placeholder="ej. primer_nombre"
@@ -1471,6 +1473,7 @@ export default function AddStepModal({
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Tipo de Unión Relacional</label>
                   <select
                     value={joinType}
+                    aria-label="Tipo de Unión Relacional"
                     onChange={(e) => setJoinType(e.target.value as "left_join" | "right_join" | "inner_join" | "outer_join")}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
@@ -1528,6 +1531,7 @@ export default function AddStepModal({
                         <input 
                           type="file" 
                           id="join-file-input" 
+                          aria-label="Archivo secundario para cruce"
                           className="hidden" 
                           accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                           onChange={(e) => {
@@ -1695,6 +1699,7 @@ export default function AddStepModal({
                       <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Clave Origen (Actual)</label>
                       <select
                         value={joinOnPrimary}
+                        aria-label="Clave Origen"
                         onChange={(e) => setJoinOnPrimary(e.target.value)}
                         required={selectedType === "left_join"}
                         className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1710,6 +1715,7 @@ export default function AddStepModal({
                       <input
                         type="text"
                         value={joinOnSecondary}
+                        aria-label="Clave Destino"
                         onChange={(e) => setJoinOnSecondary(e.target.value)}
                         placeholder="ej. id_usuario"
                         className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
