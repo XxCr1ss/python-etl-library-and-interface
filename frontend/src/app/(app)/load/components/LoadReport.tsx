@@ -3,14 +3,8 @@
 import { CheckCircle2, Database, ArrowRight, RotateCcw, Table } from "lucide-react";
 import Link from "next/link";
 
-export interface LoadReportData {
-  status: string;
-  message: string;
-  table_name: string;
-  table_type: string;
-  total_rows: number;
-  preview_data: Record<string, unknown>[];
-}
+import type { LoadResponse } from "@/types/etl";
+export type LoadReportData = LoadResponse;
 
 interface LoadReportProps {
   report: LoadReportData;
@@ -61,7 +55,7 @@ export default function LoadReport({ report, onReset }: LoadReportProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
           { label: "Tabla Destino", value: report.table_name, sub: `Tipo: ${report.table_type.toUpperCase()}`, icon: Database, bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-500" },
-          { label: "Registros Totales", value: report.total_rows.toLocaleString(), sub: "Guardados físicamente", icon: Table, bg: "bg-indigo-50 dark:bg-indigo-500/10", text: "text-indigo-500" },
+          { label: "Total en destino", value: report.total_rows.toLocaleString(), sub: "Conteo final de la tabla", icon: Table, bg: "bg-indigo-50 dark:bg-indigo-500/10", text: "text-indigo-500" },
           { label: "Estado del Pipeline", value: "Activo", sub: "Sin advertencias de FK", icon: CheckCircle2, bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-500" },
         ].map((card, i) => (
           <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">

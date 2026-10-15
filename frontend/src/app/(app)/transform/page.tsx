@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Lock, ArrowRight, Sparkles, RefreshCw, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -9,103 +9,22 @@ import SidebarSteps from "./components/SidebarSteps";
 import TablePreview from "./components/TablePreview";
 import AddStepModal from "./components/AddStepModal";
 
-interface EtlSource {
-  type: "file" | "database";
-  filename?: string;
-  filepath?: string;
-  unique_filename?: string;
-  total_rows?: number;
-  db_type?: string;
-  host?: string;
-  database?: string;
-  table_name?: string;
-}
-
-interface Step {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { usePipelinePreview } from "@/hooks/usePipelineSession";
+import { CredentialRecoveryDialog } from "@/components/etl/CredentialRecoveryDialog";
+import { sourceName } from "@/types/etlLabels";
 
 export default function TransformPage() {
-  
-  // Storage States
-  const [source, setSource] = useState<EtlSource | null>(null);
-  const [recipe, setRecipe] = useState<Step[]>([]);
-  const [checkingSource, setCheckingSource] = useState(true);
-
-  // Modal State
+  const session = usePipelinePreview(10);
+  const { source, recipe, preview } = session.state;
+  const checkingSource = session.state.hydrationStatus === "hydrating";
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Transformation engine states
-  const [columns, setColumns] = useState<string[]>([]);
-  const [dtypes, setDtypes] = useState<Record<string, string>>({});
-  const [previewData, setPreviewData] = useState<Record<string, unknown>[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const updatePreview = async (activeSource: EtlSource | null, currentRecipe: Step[]) => {
-    if (!activeSource) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_URL}/transform/preview`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          source: activeSource,
-          steps: currentRecipe,
-          limit: 10,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al procesar la receta de transformación");
-      }
-
-      setColumns(data.columns || []);
-      setDtypes(data.dtypes || {});
-      setPreviewData(data.preview_data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al conectar con el motor de transformación");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const storedSource = sessionStorage.getItem("etl_active_source");
-    if (storedSource) {
-      const parsedSource = JSON.parse(storedSource);
-      setSource(parsedSource);
-      
-      const storedRecipe = sessionStorage.getItem("etl_transform_recipe");
-      const parsedRecipe = storedRecipe ? JSON.parse(storedRecipe) : [];
-      setRecipe(parsedRecipe);
-      
-      // Load initial preview
-      updatePreview(parsedSource, parsedRecipe);
-    }
-    setCheckingSource(false);
-  }, []);
-
-  const handleAddStep = (newStep: Step) => {
-    const updated = [...recipe, newStep];
-    setRecipe(updated);
-    sessionStorage.setItem("etl_transform_recipe", JSON.stringify(updated));
-    updatePreview(source, updated);
-  };
-
-  const handleRemoveStep = (indexToRemove: number) => {
-    const updated = recipe.filter((_, idx) => idx !== indexToRemove);
-    setRecipe(updated);
-    sessionStorage.setItem("etl_transform_recipe", JSON.stringify(updated));
-    updatePreview(source, updated);
-  };
+  const columns = preview.data?.columns ?? [];
+  const dtypes = preview.data?.dtypes ?? {};
+  const previewData = preview.data?.preview_data ?? [];
+  const loading = preview.status === "loading";
+  const error = preview.error ?? null;
+  const handleAddStep = session.addStep;
+  const handleRemoveStep = (id: string) => session.dispatch({ type: "removeStep", id });
 
   if (checkingSource) {
     return (
@@ -158,13 +77,17 @@ export default function TransformPage() {
           </p>
         </div>
         <Link 
-          href="/load"
+          href={session.isReadyForLoad ? "/load" : "#"}
+          aria-disabled={!session.isReadyForLoad}
+          onClick={e => { if (!session.isReadyForLoad) e.preventDefault(); }}
           className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors font-semibold text-sm shadow-sm"
         >
           Continuar a la Carga <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
 
+      <CredentialRecoveryDialog />
+      <button type="button" className="underline text-sm" disabled={!session.canTransform || loading || session.state.execution?.status === "running"} onClick={() => void session.runPreview(10)}>Actualizar vista previa</button>
       {/* Source Metadata Banner */}
       <SourceBanner source={source} />
 
@@ -176,8 +99,9 @@ export default function TransformPage() {
             steps={recipe}
             onRemoveStep={handleRemoveStep}
             onAddStepClick={() => setIsModalOpen(true)}
+            disabled={!session.canTransform || session.state.execution?.status === "running"}
             sourceType={source.type}
-            sourceName={(source.type === "file" ? source.filename : source.table_name) || "Sin nombre"}
+            sourceName={sourceName(source)}
           />
         </div>
 

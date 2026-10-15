@@ -2,16 +2,15 @@
 
 import { Trash2, Plus, Play, Settings } from "lucide-react";
 
-interface Step {
-  type: string;
-  params: Record<string, unknown>;
-}
+import type { TransformStep, SourceDescriptor } from "@/types/etl";
+type Step = TransformStep;
 
 interface SidebarStepsProps {
   steps: Step[];
-  onRemoveStep: (index: number) => void;
+  onRemoveStep: (id: string) => void;
   onAddStepClick: () => void;
-  sourceType: "file" | "database";
+  sourceType: SourceDescriptor["type"];
+  disabled?: boolean;
   sourceName: string;
 }
 
@@ -21,6 +20,7 @@ export default function SidebarSteps({
   onAddStepClick,
   sourceType,
   sourceName,
+  disabled,
 }: SidebarStepsProps) {
   
   const getStepDetails = (step: Step) => {
@@ -130,7 +130,7 @@ export default function SidebarSteps({
               Extracción Original
             </h4>
             <p className="text-xs text-slate-500 mt-1 truncate">
-              {sourceType === "file" ? `Archivo: ${sourceName}` : `Tabla DB: ${sourceName}`}
+              {sourceType === "file" ? `Archivo: ${sourceName}` : sourceType === "database" ? `Tabla DB: ${sourceName}` : sourceName}
             </p>
           </div>
         </div>
@@ -139,7 +139,7 @@ export default function SidebarSteps({
         {steps.map((step, index) => {
           const { title, desc } = getStepDetails(step);
           return (
-            <div key={index} className="relative flex gap-4 group animate-in slide-in-from-bottom-2 duration-300">
+            <div key={step.id} className="relative flex gap-4 group animate-in slide-in-from-bottom-2 duration-300">
               <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center border-4 border-white dark:border-slate-900 group-hover:border-blue-500/20 shadow z-10 shrink-0 transition-colors">
                 <span className="text-xs font-bold font-mono">{index + 1}</span>
               </div>
@@ -154,7 +154,8 @@ export default function SidebarSteps({
                     </p>
                   </div>
                   <button
-                    onClick={() => onRemoveStep(index)}
+            disabled={disabled}
+                    onClick={() => onRemoveStep(step.id)}
                     className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors opacity-0 group-hover:opacity-100 absolute top-3 right-3 animate-in fade-in duration-200"
                     title="Eliminar este paso"
                   >
@@ -169,6 +170,7 @@ export default function SidebarSteps({
 
       {/* Add Step Button */}
       <button
+            disabled={disabled}
         onClick={onAddStepClick}
         className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >

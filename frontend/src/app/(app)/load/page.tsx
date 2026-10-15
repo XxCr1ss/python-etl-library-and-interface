@@ -4,166 +4,43 @@ import { useState, useEffect } from "react";
 import { Lock, ArrowLeft, RefreshCw, ChevronRight, XCircle } from "lucide-react";
 import Link from "next/link";
 
-import TargetConfigForm, { TargetConfig } from "./components/TargetConfigForm";
-import LoadSettings, { LoadConfig } from "./components/LoadSettings";
+import TargetConfigForm from "./components/TargetConfigForm";
+import LoadSettings from "./components/LoadSettings";
 import ExecutionPanel from "./components/ExecutionPanel";
-import LoadReport, { LoadReportData } from "./components/LoadReport";
+import LoadReport from "./components/LoadReport";
 
-interface EtlSource {
-  type: "file" | "database";
-  filename?: string;
-  filepath?: string;
-  unique_filename?: string;
-  total_rows?: number;
-  db_type?: string;
-  host?: string;
-  database?: string;
-  table_name?: string;
-}
-
-interface Step {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { usePipelinePreview } from "@/hooks/usePipelineSession";
+import { CredentialRecoveryDialog } from "@/components/etl/CredentialRecoveryDialog";
+import type { TargetConnectionDto } from "@/types/etl";
 
 export default function LoadPage() {
-  // Source & Recipe from session
-  const [source, setSource] = useState<EtlSource | null>(null);
-  const [recipe, setRecipe] = useState<Step[]>([]);
-  const [checkingSource, setCheckingSource] = useState(true);
-
-  // Schema state (columns)
-  const [columns, setColumns] = useState<string[]>([]);
-
-  // Database Connection state
-  const [targetConfig, setTargetConfig] = useState<TargetConfig>({
-    db_type: "postgresql",
-    host: "localhost",
-    port: 5432,
-    database: "base_de_destino",
-    user: "postgres",
-    password: "",
-  });
-  const [targetConnected, setTargetConnected] = useState(false);
-
-  // Load configuration state
-  const [loadConfig, setLoadConfig] = useState<LoadConfig>({
-    table_name: "",
-    table_type: "dimension",
-    if_exists: "replace",
-  });
-
-  // Loading Execution & Report states
-  const [executing, setExecuting] = useState(false);
-  const [loadReport, setLoadReport] = useState<LoadReportData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch the final transformed schema to populate FK drop downs
-  const fetchTransformedSchema = async (activeSource: EtlSource, currentRecipe: Step[]) => {
-    try {
-      const res = await fetch(`${API_URL}/transform/preview`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          source: activeSource,
-          steps: currentRecipe,
-          limit: 1,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setColumns(data.columns || []);
-      }
-    } catch (err) {
-      console.error("Error fetching schema preview:", err);
-    }
-  };
-
+  const session = usePipelinePreview(1);
+  const { source, recipe, loadConfig, report: loadReport, preview } = session.state;
+  const checkingSource = session.state.hydrationStatus === "hydrating";
+  const columns = preview.data?.columns ?? [];
+  const [targetConfig, setTargetDraft] = useState<Omit<TargetConnectionDto, "password"> & { password?: string }>({ db_type: "postgresql", host: "localhost", port: 5432, database: "base_de_destino", user: "postgres" });
+  const { target, credentialVersion, hydrationStatus } = session.state;
+  const { credentials } = session;
   useEffect(() => {
-    const storedSource = sessionStorage.getItem("etl_active_source");
-    if (storedSource) {
-      const parsedSource = JSON.parse(storedSource);
-      setSource(parsedSource);
-      
-      const storedRecipe = sessionStorage.getItem("etl_transform_recipe");
-      const parsedRecipe = storedRecipe ? JSON.parse(storedRecipe) : [];
-      setRecipe(parsedRecipe);
-      
-      // Fetch current column schema
-      fetchTransformedSchema(parsedSource, parsedRecipe);
-    }
-    setCheckingSource(false);
-  }, []);
-
+    if (hydrationStatus === "hydrating" || !target) return;
+    setTargetDraft({ ...target, password: credentials.has(target.credentialRef) ? credentials.get(target.credentialRef) : undefined });
+  }, [hydrationStatus, target, credentialVersion, credentials]);
+  const targetDraftValid = (config: typeof targetConfig) => [config.host, config.database, config.user].every(x => !!x.trim()) &&
+    (config.port === undefined || config.port === null || (Number.isInteger(config.port) && config.port > 0 && config.port <= 65535));
+  const setTargetConfig = (config: typeof targetConfig) => {
+    setTargetDraft(config);
+    if (targetDraftValid(config)) session.setTarget(config);
+    else session.dispatch({ type: "targetInvalidated" });
+  };
+  const setLoadConfig = session.setLoadConfig;
+  const targetConnected = session.state.targetCheckedVersion !== null && session.state.targetCheckedVersion === session.state.targetVersion;
+  const executing = session.state.execution?.status === "running";
+  const [error, setError] = useState<string | null>(null);
   const handleExecuteLoad = async () => {
-    if (!source || !targetConnected) return;
-
-    setExecuting(true);
     setError(null);
-    setLoadReport(null);
-
-    try {
-      const payload = {
-        source,
-        target_connection: {
-          db_type: targetConfig.db_type,
-          host: targetConfig.host || "localhost",
-          port: targetConfig.port,
-          database: configDatabaseName(targetConfig.database),
-          user: targetConfig.user,
-          password: targetConfig.password || "",
-          ...(targetConfig.db_type === "oracle" && targetConfig.service_name ? { service_name: targetConfig.service_name } : {}),
-        },
-        load_config: {
-          table_name: loadConfig.table_name,
-          table_type: loadConfig.table_type,
-          if_exists: loadConfig.if_exists,
-          ...(loadConfig.table_type === "fact" && loadConfig.foreign_keys ? { foreign_keys: loadConfig.foreign_keys } : {}),
-        },
-        recipe,
-      };
-
-      const res = await fetch(`${API_URL}/load/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.detail || "Fallo al ejecutar el pipeline de carga.");
-      }
-
-      setLoadReport(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error inesperado al procesar la carga.");
-    } finally {
-      setExecuting(false);
-    }
+    try { await session.runLoad(); } catch (err) { setError(err instanceof Error ? err.message : "Error al ejecutar la carga."); }
   };
-
-  const configDatabaseName = (db: string) => {
-    return db.trim();
-  };
-
-  const handleReset = () => {
-    setLoadReport(null);
-    setError(null);
-    setTargetConnected(false);
-    setLoadConfig({
-      table_name: "",
-      table_type: "dimension",
-      if_exists: "replace",
-    });
-  };
+  const handleReset = () => { session.dispatch({ type: "clearReport" }); setError(null); };
 
   if (checkingSource) {
     return (
@@ -220,7 +97,7 @@ export default function LoadPage() {
         <div className="flex items-center gap-3 self-stretch sm:self-auto bg-slate-50 dark:bg-slate-900 p-2 rounded-xl border border-slate-200/50 dark:border-slate-800/80">
           <span className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium px-2 py-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-205/60 dark:border-slate-700">
             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            Origen: <span className="font-semibold text-blue-500">{source.type === "file" ? "Archivo" : "DB"}</span>
+            Origen: <span className="font-semibold text-blue-500">{source.type === "file" ? "Archivo" : source.type === "database" ? "DB" : "Fecha"}</span>
           </span>
 
           <span className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium px-2 py-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-205/60 dark:border-slate-700">
@@ -232,6 +109,10 @@ export default function LoadPage() {
         </div>
       </div>
 
+      <CredentialRecoveryDialog includeTarget />
+      {preview.error && <p role="alert">{preview.error}</p>}
+      {!session.isReadyForLoad && <p role="status">La carga requiere una vista previa correcta de la revisión actual.</p>}
+      <button className="underline text-sm" disabled={!session.canTransform || executing || preview.status === "loading"} onClick={() => void session.runPreview(1)}>Actualizar vista previa</button>
       {loadReport ? (
         /* Report Panel */
         <LoadReport report={loadReport} onReset={handleReset} />
@@ -239,24 +120,30 @@ export default function LoadPage() {
         /* Design Panel (Config & Action) */
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Formularios (Columna de la Izquierda) */}
-          <div className="lg:col-span-2 space-y-6">
+          <fieldset disabled={executing} className="lg:col-span-2 space-y-6">
             <TargetConfigForm
               config={targetConfig}
               onChange={setTargetConfig}
-              onConnectionStatusChange={setTargetConnected}
+              onTestConnection={() => {
+                if (!targetDraftValid(targetConfig)) return Promise.reject(new Error("Completa los campos del destino."));
+                return session.testTarget();
+              }}
+              connectionVersion={session.state.targetVersion}
             />
 
             <LoadSettings
+              key={session.state.revision}
               config={loadConfig}
               onChange={setLoadConfig}
               availableColumns={columns}
             />
-          </div>
+          </fieldset>
 
           {/* Panel de Ejecución (Columna de la Derecha) */}
           <div className="lg:col-span-1 space-y-6">
             <ExecutionPanel
               hasSource={!!source}
+              canExecute={session.canExecuteLoad}
               recipeLength={recipe.length}
               targetConnected={targetConnected}
               executing={executing}

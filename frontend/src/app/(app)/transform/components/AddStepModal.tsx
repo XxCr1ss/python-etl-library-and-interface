@@ -41,7 +41,9 @@ import {
   Heading
 } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { uploadFile } from "@/services/extractApi";
+import { usePipelineSession } from "@/hooks/usePipelineSession";
+import type { StepType } from "@/types/etl";
 
 interface AddStepModalProps {
   isOpen: boolean;
@@ -49,50 +51,6 @@ interface AddStepModalProps {
   availableColumns: string[];
   onAddStep: (step: { type: string; params: Record<string, unknown> }) => void;
 }
-
-type StepType = 
-  | "rename_columns" 
-  | "convert_types" 
-  | "fill_nulls" 
-  | "filter_value" 
-  | "select_columns" 
-  | "remove_columns" 
-  | "group_by" 
-  | "union" 
-  | "left_join" 
-  | "right_join"
-  | "inner_join"
-  | "outer_join"
-  | "split_column" 
-  | "add_new_column" 
-  | "transform_column" 
-  | "filter_by_condition" 
-  | "normalize_delimited_column" 
-  | "sort_columns" 
-  | "convert_column_to_list" 
-  | "explode_column_list" 
-  | "clean_numeric_columns" 
-  | "clean_date_format" 
-  | "convert_to_ordered_category" 
-  | "boolean_to_binary" 
-  | "sort_by"
-  | "search_in_column"
-  | "search_in_table"
-  | "split_column_into_rows"
-  | "drop_duplicates"
-  | "replace_values"
-  | "group_by_sum"
-  | "group_by_count"
-  | "group_by_shift"
-  | "filter_by_list_length"
-  | "replace_all_headers"
-  | "prefix_header"
-  | "suffix_header"
-  | "add_sequential_index"
-  | "filter_in_range"
-  | "filter_in_list"
-  | "filter_is_null"
-  | "select_not_none";
 
 const categoryGroups = [
   {
@@ -183,6 +141,9 @@ export default function AddStepModal({
   availableColumns,
   onAddStep,
 }: AddStepModalProps) {
+  const session = usePipelineSession();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const source = session.state.source;
   const [selectedType, setSelectedType] = useState<StepType>("rename_columns");
 
   // Form states
@@ -209,48 +170,29 @@ export default function AddStepModal({
   const [unionServiceName, setUnionServiceName] = useState("");
   const [unionUseAgent, setUnionUseAgent] = useState(false);
 
-  // Auto-completar datos si la fuente activa es base de datos
+  // Inherit the connection fields explicitly. Each added secondary gets its own reference.
   useEffect(() => {
-    if (isOpen) {
-      const storedSource = sessionStorage.getItem("etl_active_source");
-      if (storedSource) {
-        const parsed = JSON.parse(storedSource);
-        if (parsed.type === "database") {
-          setUnionDbType(parsed.db_type || "postgresql");
-          setUnionHost(parsed.host || "localhost");
-          setUnionPort(parsed.port ? String(parsed.port) : "5432");
-          setUnionDatabase(parsed.database || "");
-          setUnionUser(parsed.user || "");
-          setUnionPassword(parsed.password || "");
-          setUnionServiceName(parsed.service_name || "");
-          setUnionUseAgent(!!parsed.use_agent);
-          setUnionSourceType("database");
-        } else {
-          setUnionSourceType("file");
-        }
-      }
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    if (source?.type === "database") {
+      setUnionDbType(source.db_type);
+      setUnionHost(source.host);
+      setUnionPort(source.port ? String(source.port) : "5432");
+      setUnionDatabase(source.database);
+      setUnionUser(source.user);
+      setUnionPassword(session.credentials.has(source.credentialRef) ? session.credentials.get(source.credentialRef) : "");
+      setUnionServiceName(source.service_name || "");
+      setUnionUseAgent(!!source.use_agent);
+      setUnionSourceType("database");
+    } else setUnionSourceType("file");
+  }, [isOpen, source, session.credentials]);
 
   const handleUnionFileUpload = async (file: File) => {
     setUnionUploading(true);
     setUnionError(null);
     setUnionMetadata(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch(`${API_URL}/extract/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Error al subir el archivo secundario");
-      }
-
+      const data = await uploadFile(file);
       setUnionMetadata({
         filepath: data.filepath,
         filename: data.filename,
@@ -545,7 +487,7 @@ export default function AddStepModal({
               table_name: unionTable,
               service_name: unionServiceName || null,
               use_agent: unionUseAgent,
-              agent_id: unionUseAgent ? localStorage.getItem("etl_agent_id") : null
+              agent_id: unionUseAgent ? session.agentId : null
             }
           };
         }
@@ -576,7 +518,7 @@ export default function AddStepModal({
               table_name: unionTable,
               service_name: unionServiceName || null,
               use_agent: unionUseAgent,
-              agent_id: unionUseAgent ? localStorage.getItem("etl_agent_id") : null
+              agent_id: unionUseAgent ? session.agentId : null
             },
             on: joinOnSecondary ? [joinOnPrimary, joinOnSecondary] : joinOnPrimary
           };
@@ -836,10 +778,13 @@ export default function AddStepModal({
       finalType = joinType;
     }
 
-    onAddStep({
-      type: finalType,
-      params: stepParams
-    });
+    try {
+      onAddStep({ type: finalType, params: stepParams });
+      setSubmitError(null);
+    } catch {
+      setSubmitError("Revisa los parámetros de la operación; no se modificó la receta.");
+      return;
+    }
 
     // Reset states
     setRenameOld("");
@@ -1016,7 +961,7 @@ export default function AddStepModal({
 
           {/* Form Content */}
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-            
+            {submitError && <p role="alert">{submitError}</p>}
             {/* Rename Form */}
             {selectedType === "rename_columns" && (
               <div className="space-y-4">
