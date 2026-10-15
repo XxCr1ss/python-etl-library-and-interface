@@ -402,6 +402,7 @@ export default function ExtractPage() {
                 <input 
                   type="file" 
                   id="file-upload" 
+                  aria-label="Archivo de origen"
                   className="hidden" 
                   accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                   onChange={(e) => {

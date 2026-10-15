@@ -10,6 +10,33 @@
   --primary: #3b82f6; /* Blue 500 */
   --primary-hover: #2563eb; /* Blue 600 */
   --accent: #eef2ff; /* Blue 50 */
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #f1f5f9;
+  --ui-content: #0f172a;
+  --ui-content-muted: #475569;
+  --ui-line: #64748b;
+  --ui-focus: #1d4ed8;
+  --ui-action: #1d4ed8;
+  --ui-action-hover: #1e40af;
+  --ui-on-action: #ffffff;
+  --ui-success: #166534;
+  --ui-success-surface: #f0fdf4;
+  --ui-warning: #92400e;
+  --ui-warning-surface: #fffbeb;
+  --ui-danger: #9f1239;
+  --ui-danger-surface: #fff1f2;
+  --ui-danger-solid: #be123c;
+  --ui-on-danger: #ffffff;
+  --ui-skeleton: #cbd5e1;
+  --ui-pipeline-pending: #475569;
+  --ui-pipeline-active: #1d4ed8;
+  --ui-pipeline-complete: #166534;
+  --ui-pipeline-blocked: #9f1239;
+  --ui-dtype-numeric: #1e40af;
+  --ui-dtype-text: #6b21a8;
+  --ui-dtype-date: #92400e;
+  --ui-dtype-boolean: #115e59;
+  --ui-dtype-unknown: #475569;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +48,33 @@
     --primary: #3b82f6; /* Blue 500 */
     --primary-hover: #60a5fa; /* Blue 400 */
     --accent: #1e293b; /* Slate 800 */
+    --ui-surface: #0f172a;
+    --ui-surface-muted: #1e293b;
+    --ui-content: #f8fafc;
+    --ui-content-muted: #cbd5e1;
+    --ui-line: #94a3b8;
+    --ui-focus: #93c5fd;
+    --ui-action: #93c5fd;
+    --ui-action-hover: #bfdbfe;
+    --ui-on-action: #172554;
+    --ui-success: #86efac;
+    --ui-success-surface: #052e16;
+    --ui-warning: #fcd34d;
+    --ui-warning-surface: #451a03;
+    --ui-danger: #fda4af;
+    --ui-danger-surface: #4c0519;
+    --ui-danger-solid: #fda4af;
+    --ui-on-danger: #4c0519;
+    --ui-skeleton: #475569;
+    --ui-pipeline-pending: #cbd5e1;
+    --ui-pipeline-active: #93c5fd;
+    --ui-pipeline-complete: #86efac;
+    --ui-pipeline-blocked: #fda4af;
+    --ui-dtype-numeric: #93c5fd;
+    --ui-dtype-text: #d8b4fe;
+    --ui-dtype-date: #fcd34d;
+    --ui-dtype-boolean: #5eead4;
+    --ui-dtype-unknown: #cbd5e1;
   }
 }
 
