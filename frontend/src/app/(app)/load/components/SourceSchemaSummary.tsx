@@ -6,7 +6,7 @@ export default function SourceSchemaSummary({ data, current }: { data?: PreviewR
     <p className="text-sm text-content-muted">Columnas y tipos conocidos de entrada. No se ha consultado el esquema del destino.</p>
     {!current ? <p role="status">Esquema pendiente de validar para la revisión actual.</p> : <>
       <p>{data?.total_rows.toLocaleString()} filas en el resultado transformado.</p>
-      <ul className="max-h-64 overflow-auto divide-y divide-line text-sm">{data?.columns.map(column => <li key={column} className="flex flex-wrap justify-between gap-2 py-2">
+      <ul tabIndex={0} aria-label="Columnas de origen" className="max-h-64 overflow-auto divide-y divide-line text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus">{data?.columns.map(column => <li key={column} className="flex flex-wrap justify-between gap-2 py-2">
         <span className="break-all">{column}</span><span className="font-mono text-content-muted">{data.dtypes[column] || "Tipo no informado"}</span>
       </li>)}</ul>
       {!data?.columns.length && <p>El resultado no tiene columnas.</p>}

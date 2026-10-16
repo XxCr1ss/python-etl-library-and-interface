@@ -16,6 +16,16 @@ export default defineConfig({
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/tests/**", "src/**/*.test.{ts,tsx}", "src/**/*.d.ts", "src/**/e2e/**"],
+      thresholds: {
+        lines: 80,
+        branches: 75,
+        "src/services/etlSerializers.ts": { lines: 80, branches: 75 },
+        "src/services/responseValidators.ts": { lines: 80, branches: 75 },
+        "src/types/etlValidation.ts": { lines: 80, branches: 75 },
+        "src/state/{pipelineReducer,pipelineStorage,PipelineProvider,loadValidation}.{ts,tsx}": { lines: 80, branches: 75 },
+        "src/app/**/transform/components/step-editor/{StepRegistry.ts,definitions/*.ts}": { lines: 80, branches: 75 },
+        "src/**/hooks/use{ExtractRequest,TransformPreview,StepEditor,LoadPipeline,TargetConnection,AgentStatus}.ts": { lines: 80, branches: 75 },
+      },
     },
   },
 });

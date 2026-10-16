@@ -5,6 +5,11 @@ import asyncio
 import pandas as pd
 from typing import Any, Dict, List
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # Añadir el directorio actual al path para poder importar la librería etl
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
