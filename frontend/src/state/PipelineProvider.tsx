@@ -4,7 +4,7 @@ import { ApiError } from "@/services/apiClient";
 import { requiredConnections, sourceDto, stepDto, targetDto } from "@/services/etlSerializers";
 import { executeLoad, testTargetConnection } from "@/services/loadApi";
 import { previewTransform } from "@/services/transformApi";
-import type { LoadConfigDto, TargetConnectionDto } from "@/types/etl";
+import type { LoadConfigDto, TargetConnectionDto, TransformStep } from "@/types/etl";
 import { parseLoadConfig, parseSource, parseStep, parseTarget } from "@/types/etlValidation";
 import { CredentialStore, newId } from "./credentialStore";
 import { getAgentIdentity } from "./agentIdentity";
@@ -19,6 +19,7 @@ function useSessionCore() {
   const [credentials] = useState(() => new CredentialStore());
   const [agentId, setAgentId] = useState("");
   const hydrated = useRef(false);
+  const previewSequence = useRef(0);
   const dispatch = useCallback((action: PipelineAction) => {
     current.current = pipelineReducer(current.current, action);
     reactDispatch(action);
@@ -42,7 +43,21 @@ function useSessionCore() {
     dispatch({ type: "source", source }); return true;
   }, [credentials, dispatch, editable]);
   const addStep = useCallback((input: unknown) => { if (editable()) dispatch({ type: "addStep", step: parseStep(input, credentials, true) }); }, [credentials, dispatch, editable]);
-  const editStep = useCallback((input: unknown) => { if (editable()) dispatch({ type: "editStep", step: parseStep(input, credentials) }); }, [credentials, dispatch, editable]);
+  const transferCredentials = useCallback((recipe: TransformStep[], temporary?: CredentialStore) => {
+    for (const { credentialRef } of requiredConnections(null, recipe)) {
+      if (temporary?.has(credentialRef)) credentials.set(credentialRef, temporary.get(credentialRef));
+    }
+  }, [credentials]);
+  const editStep = useCallback((input: unknown, temporary?: CredentialStore) => {
+    if (!editable()) return;
+    const step = parseStep(input, credentials); transferCredentials([step], temporary);
+    dispatch({ type: "editStep", step });
+  }, [credentials, dispatch, editable, transferCredentials]);
+  const restoreRecipe = useCallback((recipe: TransformStep[], temporary: CredentialStore) => {
+    if (!editable()) return;
+    const clean = recipe.map(step => parseStep(step, credentials)); transferCredentials(clean, temporary);
+    dispatch({ type: "replaceRecipe", recipe: clean });
+  }, [credentials, dispatch, editable, transferCredentials]);
   const setTarget = useCallback((input: Omit<TargetConnectionDto, "password"> & { password?: string }) => {
     if (!editable()) return;
     const ref = current.current.target?.credentialRef || newId();
@@ -60,12 +75,13 @@ function useSessionCore() {
   const runPreview = useCallback(async (limit: number, signal?: AbortSignal) => {
     const snapshot = current.current;
     if (!selectors.canTransform(snapshot, credentials) || snapshot.execution?.status === "running") return;
-    const requestId = newId(); const revision = snapshot.revision;
+    const requestId = `preview-${++previewSequence.current}`; const revision = snapshot.revision;
     dispatch({ type: "previewStart", requestId, revision });
     try {
       const data = await previewTransform({ source: sourceDto(snapshot.source!, credentials), steps: snapshot.recipe.map(s => stepDto(s, credentials)), limit }, signal);
       if (!signal?.aborted) dispatch({ type: "previewSuccess", revision, requestId, data });
     } catch (error) {
+      if (signal?.aborted) return;
       if (error instanceof ApiError && error.kind === "aborted") return;
       dispatch({ type: "previewError", revision, requestId, error: error instanceof Error ? error.message : "No se pudo validar la preview." });
     }
@@ -106,9 +122,9 @@ function useSessionCore() {
     credentials.clear(); dispatch({ type: "reset" });
   }, [credentials, dispatch]);
   const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) dispatch({ type: "loadConfig", config: parseLoadConfig(config) }); }, [dispatch, editable]);
-  return useMemo(() => ({ state, credentials, agentId, dispatch, confirmSource, addStep, editStep, setTarget, recoverCredentials, runPreview, testTarget, runLoad, reset, setLoadConfig,
+  return useMemo(() => ({ state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, reset, setLoadConfig,
     canTransform: selectors.canTransform(state, credentials), canVisitLoad: selectors.canVisitLoad(state), isReadyForLoad: selectors.isReadyForLoad(state, credentials), canExecuteLoad: selectors.canExecuteLoad(state, credentials) }),
-  [state, credentials, agentId, dispatch, confirmSource, addStep, editStep, setTarget, recoverCredentials, runPreview, testTarget, runLoad, reset, setLoadConfig]);
+  [state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, reset, setLoadConfig]);
 }
 export const PipelineContext = createContext<ReturnType<typeof useSessionCore> | null>(null);
 export function PipelineProvider({ children }: { children: ReactNode }) {

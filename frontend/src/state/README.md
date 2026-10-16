@@ -2,6 +2,8 @@
 
 `app/(app)/layout.tsx` conserva un único `PipelineProvider` cliente bajo el layout servidor. Los consumidores usan `usePipelineSession`; `usePipelinePreview(limit)` ejecuta una preview al entrar/cambiar revisión y aborta al desmontarse. El provider también descarta resultados por revisión e ID, aunque el servidor continúe trabajando.
 
+Desde 05, Transform usa `useTransformPreview` con debounce de 250 ms, refresco inmediato y caché visual local marcada como desactualizada. Los IDs de preview son incrementales por provider; el catch también descarta errores después del aborto. Los prefijos del editor usan el servicio de preview por separado y nunca actualizan readiness. `editStep(input, temporaryCredentials?)` y `restoreRecipe(recipe, temporaryCredentials)` validan primero y transfieren los secretos temporales junto con la mutación/incremento de revisión; los componentes no escriben directamente en el almacén del provider. `replaceRecipe` es la acción interna de restauración de la última receta, sin restaurar una autorización de carga.
+
 Dirección de dependencias: páginas/componentes → hooks/contexto → servicios/reducer → DTO. Solo `services/apiClient.ts` contiene fetch. `NEXT_PUBLIC_API_URL` se lee una vez y debe configurarse **antes del build**. Los servicios no importan React, no reintentan y validan JSON desconocido al recibirlo.
 
 `types/etl.ts` separa DTO, descriptores, los 42 parámetros de pasos y resúmenes locales. `etlValidation.ts` valida storage/formularios confirmados y actúa como lista permitida. `services/etlSerializers.ts` construye únicamente campos HTTP; IDs, conteos y referencias internas no salen al backend. La muestra BD es `sample`; fecha/archivo/transform son `dataset`; `LoadResponse.total_rows` es el total final del destino.

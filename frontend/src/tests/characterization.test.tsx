@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockDialogMethods } from "./dialog";
+import { cleanup } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { render as baseRender, screen, userEvent, waitFor } from "./render";
 import { PipelineProvider } from "@/state/PipelineProvider";
@@ -18,7 +20,9 @@ import LoadPage from "@/app/(app)/load/page";
 import AddStepModal from "@/app/(app)/transform/components/AddStepModal";
 
 vi.mock("next/navigation", () => navigation);
-beforeEach(() => resetNavigation());
+let restoreDialog: () => void;
+beforeEach(() => { resetNavigation(); restoreDialog = mockDialogMethods(); });
+afterEach(() => { cleanup(); restoreDialog(); });
 
 async function selectFile() {
   const user = userEvent.setup();
@@ -103,7 +107,9 @@ describe("caracterización del pipeline existente", () => {
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(requests[1]).toEqual({ source: wireSource, steps: [first, second], limit: 10 });
     expect(savedSession().recipe.map(({ type, params }: { type: string; params: unknown }) => ({ type, params }))).toEqual([first, second]);
+    const confirmRemove = vi.spyOn(window, "confirm").mockReturnValue(true);
     await user.click(screen.getAllByRole("button", { name: "Eliminar este paso" })[0]);
+    expect(confirmRemove).toHaveBeenCalledWith(expect.stringContaining("puede invalidar los pasos siguientes"));
     await waitFor(() => expect(requests).toHaveLength(3));
     expect(requests[2]).toEqual({ source: wireSource, steps: [second], limit: 10 });
     expect(savedSession().recipe.map(({ type, params }: { type: string; params: unknown }) => ({ type, params }))).toEqual([second]);
@@ -175,12 +181,14 @@ describe("AddStepModal: identidad de los cuatro joins", () => {
     const onClose = vi.fn();
     render(<AddStepModal isOpen onClose={onClose} availableColumns={["id"]} onAddStep={onAddStep} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Cruces y Combinación/ }));
+    await user.type(screen.getByRole("textbox", { name: "Buscar operación" }), type);
     await user.click(screen.getByRole("button", { name: /Unión Horizontal/ }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Tipo de Unión Relacional" }), type);
-    await user.upload(screen.getByLabelText("Archivo secundario para cruce"), new File([customersCsv], "customers.csv", { type: "text/csv" }));
-    await screen.findByText("Archivo cargado listo para cruzar.");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Clave Origen" }), "id");
+    await user.upload(screen.getByLabelText("Archivo de origen"), new File([customersCsv], "customers.csv", { type: "text/csv" }));
+    await user.click(screen.getByRole("button", { name: "Procesar archivo secundario" }));
+    await screen.findByText(/Origen procesado/);
+    await user.click(screen.getByRole("button", { name: "Confirmar fuente secundaria" }));
+    await user.clear(screen.getByRole("textbox", { name: /Claves de cruce/ }));
+    await user.type(screen.getByRole("textbox", { name: /Claves de cruce/ }), '"id"');
     await user.click(screen.getByRole("button", { name: "Aplicar Operación" }));
     expect(onAddStep).toHaveBeenCalledExactlyOnceWith({
       type, params: { on: "id", right_source: {
