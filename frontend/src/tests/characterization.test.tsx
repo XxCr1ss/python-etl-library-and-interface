@@ -162,10 +162,14 @@ describe("caracterización del pipeline existente", () => {
     expect(savedSession().source).toMatchObject(wireSource);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("ej. dim_medico o fact_consulta"), "dim_muestra");
+    await user.type(screen.getByLabelText("Host"), "localhost");
+    await user.type(screen.getByLabelText("Base de datos"), "base_de_destino");
+    await user.type(screen.getByLabelText("Usuario"), "postgres");
     await user.click(screen.getByRole("button", { name: "Usar contraseña vacía explícitamente" }));
     await user.click(screen.getByRole("button", { name: "Probar Conexión Bodega" }));
     await screen.findByText("Conectado Correctamente");
     await user.click(screen.getByRole("button", { name: "Iniciar Carga en Bodega de Datos" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar reemplazo" }));
     expect(await screen.findByRole("heading", { name: "¡Pipeline de Carga Completado!" })).toBeVisible();
     expect(loadPayload).toEqual({
       source: wireSource, recipe: [],

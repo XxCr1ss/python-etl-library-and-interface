@@ -1,4 +1,5 @@
 import type { ExecutionRecord, LoadConfigDto, LoadResponse, PreviewResponse, SourceDescriptor, TargetDescriptor, TransformStep } from "@/types/etl";
+import { foreignKeyRows, type ForeignKeyRow } from "./loadValidation";
 export interface PipelineState {
   hydrationStatus: "hydrating" | "ready" | "empty" | "recovered";
   recoveryRequired: boolean; warning: string | null;
@@ -8,6 +9,9 @@ export interface PipelineState {
   loadConfig: LoadConfigDto; execution: ExecutionRecord | null; history: ExecutionRecord[]; report: LoadResponse | null;
   historyRecoveryRequired: boolean;
   credentialVersion: number;
+  foreignKeys: ForeignKeyRow[];
+  executionError: string | null;
+  loadVersion: number;
 }
 export const emptyLoadConfig = (): LoadConfigDto => ({ table_name: "", table_type: "dimension", if_exists: "replace" });
 export const initialState: PipelineState = {
@@ -15,6 +19,7 @@ export const initialState: PipelineState = {
   preview: { status: "pending", revision: 0 }, target: null, targetVersion: 0, targetCheckedVersion: null,
   loadConfig: emptyLoadConfig(), execution: null, history: [], report: null, credentialVersion: 0,
   historyRecoveryRequired: false,
+  foreignKeys: [], executionError: null, loadVersion: 0,
 };
 export type PipelineAction =
   | { type: "hydrate"; state: PipelineState }
@@ -33,13 +38,13 @@ export type PipelineAction =
   | { type: "targetInvalidated" }
   | { type: "targetChecked"; version: number; success: boolean }
   | { type: "loadConfig"; config: LoadConfigDto }
+  | { type: "foreignKeys"; rows: ForeignKeyRow[] }
   | { type: "executionStart"; record: ExecutionRecord }
-  | { type: "executionFinish"; record: ExecutionRecord; report?: LoadResponse }
+  | { type: "executionFinish"; record: ExecutionRecord; report?: LoadResponse; error?: string }
   | { type: "clearReport" } | { type: "reset" } | { type: "clearHistory" };
 function invalidate(state: PipelineState): PipelineState {
   const revision = state.revision + 1;
-  return { ...state, revision, preview: { status: "pending", revision }, report: null, execution: null,
-    loadConfig: { ...state.loadConfig, foreign_keys: undefined } };
+  return { ...state, revision, preview: { status: "pending", revision }, report: null, execution: null, executionError: null };
 }
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
   if (action.type === "hydrate") return state.hydrationStatus === "hydrating" ? action.state : state;
@@ -48,7 +53,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
   // Execution owns its snapshot even if navigation unmounts the originating page.
   if (state.execution?.status === "running" && !["executionFinish", "warning", "previewSuccess", "previewError"].includes(action.type)) return state;
   switch (action.type) {
-    case "source": return { ...invalidate(state), source: action.source, recipe: [], loadConfig: emptyLoadConfig(), targetCheckedVersion: null, hydrationStatus: "ready" };
+    case "source": return { ...invalidate(state), source: action.source, recipe: [], loadConfig: emptyLoadConfig(), foreignKeys: [], targetCheckedVersion: null, hydrationStatus: "ready" };
     case "addStep": return { ...invalidate(state), recipe: [...state.recipe, action.step] };
     case "editStep": return { ...invalidate(state), recipe: state.recipe.map(s => s.id === action.step.id ? action.step : s) };
     case "removeStep": return { ...invalidate(state), recipe: state.recipe.filter(s => s.id !== action.id) };
@@ -68,12 +73,14 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
     case "target": return { ...state, target: action.target, targetVersion: state.targetVersion + 1, targetCheckedVersion: null, report: null, execution: null };
     case "targetInvalidated": return { ...state, targetVersion: state.targetVersion + 1, targetCheckedVersion: null, report: null, execution: null };
     case "targetChecked": return action.version === state.targetVersion ? { ...state, targetCheckedVersion: action.success ? action.version : null } : state;
-    case "loadConfig": return { ...state, loadConfig: action.config, report: null, execution: null };
-    case "executionStart": return state.execution?.id === action.record.id || state.history.some(r => r.id === action.record.id) ? state : { ...state, execution: action.record, report: null, history: [...state.history, action.record].slice(-50) };
+    case "loadConfig": return { ...state, loadVersion: state.loadVersion + 1, loadConfig: action.config, foreignKeys: action.config.table_type === "dimension" ? [] :
+      (action.config.foreign_keys && action.config.foreign_keys !== state.loadConfig.foreign_keys ? foreignKeyRows(action.config) : state.foreignKeys), report: null };
+    case "foreignKeys": return { ...state, loadVersion: state.loadVersion + 1, foreignKeys: action.rows, report: null };
+    case "executionStart": return state.execution?.id === action.record.id || state.history.some(r => r.id === action.record.id) ? state : { ...state, execution: action.record, executionError: null, report: null, history: [...state.history, action.record].slice(-50) };
     case "executionFinish":
       if (state.execution?.id !== action.record.id || state.execution.status !== "running") return state;
-      return { ...state, execution: action.record, report: action.report || null, history: state.history.map(r => r.id === action.record.id ? action.record : r) };
-    case "clearReport": return { ...state, report: null, execution: null, targetCheckedVersion: null, loadConfig: emptyLoadConfig() };
+      return { ...state, execution: action.record, executionError: action.error || null, report: action.report || null, history: state.history.map(r => r.id === action.record.id ? action.record : r) };
+    case "clearReport": return { ...state, report: null, execution: null, executionError: null, targetVersion: state.targetVersion + 1, credentialVersion: state.credentialVersion + 1, targetCheckedVersion: null, loadConfig: emptyLoadConfig(), foreignKeys: [] };
     case "reset": return { ...initialState, hydrationStatus: "empty", history: state.history, historyRecoveryRequired: state.historyRecoveryRequired, revision: state.revision + 1 };
     case "clearHistory": return { ...state, history: [], historyRecoveryRequired: false };
   }

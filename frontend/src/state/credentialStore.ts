@@ -7,6 +7,7 @@ export class CredentialStore {
   has(ref: string) { return this.values.has(ref); }
   get(ref: string) { if (!this.values.has(ref)) throw new MissingCredentialError(ref); return this.values.get(ref)!; }
   set(ref: string, password: string) { this.values.set(ref, password); }
+  delete(ref: string) { this.values.delete(ref); }
   retain(refs: string[]) { for (const ref of Array.from(this.values.keys())) if (!refs.includes(ref)) this.values.delete(ref); }
   clear() { this.values.clear(); }
 }
