@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { themeInitScript } from "@/components/layout/themeStorage";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,7 +16,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="antialiased">
+    // Only the html class is changed before hydration by the theme bootstrap.
+    <html lang="es" className="antialiased" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeInitScript }} /></head>
       <body className={inter.className}>
         {children}
       </body>

@@ -12,6 +12,7 @@ import { CredentialStore } from "@/state/credentialStore";
 import { parseTarget } from "@/types/etlValidation";
 import { navigation } from "./navigation";
 import { mockDialogMethods } from "./dialog";
+import { mockMedia } from "./media";
 import { server } from "./mocks/server";
 import { API_URL, previewResponse } from "./fixtures/api";
 import TransformPage from "@/app/(app)/transform/page";
@@ -20,7 +21,7 @@ import AppLayout from "@/app/(app)/layout";
 
 vi.mock("next/navigation", () => navigation);
 let restoreDialog: () => void;
-beforeEach(() => { restoreDialog = mockDialogMethods(); });
+beforeEach(() => { restoreDialog = mockDialogMethods(); mockMedia(); });
 afterEach(() => restoreDialog());
 const file = { type: "file", filepath: "/tmp/synthetic.csv" };
 const db = { type: "database", db_type: "postgresql", host: "localhost", database: "db", user: "u", table_name: "t", password: "primary-synthetic" };

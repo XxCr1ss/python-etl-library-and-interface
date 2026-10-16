@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const css = readFileSync(path.resolve(process.cwd(), "src/app/globals.css"), "utf8");
-const [light, dark] = css.split("@media (prefers-color-scheme: dark)");
+const [light, dark] = css.split(".dark {");
 function luminance(hex: string) {
   const channels = hex.match(/[a-f\d]{2}/gi)!.map((channel) => {
     const s = parseInt(channel, 16) / 255;

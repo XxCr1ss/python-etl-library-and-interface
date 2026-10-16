@@ -6,6 +6,7 @@ export interface PipelineState {
   preview: { status: "pending" | "loading" | "success" | "error"; revision: number; requestId?: string; data?: PreviewResponse; error?: string };
   target: TargetDescriptor | null; targetVersion: number; targetCheckedVersion: number | null;
   loadConfig: LoadConfigDto; execution: ExecutionRecord | null; history: ExecutionRecord[]; report: LoadResponse | null;
+  historyRecoveryRequired: boolean;
   credentialVersion: number;
 }
 export const emptyLoadConfig = (): LoadConfigDto => ({ table_name: "", table_type: "dimension", if_exists: "replace" });
@@ -13,6 +14,7 @@ export const initialState: PipelineState = {
   hydrationStatus: "hydrating", recoveryRequired: false, warning: null, source: null, recipe: [], revision: 0,
   preview: { status: "pending", revision: 0 }, target: null, targetVersion: 0, targetCheckedVersion: null,
   loadConfig: emptyLoadConfig(), execution: null, history: [], report: null, credentialVersion: 0,
+  historyRecoveryRequired: false,
 };
 export type PipelineAction =
   | { type: "hydrate"; state: PipelineState }
@@ -70,7 +72,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
       if (state.execution?.id !== action.record.id || state.execution.status !== "running") return state;
       return { ...state, execution: action.record, report: action.report || null, history: state.history.map(r => r.id === action.record.id ? action.record : r) };
     case "clearReport": return { ...state, report: null, execution: null, targetCheckedVersion: null, loadConfig: emptyLoadConfig() };
-    case "reset": return { ...initialState, hydrationStatus: "empty", history: state.history, revision: state.revision + 1 };
-    case "clearHistory": return { ...state, history: [] };
+    case "reset": return { ...initialState, hydrationStatus: "empty", history: state.history, historyRecoveryRequired: state.historyRecoveryRequired, revision: state.revision + 1 };
+    case "clearHistory": return { ...state, history: [], historyRecoveryRequired: false };
   }
 }

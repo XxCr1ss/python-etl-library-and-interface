@@ -11,6 +11,7 @@ import { getAgentIdentity } from "./agentIdentity";
 import { browserSessionStorage, hydrateSession, persistSession } from "./pipelineStorage";
 import { initialState, pipelineReducer, type PipelineAction } from "./pipelineReducer";
 import * as selectors from "./pipelineSelectors";
+import { sourceLabel } from "./pipelineLabels";
 
 function useSessionCore() {
   const [state, reactDispatch] = useReducer(pipelineReducer, initialState);
@@ -86,6 +87,7 @@ function useSessionCore() {
       target_connection: targetDto(snapshot.target!, credentials), load_config: parseLoadConfig(snapshot.loadConfig) };
     const started = Date.now();
     const record = { id: newId(), revision: snapshot.revision, startedAt: new Date(started).toISOString(), status: "running" as const,
+      sourceLabel: sourceLabel(snapshot.source),
       table_name: payload.load_config.table_name, table_type: payload.load_config.table_type };
     dispatch({ type: "executionStart", record });
     const warning = persistSession(browserSessionStorage(), current.current);
@@ -114,6 +116,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   return <PipelineContext.Provider value={session}>
     {session.state.warning && <div role="alert" className="p-3 bg-amber-50 text-amber-950 relative z-50">{session.state.warning}
       {session.state.recoveryRequired && <button className="ml-3 underline" onClick={session.reset}>Restablecer sesión</button>}
+    </div>}
+    {session.state.historyRecoveryRequired && <div role="alert" className="relative z-50 bg-warning-surface p-3 text-warning">
+      No se pudo restaurar el historial de esta pestaña. El pipeline sigue disponible en memoria. Para volver a guardar cambios, revisa y borra el historial desde Dashboard; los datos guardados se conservan hasta confirmar.
     </div>}
     {children}
   </PipelineContext.Provider>;
