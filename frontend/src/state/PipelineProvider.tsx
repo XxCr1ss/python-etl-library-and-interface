@@ -12,6 +12,13 @@ import { browserSessionStorage, hydrateSession, persistSession } from "./pipelin
 import { initialState, pipelineReducer, type PipelineAction } from "./pipelineReducer";
 import * as selectors from "./pipelineSelectors";
 import { sourceLabel } from "./pipelineLabels";
+import { loadConfigDto } from "./loadValidation";
+import { unknownLoadMessage } from "./loadReport";
+
+export interface LoadApproval {
+  revision: number; targetVersion: number; loadVersion: number; previewRequestId?: string; config: LoadConfigDto;
+  reviewedUnknown?: boolean;
+}
 
 function useSessionCore() {
   const [state, reactDispatch] = useReducer(pipelineReducer, initialState);
@@ -20,6 +27,8 @@ function useSessionCore() {
   const [agentId, setAgentId] = useState("");
   const hydrated = useRef(false);
   const previewSequence = useRef(0);
+  const loadInFlight = useRef(false);
+  const targetTestSequence = useRef(0);
   const dispatch = useCallback((action: PipelineAction) => {
     current.current = pipelineReducer(current.current, action);
     reactDispatch(action);
@@ -37,6 +46,12 @@ function useSessionCore() {
     const warning = persistSession(browserSessionStorage(), state);
     if (warning && !state.warning?.includes(warning)) dispatch({ type: "warning", message: [state.warning, warning].filter(Boolean).join(" ") });
   }, [state, credentials, dispatch]);
+  useEffect(() => {
+    if (state.execution?.status !== "running") return;
+    const onExit = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", onExit);
+    return () => window.removeEventListener("beforeunload", onExit);
+  }, [state.execution?.status]);
   const confirmSource = useCallback((input: unknown) => {
     if (!editable()) return false;
     const source = parseSource(input, credentials, true);
@@ -72,8 +87,9 @@ function useSessionCore() {
     const affectsSource = requiredConnections(current.current.source, current.current.recipe).some(x => Object.hasOwn(entries, x.credentialRef));
     dispatch({ type: "credentials", affectsSource });
   }, [credentials, dispatch, editable]);
-  const runPreview = useCallback(async (limit: number, signal?: AbortSignal) => {
+  const runPreview = useCallback(async (limit: number, signal?: AbortSignal, onlyIfPending = false) => {
     const snapshot = current.current;
+    if (onlyIfPending && ["success", "error"].includes(snapshot.preview.status)) return;
     if (!selectors.canTransform(snapshot, credentials) || snapshot.execution?.status === "running") return;
     const requestId = `preview-${++previewSequence.current}`; const revision = snapshot.revision;
     dispatch({ type: "previewStart", requestId, revision });
@@ -88,43 +104,63 @@ function useSessionCore() {
   }, [credentials, dispatch]);
   const testTarget = useCallback(async () => {
     const snapshot = current.current;
+    const requestId = ++targetTestSequence.current;
     if (!snapshot.target || !editable()) throw new Error("Configura el destino e ingresa su contraseña.");
     if (![snapshot.target.host, snapshot.target.database, snapshot.target.user].every(x => !!x.trim())) throw new Error("Completa host, base de datos y usuario del destino.");
     dispatch({ type: "targetChecked", version: snapshot.targetVersion, success: false });
-    const response = await testTargetConnection(targetDto(snapshot.target, credentials));
-    dispatch({ type: "targetChecked", version: snapshot.targetVersion, success: true });
-    return response;
+    try {
+      const response = await testTargetConnection(targetDto(snapshot.target, credentials));
+      if (requestId === targetTestSequence.current) dispatch({ type: "targetChecked", version: snapshot.targetVersion, success: true });
+      return response;
+    } catch (error) {
+      if (requestId === targetTestSequence.current) dispatch({ type: "targetChecked", version: snapshot.targetVersion, success: false });
+      throw error;
+    }
   }, [credentials, dispatch, editable]);
-  const runLoad = useCallback(async () => {
+  const runLoad = useCallback(async (approval?: LoadApproval) => {
     const snapshot = current.current;
-    if (!selectors.canExecuteLoad(snapshot, credentials)) return;
+    if (loadInFlight.current || !selectors.canExecuteLoad(snapshot, credentials)) return;
+    if (approval && (approval.revision !== snapshot.revision || approval.targetVersion !== snapshot.targetVersion ||
+      approval.loadVersion !== snapshot.loadVersion || approval.previewRequestId !== snapshot.preview.requestId)) throw new Error("La configuración cambió. Revisa y confirma la carga otra vez.");
+    if (snapshot.loadConfig.if_exists === "replace" && !approval) throw new Error("Confirma la tabla y el destino antes de reemplazar.");
+    const unresolved = snapshot.execution?.status === "unknown" || snapshot.history.some(r => r.status === "unknown" && r.table_name === snapshot.loadConfig.table_name);
+    if (unresolved && !approval?.reviewedUnknown) throw new Error(unknownLoadMessage);
     // Build the payload before recording a request that may reach the server.
     const payload = { source: sourceDto(snapshot.source!, credentials), recipe: snapshot.recipe.map(s => stepDto(s, credentials)),
-      target_connection: targetDto(snapshot.target!, credentials), load_config: parseLoadConfig(snapshot.loadConfig) };
+      target_connection: targetDto(snapshot.target!, credentials), load_config: loadConfigDto(snapshot.loadConfig, snapshot.foreignKeys) };
+    loadInFlight.current = true;
     const started = Date.now();
     const record = { id: newId(), revision: snapshot.revision, startedAt: new Date(started).toISOString(), status: "running" as const,
       sourceLabel: sourceLabel(snapshot.source),
+      reportVersion: 1, if_exists: payload.load_config.if_exists,
       table_name: payload.load_config.table_name, table_type: payload.load_config.table_type };
     dispatch({ type: "executionStart", record });
     const warning = persistSession(browserSessionStorage(), current.current);
     if (warning) dispatch({ type: "warning", message: warning });
     try {
       const report = await executeLoad(payload);
+      if (report.table_name !== record.table_name || report.table_type !== record.table_type) throw new ApiError("contract", "La respuesta no corresponde a la tabla y al tipo enviados.");
       dispatch({ type: "executionFinish", record: { ...record, status: "success", finishedAt: new Date().toISOString(), durationMs: Date.now() - started, total_rows: report.total_rows }, report });
     } catch (error) {
-      const status = error instanceof ApiError && error.kind === "http" && (error.status || 0) < 500 ? "error" : "unknown";
-      dispatch({ type: "executionFinish", record: { ...record, status, finishedAt: new Date().toISOString(), durationMs: Date.now() - started } });
-      throw new Error(status === "unknown" ? "Resultado de carga desconocido. Comprueba el destino antes de iniciar otro intento." : error instanceof Error ? error.message : "La carga falló.");
-    }
+      const status = error instanceof ApiError && error.kind === "http" && error.status === 422 ? "error" : "unknown";
+      const message = error instanceof Error ? error.message : "No se recibió una respuesta válida.";
+      dispatch({ type: "executionFinish", record: { ...record, status, finishedAt: new Date().toISOString(), durationMs: Date.now() - started }, error: message });
+    } finally { loadInFlight.current = false; }
   }, [credentials, dispatch]);
+  const newLoad = useCallback(() => {
+    if (!editable()) return;
+    const target = current.current.target;
+    if (target) credentials.delete(target.credentialRef);
+    dispatch({ type: "clearReport" });
+  }, [credentials, dispatch, editable]);
   const reset = useCallback(() => {
     if (current.current.execution?.status === "running" || current.current.hydrationStatus === "hydrating") return;
     credentials.clear(); dispatch({ type: "reset" });
   }, [credentials, dispatch]);
   const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) dispatch({ type: "loadConfig", config: parseLoadConfig(config) }); }, [dispatch, editable]);
-  return useMemo(() => ({ state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, reset, setLoadConfig,
+  return useMemo(() => ({ state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,
     canTransform: selectors.canTransform(state, credentials), canVisitLoad: selectors.canVisitLoad(state), isReadyForLoad: selectors.isReadyForLoad(state, credentials), canExecuteLoad: selectors.canExecuteLoad(state, credentials) }),
-  [state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, reset, setLoadConfig]);
+  [state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig]);
 }
 export const PipelineContext = createContext<ReturnType<typeof useSessionCore> | null>(null);
 export function PipelineProvider({ children }: { children: ReactNode }) {
@@ -135,6 +171,9 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     </div>}
     {session.state.historyRecoveryRequired && <div role="alert" className="relative z-50 bg-warning-surface p-3 text-warning">
       No se pudo restaurar el historial de esta pestaña. El pipeline sigue disponible en memoria. Para volver a guardar cambios, revisa y borra el historial desde Dashboard; los datos guardados se conservan hasta confirmar.
+    </div>}
+    {session.state.execution?.status === "running" && <div role="status" className="border-b border-line bg-surface-muted p-3 text-content">
+      Ejecutando pipeline · {session.state.execution.table_name}. Puedes navegar y volver a Carga para ver el resultado. Cerrar o recargar no garantiza cancelar la escritura.
     </div>}
     {children}
   </PipelineContext.Provider>;

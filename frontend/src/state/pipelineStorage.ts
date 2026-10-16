@@ -4,6 +4,8 @@ import { object } from "@/services/apiClient";
 import { requireContract as check } from "@/services/responseValidators";
 import { CredentialStore } from "./credentialStore";
 import { initialState, type PipelineState } from "./pipelineReducer";
+import { foreignKeyRows, loadConfigDto, type ForeignKeyRow } from "./loadValidation";
+import { executionSummary } from "./loadReport";
 export const SESSION_KEY = "etl_pipeline_session_v1";
 const legacyKeys = ["etl_active_source", "etl_transform_recipe"];
 export type StoragePort = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -15,14 +17,18 @@ function record(v: unknown): ExecutionRecord {
   check(v.durationMs === undefined || (typeof v.durationMs === "number" && Number.isFinite(v.durationMs) && v.durationMs >= 0));
   check(v.total_rows === undefined || (Number.isInteger(v.total_rows) && Number(v.total_rows) >= 0));
   check(v.sourceLabel === undefined || typeof v.sourceLabel === "string");
+  check(v.if_exists === undefined || ["replace", "append", "fail"].includes(String(v.if_exists)));
   return { id: v.id, revision: Number(v.revision), startedAt: v.startedAt, status: v.status as ExecutionRecord["status"], table_name: v.table_name, table_type: v.table_type as ExecutionRecord["table_type"],
+    ...(v.if_exists !== undefined ? { if_exists: v.if_exists as ExecutionRecord["if_exists"] } : {}),
     ...(v.sourceLabel !== undefined ? { sourceLabel: v.sourceLabel as string } : {}),
     ...(v.finishedAt !== undefined ? { finishedAt: v.finishedAt as string } : {}), ...(v.durationMs !== undefined ? { durationMs: Number(v.durationMs) } : {}), ...(v.total_rows !== undefined ? { total_rows: Number(v.total_rows) } : {}) };
 }
 export function persistedSession(state: PipelineState) {
   const empty = new CredentialStore();
   return { schemaVersion: 1, source: state.source ? parseSource(state.source, empty) : null, recipe: state.recipe.map(s => parseStep(s, empty)), revision: state.revision,
-    target: state.target ? parseTarget(state.target, empty) : null, loadConfig: parseLoadConfig(state.loadConfig), history: state.history.slice(-50).map(record) };
+    target: state.target ? parseTarget(state.target, empty) : null, loadConfig: parseLoadConfig(loadConfigDto(state.loadConfig, state.foreignKeys)),
+    foreignKeys: state.foreignKeys.map(({ id, column, table, primaryKey }) => ({ id, column, table, primaryKey })),
+    history: state.history.slice(-50).map(r => ({ ...executionSummary(record(r)), ...(r.sourceLabel ? { sourceLabel: r.sourceLabel } : {}) })) };
 }
 export function persistSession(storage: StoragePort | null, state: PipelineState): string | null {
   // Preserve unreadable history until the separate, confirmed clearHistory action.
@@ -43,8 +49,18 @@ function readCurrent(v: unknown, store: CredentialStore): PipelineState {
     history = v.history.map(record).slice(-50).map(r => r.status === "running" ? { ...r, status: "unknown" as const } : r);
     check(new Set(history.map(r => r.id)).size === history.length);
   } catch { history = []; historyRecoveryRequired = true; }
+  const loadConfig = parseLoadConfig(v.loadConfig);
+  let rows = foreignKeyRows(loadConfig);
+  if (v.foreignKeys !== undefined) {
+    check(Array.isArray(v.foreignKeys));
+    rows = v.foreignKeys.map((row: unknown): ForeignKeyRow => {
+      check(object(row) && typeof row.id === "string" && typeof row.column === "string" && typeof row.table === "string" && typeof row.primaryKey === "string");
+      return { id: row.id, column: row.column, table: row.table, primaryKey: row.primaryKey };
+    });
+    check(new Set(rows.map(row => row.id)).size === rows.length);
+  }
   return { ...initialState, hydrationStatus: source ? "ready" : "empty", source, recipe, revision: Number(v.revision), history, historyRecoveryRequired,
-    target: v.target === null ? null : parseTarget(v.target, store), loadConfig: parseLoadConfig(v.loadConfig) };
+    foreignKeys: loadConfig.table_type === "fact" ? rows : [], target: v.target === null ? null : parseTarget(v.target, store), loadConfig };
 }
 function clearLegacy(storage: StoragePort): string | null {
   let failed = false;

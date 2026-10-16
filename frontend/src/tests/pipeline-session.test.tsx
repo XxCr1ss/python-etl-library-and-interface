@@ -121,7 +121,7 @@ describe("shared provider and mounted consumers", () => {
   it("network loss during load is unknown, is never retried and reload keeps the summary", async () => {
     let attempts = 0; server.use(http.post(`${API_URL}/load/execute`, () => { attempts++; return HttpResponse.error(); }));
     const view = render(application()); const user = await prepareLoad(); await user.click(screen.getByRole("button", { name: "Ejecutar" }));
-    await screen.findByText(/Resultado de carga desconocido/); expect(attempts).toBe(1); expect(stored().history[0].status).toBe("unknown");
+    await screen.findByText("A ejecución: unknown"); expect(attempts).toBe(1); expect(stored().history[0].status).toBe("unknown");
     view.unmount(); render(application()); expect(stored().history[0].status).toBe("unknown"); expect(attempts).toBe(1);
     expect(screen.getByText("A carga: bloqueada")).toBeVisible();
   });
@@ -133,6 +133,9 @@ describe("credential recovery UI", () => {
     render(<PipelineProvider><LoadPage /></PipelineProvider>);
     await screen.findByText("Receta inválida"); const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("ej. dim_medico o fact_consulta"), "t");
+    await user.type(screen.getByLabelText("Host"), "localhost");
+    await user.type(screen.getByLabelText("Base de datos"), "base_de_destino");
+    await user.type(screen.getByLabelText("Usuario"), "postgres");
     await user.click(screen.getByRole("button", { name: "Usar contraseña vacía explícitamente" }));
     await user.click(screen.getByRole("button", { name: "Probar Conexión Bodega" })); await screen.findByText("Conectado Correctamente");
     expect(screen.getByRole("button", { name: "Iniciar Carga en Bodega de Datos" })).toBeDisabled();
@@ -172,6 +175,9 @@ describe("credential recovery UI", () => {
     render(<PipelineProvider><LoadPage /></PipelineProvider>);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("ej. dim_medico o fact_consulta"), "dim_local");
+    await user.type(screen.getByLabelText("Host"), "localhost");
+    await user.type(screen.getByLabelText("Base de datos"), "base_de_destino");
+    await user.type(screen.getByLabelText("Usuario"), "postgres");
     await user.click(screen.getByRole("button", { name: "Usar contraseña vacía explícitamente" }));
     await user.click(screen.getByRole("button", { name: "Probar Conexión Bodega" })); await screen.findByText("Conectado Correctamente");
     const host = screen.getByDisplayValue("localhost"); await user.clear(host);

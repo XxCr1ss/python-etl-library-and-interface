@@ -76,6 +76,8 @@ export interface LoadConfigDto {
 }
 export interface LoadResponse extends ExtractionPreview { message: string; table_name: string; table_type: "dimension" | "fact" }
 export interface ExecutionRecord {
+  reportVersion?: number;
+  if_exists?: LoadConfigDto["if_exists"];
   sourceLabel?: string;
   id: string; revision: number; startedAt: string; finishedAt?: string; durationMs?: number;
   status: "running" | "success" | "error" | "unknown";

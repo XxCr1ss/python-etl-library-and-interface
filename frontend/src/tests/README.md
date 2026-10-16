@@ -33,6 +33,10 @@ Cobertura V8: texto, HTML y lcov en `frontend/coverage/`; `coverage.include` enu
 
 ## Revisión en navegador
 
+Fase 06: `load-connection.test.tsx`, `load-workflow.test.tsx` y `load-report.test.tsx` cubren validación por versión, carreras, FK controladas y borradores tras recarga, confirmación replace/ceros y cambios durante el diálogo, payload Oracle/receta vacía, bloqueo inmediato/navegación/beforeunload, clasificación 422/error frente a resultados desconocidos, repetición explícita, conteos y descarga/revocación sin secretos. La caracterización previa ahora ingresa el destino explícitamente (sin defaults inventados) y confirma replace. Los tests de transporte interrumpido sustituyen fetch solamente en esos casos para emitir AbortError/TimeoutError; no configuran timeouts ni retries en producción.
+
+`backend/tests/test_load_phase06.py` caracteriza el loader y HTTP mediante SQLite en memoria: cero filas replace/append con dimensión/hechos y un 400 de verificación tras escritura. No certifica PostgreSQL, MySQL, Oracle ni integridad referencial real. El fixture temporal de navegador en `Planes/evidencia-fase06/serve_fixture.py` conserva extracción/preview reales y sustituye exclusivamente prueba destino/carga con respuestas sintéticas; nunca crea conexiones a motores. Evidencia y límites en el seguimiento.
+
 Ejecutar `npm exec --no -- vite --config src/tests/preview/vite.config.ts` y visitar `http://127.0.0.1:4173/`. Es una galería de desarrollo fuera de App Router; no añade rutas al producto ni conecta al backend.
 
 Verificar: abrir modal y foco en Nombre del origen; Tab/Shift+Tab cíclicos; Escape/cierre/backdrop y foco restaurado al disparador; clic interior no cierra; operación no cancelable ignora Escape/backdrop y termina desde Guardar. Pestañas: flechas, Home/End, selección/panel coherentes. Revisar ancho móvil, contenido desplazable, tema de sistema y ausencia de errores de consola. Los tokens se comprueban además numéricamente con WCAG AA 4.5:1 para texto y 3:1 para bordes/foco en ambos temas. Esto no certifica accesibilidad integral de las pantallas antiguas.
