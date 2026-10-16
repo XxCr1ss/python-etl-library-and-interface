@@ -90,6 +90,9 @@ export default function TransformPage() {
       <button type="button" className="underline text-sm" disabled={!session.canTransform || loading || session.state.execution?.status === "running"} onClick={() => void session.runPreview(10)}>Actualizar vista previa</button>
       {/* Source Metadata Banner */}
       <SourceBanner source={source} />
+      {source.type === "file" && error && <p className="text-sm text-content-muted">
+        El archivo es temporal. Si ya no está disponible, <Link href="/extract" className="underline">vuelve a subir el archivo</Link> y confirma su origen.
+      </p>}
 
       {/* Main Panel layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
