@@ -6,6 +6,7 @@ certifi==2026.7.22
 cffi==2.1.1
 click==8.5.0
 colorama==0.4.6
+coverage==7.16.2
 cryptography==50.0.2
 et_xmlfile==2.0.0
 fastapi==0.136.3
@@ -30,6 +31,7 @@ pydantic_core==2.46.4
 Pygments==2.21.0
 PyMySQL==1.2.0
 pytest==9.0.3
+pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
 python-multipart==0.0.32
 six==1.17.0

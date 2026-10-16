@@ -91,7 +91,7 @@ def live_backend_server(tmp_path: Path):
 
 def test_agent_websocket_protocol_and_disconnection(live_backend_server: str):
     agent_id = "ws-protocol-test-agent"
-    ws_url = f"{live_backend_server.replace('http://', 'ws://')}/api/v1/ws/agent/{agent_id}"
+    ws_url = f"{live_backend_server.replace('http://', 'ws://')}/api/v1/ws/agent/{agent_id}"  # NOSONAR
 
     status_before = httpx.get(f"{live_backend_server}/api/v1/extract/agent/status/{agent_id}")
     assert status_before.json() == {"agent_id": agent_id, "connected": False}
