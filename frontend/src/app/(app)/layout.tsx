@@ -1,6 +1,6 @@
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
+import { AppShell } from "@/components/layout/AppShell";
 import { PipelineProvider } from "@/state/PipelineProvider";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
 export default function AppLayout({
   children,
@@ -8,14 +8,6 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <PipelineProvider><div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex flex-col flex-1 ml-64 min-w-0">
-        <Header />
-        <main className="flex-1 p-8 overflow-auto">
-          {children}
-        </main>
-      </div>
-    </div></PipelineProvider>
+    <ThemeProvider><PipelineProvider><AppShell>{children}</AppShell></PipelineProvider></ThemeProvider>
   );
 }

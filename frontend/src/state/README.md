@@ -14,6 +14,12 @@ La revisión cambia al confirmar fuente, modificar receta, recuperar credenciale
 
 `runLoad` construye el snapshot, registra/persiste `running` antes de enviar cuando es posible y bloquea cambios hasta terminar. Finaliza una sola vez por ID; la pérdida de red, respuesta no interpretable o HTTP 5xx deja `unknown`, sin reintento automático. Una recarga transforma intentos `running` en `unknown`. Fechas y duración son del navegador; no sumar totales finales para inventar filas insertadas.
 
-Para 03 están disponibles sesión/selectores e historial; esa fase debe retirar demos y adaptar el shell. Las vistas/formularios conservan su organización: extracción por features (04), registry/edición/reordenación visible (05), validación completa de carga y reporte (06), motores/E2E (07) siguen separados.
+Desde 03, shell/stepper/dashboard consumen sesión/selectores e historial. Los resúmenes admiten `sourceLabel?`, capturado al iniciar la carga como nombre seguro (archivo sin ruta, tabla sin conexión o rango de años). Los registros previos siguen siendo válidos y muestran «No registrado»; este metadato nunca se envía por HTTP.
+
+Un historial ilegible se aísla del pipeline válido mediante `historyRecoveryRequired`, solo en memoria. Se muestra un aviso; la fuente/receta/configuración siguen disponibles, pero no se sobrescribe el storage original hasta confirmar «Borrar historial de esta pestaña». El borrado limpia ese indicador y reanuda la persistencia. Reiniciar pipeline conserva tanto el historial como su recuperación pendiente; las credenciales sí se limpian. La corrupción del JSON completo, fuente/receta o versión sigue requiriendo restablecer sesión, sin truncar recetas.
+
+El tema tiene su propio adaptador `components/layout/themeStorage.ts`; solo guarda `system | light | dark` en `localStorage.etl_theme_preference`. Un script en head aplica `.dark` antes del body y el provider sigue los cambios de sistema. La excepción de hidratación se limita a la clase de `<html>`, no al resto del árbol. Revertir tema requiere retirar juntos bootstrap, provider, `darkMode: class` y variables `.dark`.
+
+Las vistas/formularios conservan su organización: extracción por features (04), registry/edición/reordenación visible (05), validación completa de carga y reporte (06), motores/E2E (07) siguen separados.
 
 Reversión por grupos: servicios/tipos, estado/adaptadores y consumidores. Volver a un frontend antiguo requiere reiniciar la sesión; nunca restaurar persistencia de contraseñas.

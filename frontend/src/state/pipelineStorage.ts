@@ -14,7 +14,9 @@ function record(v: unknown): ExecutionRecord {
   check(v.finishedAt === undefined || (typeof v.finishedAt === "string" && Number.isFinite(Date.parse(v.finishedAt))));
   check(v.durationMs === undefined || (typeof v.durationMs === "number" && Number.isFinite(v.durationMs) && v.durationMs >= 0));
   check(v.total_rows === undefined || (Number.isInteger(v.total_rows) && Number(v.total_rows) >= 0));
+  check(v.sourceLabel === undefined || typeof v.sourceLabel === "string");
   return { id: v.id, revision: Number(v.revision), startedAt: v.startedAt, status: v.status as ExecutionRecord["status"], table_name: v.table_name, table_type: v.table_type as ExecutionRecord["table_type"],
+    ...(v.sourceLabel !== undefined ? { sourceLabel: v.sourceLabel as string } : {}),
     ...(v.finishedAt !== undefined ? { finishedAt: v.finishedAt as string } : {}), ...(v.durationMs !== undefined ? { durationMs: Number(v.durationMs) } : {}), ...(v.total_rows !== undefined ? { total_rows: Number(v.total_rows) } : {}) };
 }
 export function persistedSession(state: PipelineState) {
@@ -23,17 +25,25 @@ export function persistedSession(state: PipelineState) {
     target: state.target ? parseTarget(state.target, empty) : null, loadConfig: parseLoadConfig(state.loadConfig), history: state.history.slice(-50).map(record) };
 }
 export function persistSession(storage: StoragePort | null, state: PipelineState): string | null {
+  // Preserve unreadable history until the separate, confirmed clearHistory action.
+  // The provider displays the recovery flag; the usable pipeline stays in memory.
+  if (state.historyRecoveryRequired) return null;
   try { if (!storage) throw new Error(); storage.setItem(SESSION_KEY, JSON.stringify(persistedSession(state))); return null; }
   catch { return "No se pudo guardar la sesión; los cambios se conservan en memoria y no se restaurarán tras recarga."; }
 }
 function readCurrent(v: unknown, store: CredentialStore): PipelineState {
-  check(object(v) && v.schemaVersion === 1 && Array.isArray(v.recipe) && Array.isArray(v.history) && Number.isInteger(v.revision) && Number(v.revision) >= 0);
+  check(object(v) && v.schemaVersion === 1 && Array.isArray(v.recipe) && Number.isInteger(v.revision) && Number(v.revision) >= 0);
   const source = v.source === null ? null : parseSource(v.source, store);
   const recipe = v.recipe.map(s => parseStep(s, store));
   check(new Set(recipe.map(s => s.id)).size === recipe.length && (!!source || !recipe.length));
-  const history = v.history.map(record).slice(-50).map(r => r.status === "running" ? { ...r, status: "unknown" as const } : r);
-  check(new Set(history.map(r => r.id)).size === history.length);
-  return { ...initialState, hydrationStatus: source ? "ready" : "empty", source, recipe, revision: Number(v.revision), history,
+  let history: ExecutionRecord[] = [];
+  let historyRecoveryRequired = false;
+  try {
+    check(Array.isArray(v.history));
+    history = v.history.map(record).slice(-50).map(r => r.status === "running" ? { ...r, status: "unknown" as const } : r);
+    check(new Set(history.map(r => r.id)).size === history.length);
+  } catch { history = []; historyRecoveryRequired = true; }
+  return { ...initialState, hydrationStatus: source ? "ready" : "empty", source, recipe, revision: Number(v.revision), history, historyRecoveryRequired,
     target: v.target === null ? null : parseTarget(v.target, store), loadConfig: parseLoadConfig(v.loadConfig) };
 }
 function clearLegacy(storage: StoragePort): string | null {

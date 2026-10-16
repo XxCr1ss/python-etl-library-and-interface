@@ -39,8 +39,7 @@
   --ui-dtype-unknown: #475569;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+.dark {
     --background: #0f172a; /* Slate 900 */
     --foreground: #f8fafc; /* Slate 50 */
     --sidebar-bg: #1e293b; /* Slate 800 */
@@ -75,13 +74,28 @@
     --ui-dtype-date: #fcd34d;
     --ui-dtype-boolean: #5eead4;
     --ui-dtype-unknown: #cbd5e1;
-  }
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
+a:focus-visible, select:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer utilities {
