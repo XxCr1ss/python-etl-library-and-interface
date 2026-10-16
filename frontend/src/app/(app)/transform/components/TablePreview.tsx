@@ -1,179 +1,42 @@
 "use client";
+import { Alert, Badge, LoadingSkeleton, Skeleton, Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
+import type { JsonRow, JsonValue } from "@/types/etl";
 
-import { Clock, Hash, Type, HelpCircle, AlertCircle } from "lucide-react";
-
-interface TablePreviewProps {
-  columns: string[];
-  dtypes: Record<string, string>;
-  previewData: Record<string, unknown>[];
-  loading: boolean;
-  error: string | null;
+function dtypeTone(raw: string) {
+  const type = raw.toLowerCase();
+  if (/bool/.test(type)) return "boolean";
+  if (/int|float|double|decimal|numeric/.test(type)) return "numeric";
+  if (/date|time/.test(type)) return "date";
+  if (/str|text|char|object/.test(type)) return "text";
+  return "unknown";
 }
-
-export default function TablePreview({
-  columns,
-  dtypes,
-  previewData,
-  loading,
-  error,
-}: TablePreviewProps) {
-  
-  const getTypeIndicator = (colName: string) => {
-    const rawType = dtypes[colName]?.toLowerCase() || "";
-    if (
-      rawType.includes("int") ||
-      rawType.includes("float") ||
-      rawType.includes("double") ||
-      rawType.includes("decimal") ||
-      rawType.includes("numeric")
-    ) {
-      return {
-        label: "123",
-        icon: <Hash className="w-3 h-3" />,
-        tooltip: `Numérico (${rawType})`,
-        color: "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30",
-      };
-    } else if (
-      rawType.includes("date") ||
-      rawType.includes("time") ||
-      rawType.includes("timestamp") ||
-      rawType.includes("datetime")
-    ) {
-      return {
-        label: "clock",
-        icon: <Clock className="w-3 h-3" />,
-        tooltip: `Temporal (${rawType})`,
-        color: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30",
-      };
-    } else if (
-      rawType.includes("object") ||
-      rawType.includes("str") ||
-      rawType.includes("char") ||
-      rawType.includes("text")
-    ) {
-      return {
-        label: "abc",
-        icon: <Type className="w-3 h-3" />,
-        tooltip: `Texto (${rawType})`,
-        color: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30",
-      };
-    } else {
-      return {
-        label: "???",
-        icon: <HelpCircle className="w-3 h-3" />,
-        tooltip: `Otro (${rawType || "desconocido"})`,
-        color: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-950/20 dark:text-slate-400 dark:border-slate-900/30",
-      };
-    }
-  };
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 border border-red-200 dark:border-red-800/40 bg-red-50/50 dark:bg-red-950/10 rounded-2xl animate-in fade-in duration-300">
-        <AlertCircle className="w-8 h-8 text-red-500 mb-3" />
-        <h4 className="font-semibold text-slate-800 dark:text-slate-200">Error de Procesamiento</h4>
-        <p className="text-xs text-red-600 dark:text-red-400 text-center mt-1 max-w-md">
-          {error}
-        </p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
-        {/* Table skeleton header */}
-        <div className="h-16 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center px-6 gap-6">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex-1 space-y-2">
-              <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded-md animate-pulse w-2/3" />
-              <div className="h-2.5 bg-slate-150 dark:bg-slate-850 rounded-md animate-pulse w-1/3" />
-            </div>
-          ))}
-        </div>
-        {/* Table skeleton rows */}
-        <div className="divide-y divide-slate-100 dark:divide-slate-850/50 animate-in fade-in duration-200">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-12 flex items-center px-6 gap-6">
-              {[1, 2, 3, 4].map((j) => (
-                <div key={j} className="flex-1">
-                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded animate-pulse w-3/4" />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (columns.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl text-center animate-in fade-in duration-300">
-        <p className="text-sm text-slate-500">
-          No hay datos o columnas disponibles en este paso.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-350">
-      <div className="overflow-x-auto max-w-full">
-        <table className="w-full text-left border-collapse table-auto">
-          <thead>
-            <tr className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-              {columns.map((col) => {
-                const indicator = getTypeIndicator(col);
-                return (
-                  <th key={col} className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300 min-w-[150px]">
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-sm font-bold truncate" title={col}>
-                        {col}
-                      </span>
-                      <div
-                        className={`flex items-center gap-1 self-start px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${indicator.color}`}
-                        title={indicator.tooltip}
-                      >
-                        {indicator.icon}
-                        <span>{indicator.label}</span>
-                      </div>
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {previewData.map((row, rowIndex) => (
-              <tr key={rowIndex} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/20 transition-colors">
-                {columns.map((col) => {
-                  const val = row[col];
-                  return (
-                    <td key={col} className="px-6 py-3.5 text-xs font-mono text-slate-600 dark:text-slate-400 break-words max-w-[250px]">
-                      {val === null || val === undefined ? (
-                        <span className="inline-block px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded text-[10px] uppercase font-bold tracking-wider italic">
-                          null
-                        </span>
-                      ) : typeof val === "boolean" ? (
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          val 
-                            ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                            : "bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400"
-                        }`}>
-                          {val ? "true" : "false"}
-                        </span>
-                      ) : (
-                        String(val)
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+function CellValue({ value }: { value: JsonValue | undefined }) {
+  if (value === undefined) return <span className="italic text-content-muted">Sin valor</span>;
+  if (value === null) return <Badge>NULL</Badge>;
+  if (value === "") return <span className="italic text-content-muted">Texto vacío</span>;
+  if (typeof value === "boolean") return <Badge tone="boolean">{String(value)}</Badge>;
+  const text = typeof value === "object" ? JSON.stringify(value) : String(value);
+  return text.length > 120 ? <details><summary className="cursor-pointer break-all">{text.slice(0, 120)}… <span className="sr-only">Mostrar valor completo</span></summary><span className="whitespace-pre-wrap break-all">{text}</span></details> : <span className="whitespace-pre-wrap break-words">{text}</span>;
+}
+export default function TablePreview({ columns, dtypes, previewData, loading, error, totalRows, stale = false, hasResult = true }: {
+  columns: string[]; dtypes: Record<string, string>; previewData: JsonRow[]; loading: boolean; error: string | null;
+  totalRows?: number; stale?: boolean; hasResult?: boolean;
+}) {
+  return <section aria-label="Vista previa del resultado" aria-busy={loading} className="min-w-0 space-y-3">
+    {error && <Alert tone="error" title="Error de Procesamiento"><p>{error}</p><p>La receta se conserva; edita un paso, deshaz el último cambio o reintenta.</p></Alert>}
+    {stale && hasResult && <p role="status" className="text-sm text-warning">Datos desactualizados. La carga se habilitará tras validar la revisión actual.</p>}
+    {loading && !hasResult && <LoadingSkeleton label="Calculando vista previa…"><div className="space-y-2">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-10" />)}</div></LoadingSkeleton>}
+    {loading && hasResult && <p role="status" className="text-sm text-content-muted">Actualizando vista previa…</p>}
+    {hasResult && columns.length > 0 && <div role="region" tabIndex={0} aria-label="Tabla de muestra transformada" className="max-h-[32rem] max-w-full overflow-auto rounded-xl border border-line bg-surface">
+      <Table><TableCaption>{previewData.length} filas de muestra de {totalRows ?? "total desconocido"} transformadas · {columns.length} columnas</TableCaption>
+        <TableHead className="sticky top-0 z-10"><TableRow>{columns.map(column => <TableHeader key={column} className="min-w-[9rem] align-top">
+          <span className="block break-words">{column}</span><Badge tone={dtypeTone(dtypes[column] ?? "")} title={`Tipo de ${column}: ${dtypes[column] ?? "desconocido"}`}>{dtypes[column] ?? "desconocido"}</Badge>
+        </TableHeader>)}</TableRow></TableHead>
+        <TableBody>{previewData.map((row, i) => <TableRow key={i}>{columns.map(column => <TableCell key={column} className="max-w-xs align-top font-mono text-xs"><CellValue value={row[column]} /></TableCell>)}</TableRow>)}</TableBody>
+      </Table>
+    </div>}
+    {hasResult && columns.length === 0 && <p className="rounded-lg border border-line p-4 text-content-muted">Resultado válido sin columnas disponibles.</p>}
+    {hasResult && previewData.length === 0 && <p className="text-sm text-content-muted">Resultado válido sin filas. Se conservan las columnas informadas por el servidor.</p>}
+    {!hasResult && !loading && !error && <p className="text-sm text-content-muted">La muestra aparecerá al validar la receta.</p>}
+  </section>;
 }

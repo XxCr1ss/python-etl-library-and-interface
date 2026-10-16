@@ -24,6 +24,7 @@ export type PipelineAction =
   | { type: "editStep"; step: TransformStep }
   | { type: "removeStep"; id: string }
   | { type: "moveStep"; id: string; to: number }
+  | { type: "replaceRecipe"; recipe: TransformStep[] }
   | { type: "credentials"; affectsSource: boolean }
   | { type: "previewStart"; revision: number; requestId: string }
   | { type: "previewSuccess"; revision: number; requestId: string; data: PreviewResponse }
@@ -51,6 +52,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
     case "addStep": return { ...invalidate(state), recipe: [...state.recipe, action.step] };
     case "editStep": return { ...invalidate(state), recipe: state.recipe.map(s => s.id === action.step.id ? action.step : s) };
     case "removeStep": return { ...invalidate(state), recipe: state.recipe.filter(s => s.id !== action.id) };
+    case "replaceRecipe": return { ...invalidate(state), recipe: action.recipe };
     case "moveStep": {
       const recipe = [...state.recipe]; const index = recipe.findIndex(s => s.id === action.id);
       if (index < 0 || action.to < 0 || action.to >= recipe.length) return state;
