@@ -18,7 +18,7 @@ export default function LoadReport({ report, record, onReset }: { report: LoadRe
       <div><dt className="text-content-muted">Fin local</dt><dd>{record.finishedAt ? new Date(record.finishedAt).toLocaleString() : "No registrado"}</dd></div>
     </dl>
     <p className="text-sm text-content-muted">En append, el total incluye filas anteriores. La muestra puede incluir datos de cargas previas.</p>
-    <div className="max-h-80 overflow-auto rounded-lg border border-line">
+    <div role="region" tabIndex={0} aria-label="Muestra de la tabla destino" className="max-h-80 overflow-auto rounded-lg border border-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus">
       <table className="w-full text-sm"><caption className="p-3 text-left font-semibold">Muestra de la tabla destino</caption>
         <thead className="sticky top-0 bg-surface-muted"><tr>{columns.map(column => <th scope="col" className="p-3 text-left" key={column}>{column}</th>)}</tr></thead>
         <tbody>{report.preview_data.map((row, i) => <tr key={i} className="border-t border-line">{columns.map(column => <td key={column} className="p-3 whitespace-nowrap">

@@ -12,7 +12,7 @@ from etl.json_utils import clean_value
 from etl.error_utils import public_error
 from typing import Dict, Any, List, Optional
 
-UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "etl_uploads")
+UPLOAD_DIR = os.getenv("ETL_UPLOAD_DIR") or os.path.join(tempfile.gettempdir(), "etl_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -41,6 +41,7 @@ async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict
     unique_id = uuid.uuid4().hex
     unique_filename = f"{unique_id}_{filename}"
     directory = Path(UPLOAD_DIR).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
     destination = (directory / unique_filename).resolve()
     if destination.parent != directory:
         raise ValueError("Nombre de archivo inválido.")

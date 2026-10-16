@@ -169,7 +169,7 @@ class DB_Loader:
                         if len(unique_values) > 0:
                             # Consultas específicas por motor de base de datos
                             if db_backend == "postgresql":
-                                query = f"SELECT {dim_pk} FROM {dim_table} WHERE {dim_pk} = ANY(%(values)s)"
+                                query = f"SELECT {dim_pk} FROM {dim_table} WHERE CAST({dim_pk} AS TEXT) = ANY(%(values)s)"
                                 result = pd.read_sql(query, conn, params={"values": list(unique_values)})
                             elif db_backend == "oracle":
                                 values_str = ",".join([f"'{str(v)}'" for v in unique_values])

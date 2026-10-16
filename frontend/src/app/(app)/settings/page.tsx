@@ -6,7 +6,7 @@ export default function SettingsPage() {
         <p className="text-content-muted">Preferencias de este espacio de trabajo local.</p>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-500">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-content-muted">
         Puedes elegir el tema claro, oscuro o del sistema desde el control Tema de la cabecera. Las demás opciones de configuración están en construcción.
       </div>
     </div>
