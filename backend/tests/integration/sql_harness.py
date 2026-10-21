@@ -191,7 +191,7 @@ class PostgresTestHarness:
             columns_info = inspector.get_columns(validated)
             columns = [col["name"] for col in columns_info]
             count = int(conn.execute(text(f"SELECT COUNT(*) FROM {validated}")).scalar() or 0)
-            order_clause = f" ORDER BY {columns[0]}" if columns else ""
+            order_clause = f" ORDER BY {self.engine.dialect.identifier_preparer.quote(columns[0])}" if columns else ""
             df = pd.read_sql(text(f"SELECT * FROM {validated}{order_clause} LIMIT 50"), conn)
             rows = [
                 {str(col): clean_value(val) for col, val in row.items()}

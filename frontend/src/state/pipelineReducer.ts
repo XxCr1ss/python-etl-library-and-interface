@@ -37,6 +37,7 @@ export type PipelineAction =
   | { type: "target"; target: TargetDescriptor }
   | { type: "targetInvalidated" }
   | { type: "targetChecked"; version: number; success: boolean }
+  | { type: "targetTransportInvalidated" }
   | { type: "loadConfig"; config: LoadConfigDto }
   | { type: "foreignKeys"; rows: ForeignKeyRow[] }
   | { type: "executionStart"; record: ExecutionRecord }
@@ -51,7 +52,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
   if (action.type === "warning") return { ...state, warning: action.message };
   if ((state.hydrationStatus === "hydrating" || state.recoveryRequired) && action.type !== "reset") return state;
   // Execution owns its snapshot even if navigation unmounts the originating page.
-  if (state.execution?.status === "running" && !["executionFinish", "warning", "previewSuccess", "previewError"].includes(action.type)) return state;
+  if (state.execution?.status === "running" && !["executionFinish", "warning", "previewSuccess", "previewError", "targetTransportInvalidated"].includes(action.type)) return state;
   switch (action.type) {
     case "source": return { ...invalidate(state), source: action.source, recipe: [], loadConfig: emptyLoadConfig(), foreignKeys: [], targetCheckedVersion: null, hydrationStatus: "ready" };
     case "addStep": return { ...invalidate(state), recipe: [...state.recipe, action.step] };
@@ -72,6 +73,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         ...(action.type === "previewSuccess" ? { data: action.data } : { error: action.error }) } };
     case "target": return { ...state, target: action.target, targetVersion: state.targetVersion + 1, targetCheckedVersion: null, report: null, execution: null };
     case "targetInvalidated": return { ...state, targetVersion: state.targetVersion + 1, targetCheckedVersion: null, report: null, execution: null };
+    case "targetTransportInvalidated": return { ...state, targetVersion: state.targetVersion + 1, targetCheckedVersion: null };
     case "targetChecked": return action.version === state.targetVersion ? { ...state, targetCheckedVersion: action.success ? action.version : null } : state;
     case "loadConfig": return { ...state, loadVersion: state.loadVersion + 1, loadConfig: action.config, foreignKeys: action.config.table_type === "dimension" ? [] :
       (action.config.foreign_keys && action.config.foreign_keys !== state.loadConfig.foreign_keys ? foreignKeyRows(action.config) : state.foreignKeys), report: null };

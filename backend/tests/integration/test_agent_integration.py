@@ -69,6 +69,7 @@ def live_backend_server(tmp_path: Path):
             "127.0.0.1",
             "--port",
             str(port),
+            "--workers", "1", "--ws-max-size", env.get("ETL_LOAD_MAX_MESSAGE_BYTES", "52428800"), "--ws-max-queue", "1",
         ],
         cwd=str(ROOT),
         env=env,
@@ -94,7 +95,7 @@ def test_agent_websocket_protocol_and_disconnection(live_backend_server: str):
     ws_url = f"{live_backend_server.replace('http://', 'ws://')}/api/v1/ws/agent/{agent_id}"  # NOSONAR
 
     status_before = httpx.get(f"{live_backend_server}/api/v1/extract/agent/status/{agent_id}")
-    assert status_before.json() == {"agent_id": agent_id, "connected": False}
+    assert status_before.json() == {"agent_id": agent_id, "connected": False, "connection_id": None}
 
     async def run_protocol():
         async with websockets.connect(ws_url) as ws:
@@ -132,7 +133,8 @@ def test_agent_websocket_protocol_and_disconnection(live_backend_server: str):
             responder_task = asyncio.create_task(responder())
             async with httpx.AsyncClient(base_url=live_backend_server, timeout=10.0) as http_client:
                 st = await http_client.get(f"/api/v1/extract/agent/status/{agent_id}")
-                assert st.json() == {"agent_id": agent_id, "connected": True}
+                assert st.json()["agent_id"] == agent_id and st.json()["connected"] is True
+                assert st.json()["connection_id"]
 
                 conn_body = {
                     "db_type": "postgresql",

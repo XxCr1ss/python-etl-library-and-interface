@@ -1,7 +1,7 @@
 import pandas as pd
 import sqlalchemy as sqlch
 from tabulate import tabulate
-from etl.error_utils import public_error
+from etl.load_transport import LoadValidationError
 
 
 class DB_Loader:
@@ -51,9 +51,8 @@ class DB_Loader:
             raise ValueError("❌ No se ha proporcionado un engine de base de datos.")
 
     def _public_error(self, error, engine=None):
-        active_engine = engine if engine is not None else self.engine
-        password = getattr(getattr(active_engine, "url", None), "password", None)
-        return public_error(error, {"password": password})
+        # Driver exceptions may embed SQL bind parameters (including whole rows).
+        return "Operación de base de datos fallida; revisa la configuración y el destino."
 
     def load_dimension(self, dfs, table_names, if_exists="replace", index=False, engine=None):
         """
@@ -167,28 +166,22 @@ class DB_Loader:
                         unique_values = df[fk_col].unique()
                         
                         if len(unique_values) > 0:
-                            # Consultas específicas por motor de base de datos
-                            if db_backend == "postgresql":
-                                query = f"SELECT {dim_pk} FROM {dim_table} WHERE CAST({dim_pk} AS TEXT) = ANY(%(values)s)"
-                                result = pd.read_sql(query, conn, params={"values": list(unique_values)})
-                            elif db_backend == "oracle":
-                                values_str = ",".join([f"'{str(v)}'" for v in unique_values])
-                                query = f"SELECT {dim_pk} FROM {dim_table} WHERE TO_CHAR({dim_pk}) IN ({values_str})"
+                            if db_backend not in {"postgresql", "oracle", "mysql"}:
+                                raise ValueError("Validación FK soportada para PostgreSQL, MySQL y Oracle.")
+                            # Reflection quotes identifiers; IN values are bound, never interpolated.
+                            dimension = sqlch.Table(dim_table, sqlch.MetaData(), autoload_with=conn)
+                            pk = dimension.c[dim_pk]
+                            comparable = sqlch.func.to_char(pk) if db_backend == "oracle" else sqlch.cast(pk, sqlch.String)
+                            result_ids = set()
+                            values = list(unique_values)
+                            for start in range(0, len(values), 500):
+                                query = sqlch.select(pk).where(comparable.in_(values[start:start + 500]))
                                 result = pd.read_sql(query, conn)
-                            elif db_backend == "mysql":
-                                values_str = ",".join([f"'{str(v)}'" for v in unique_values])
-                                query = f"SELECT {dim_pk} FROM {dim_table} WHERE {dim_pk} IN ({values_str})"
-                                result = pd.read_sql(query, conn)
-                            else:
-                                raise ValueError("Validación de claves foráneas solo soportada para PostgreSQL y Oracle.")
-                            
-                            # Verificar valores faltantes en la dimensión
-                            result_ids = set(result[dim_pk].astype(str).unique())
+                                result_ids.update(result[dim_pk].astype(str).unique())
                             missing_values = set([str(v) for v in unique_values]) - result_ids
                             if missing_values:
-                                raise ValueError(
-                                    f"🚫 Valores no encontrados en dimensión {dim_table}.{dim_pk}: "
-                                    f"{missing_values} (para la columna {fk_col})"
+                                raise LoadValidationError(
+                                    "Existen claves foráneas sin correspondencia en la dimensión destino."
                                 )
 
             # Cargar los datos en la tabla de hechos

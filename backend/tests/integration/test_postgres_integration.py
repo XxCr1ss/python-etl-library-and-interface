@@ -233,7 +233,7 @@ def test_fact_invalid_foreign_key_preserves_target_table(
         },
     )
     assert bad_fact_res.status_code == 400
-    assert "Valores no encontrados en dimensión" in bad_fact_res.json()["detail"]
+    assert "claves foráneas sin correspondencia" in bad_fact_res.json()["detail"]
 
     after = pg_harness.inspect_table(fact_table)
     assert after["count"] == 2

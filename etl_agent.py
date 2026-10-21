@@ -2,6 +2,9 @@ import sys
 import os
 import json
 import asyncio
+import argparse
+import threading
+from urllib.parse import urlsplit, quote
 import pandas as pd
 from typing import Any, Dict, List
 
@@ -16,6 +19,41 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from etl.extractors.db_extractor import DB_Extractor
 from etl.error_utils import public_error
 from etl.json_utils import clean_value
+from etl.load_execution import persist_and_verify, test_connection
+from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, MAX_LOAD_ROWS,
+                                LoadValidationError, decode_dataset, serialize_command, strict_json)
+
+_write_lock = threading.Lock()
+
+
+def load_capabilities(allow_load=False):
+    return {"load_protocol_version": LOAD_PROTOCOL_VERSION, "load_enabled": allow_load,
+            "actions": ["test_target_connection", "execute_load"] if allow_load else [],
+            "max_load_message_bytes": MAX_LOAD_MESSAGE_BYTES, "max_load_rows": MAX_LOAD_ROWS}
+
+
+def _execute_load(payload, allow_load=False):
+    if not allow_load:
+        raise LoadValidationError("La carga local está deshabilitada; inicia el agente con --allow-load.")
+    if not isinstance(payload, dict) or type(payload.get("load_protocol_version")) is not int or payload["load_protocol_version"] != LOAD_PROTOCOL_VERSION:
+        raise LoadValidationError("Versión de protocolo de carga incompatible.")
+    if not _write_lock.acquire(blocking=False):
+        raise LoadValidationError("El agente ya está ejecutando una carga.")
+    try:
+        frame = decode_dataset(payload.get("dataset"))
+        return persist_and_verify(frame, payload.get("target_connection"), payload.get("load_config"))
+    finally:
+        _write_lock.release()
+
+
+async def handle_execute_load(payload, allow_load=False):
+    return await asyncio.to_thread(_execute_load, payload, allow_load)
+
+
+async def handle_test_target_connection(payload, allow_load=False):
+    if not allow_load:
+        raise LoadValidationError("La carga local está deshabilitada; inicia el agente con --allow-load.")
+    return await asyncio.to_thread(test_connection, payload)
 
 # Intentar importar websockets, informar si no está instalado
 try:
@@ -136,12 +174,13 @@ def _get_table(payload: Dict[str, Any]) -> Dict[str, Any]:
             "total_rows": len(df)
         }
 
-async def agent_loop(server_url: str, agent_id: str):
+async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False):
     """Bucle principal de conexión y escucha de comandos WebSocket."""
-    ws_url = f"{server_url}/api/v1/ws/agent/{agent_id}".replace("http://", "ws://").replace("https://", "wss://")
+    ws_url = f"{server_url}/api/v1/ws/agent/{quote(agent_id, safe='')}".replace("http://", "ws://").replace("https://", "wss://")
     print(f"⏳ Conectando al backend de la ETL en: {ws_url} ...")
     
-    async for websocket in websockets.connect(ws_url, ping_interval=20, ping_timeout=20):
+    async for websocket in websockets.connect(ws_url, max_size=MAX_LOAD_MESSAGE_BYTES,
+                                              max_queue=1, ping_interval=20, ping_timeout=60):
         try:
             print(f"🟢 [CONECTADO] Agente '{agent_id}' en línea y listo para recibir comandos.")
             
@@ -155,7 +194,14 @@ async def agent_loop(server_url: str, agent_id: str):
                 
                 # Procesar comando
                 try:
-                    if action == "get_metadata":
+                    if action == "get_capabilities":
+                        result_data = load_capabilities(allow_load)
+                    elif action == "test_target_connection":
+                        result_data = await handle_test_target_connection(payload, allow_load)
+                    elif action == "execute_load":
+                        serialize_command(data)
+                        result_data = await handle_execute_load(payload, allow_load)
+                    elif action == "get_metadata":
                         result_data = await handle_get_metadata(payload)
                     elif action == "get_schema_graph":
                         result_data = await handle_get_schema_graph(payload)
@@ -184,6 +230,8 @@ async def agent_loop(server_url: str, agent_id: str):
                                 pass
                         else:
                             err_msg = e.object.decode("latin-1", errors="replace")
+                    if action in {"execute_load", "test_target_connection"}:
+                        err_msg = str(e) if isinstance(e, LoadValidationError) else "No se pudo completar la carga local; revisa el destino antes de repetir."
                     sanitized_msg = public_error(err_msg, payload)
                     print(f"❌ Error al procesar comando: {sanitized_msg}")
                     response = {
@@ -192,35 +240,47 @@ async def agent_loop(server_url: str, agent_id: str):
                         "message": sanitized_msg
                     }
                 
-                await websocket.send(json.dumps(response))
+                await websocket.send(strict_json(response))
                 
         except websockets.ConnectionClosed:
             print("⚠️ Conexión cerrada con el servidor. Intentando reconectar en 5 segundos...")
             await asyncio.sleep(5)
         except Exception as e:
-            print(f"⚠️ Error inesperado en el túnel: {e}. Reconectando en 5 segundos...")
+            print("Error inesperado en el túnel. Reconectando en 5 segundos...")
             await asyncio.sleep(5)
 
 def main():
+    parser = argparse.ArgumentParser(description="Agente ETL local. Load requiere habilitación explícita.")
+    parser.add_argument("--allow-load", action="store_true", help="Permitir escrituras en la bodega local (entorno controlado).")
+    parser.add_argument("--server-url", help="URL del backend, sin /api/v1; HTTPS para conexiones remotas.")
+    parser.add_argument("--agent-id", help="Identificador del agente mostrado en la interfaz.")
+    args = parser.parse_args()
     print("=" * 60)
     print("     🤖 AGENTE LOCAL HÍBRIDO - LIBRERÍA ETL FLOW 🤖")
     print("=" * 60)
     
     # URL del servidor backend por defecto
     default_server = "http://localhost:8000"
-    server_url = input(f"Introduce la URL de la API del Backend (Por defecto [{default_server}]): ").strip()
+    server_url = args.server_url or input(f"Introduce la URL de la API del Backend (Por defecto [{default_server}]): ").strip()
     if not server_url:
         server_url = default_server
         
     # ID del agente
     default_agent = "local-agent-default"
-    agent_id = input(f"Introduce tu Identificador de Agente (Por defecto [{default_agent}]): ").strip()
+    agent_id = args.agent_id or input(f"Introduce tu Identificador de Agente (Por defecto [{default_agent}]): ").strip()
     if not agent_id:
         agent_id = default_agent
         
-    print("\n")
+    parsed = urlsplit(server_url)
+    if (parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or
+            parsed.query or parsed.fragment or parsed.path not in {"", "/"}):
+        parser.error("Usa una URL de backend válida, sin credenciales, rutas ni parámetros.")
+    if args.allow_load and parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        parser.error("El backend remoto requiere HTTPS/WSS.")
+    server_url = server_url.rstrip("/")
+    print("Load habilitado explícitamente." if args.allow_load else "Solo extracción; añade --allow-load para permitir escrituras.")
     try:
-        asyncio.run(agent_loop(server_url, agent_id))
+        asyncio.run(agent_loop(server_url, agent_id, args.allow_load))
     except KeyboardInterrupt:
         print("\n🔒 Agente local detenido por el usuario. Cerrando recursos.")
         sys.exit(0)

@@ -8,6 +8,7 @@ from contextlib import nullcontext
 import pandas as pd
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.pool import StaticPool
 
 from etl import DB_Loader
 from services import load_service
@@ -15,7 +16,7 @@ from services import load_service
 
 @pytest.fixture
 def memory_target(monkeypatch):
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine("sqlite:///:memory:", poolclass=StaticPool, connect_args={"check_same_thread": False})
     pd.DataFrame({"id": [77], "amount": [15]}).to_sql("synthetic", engine, index=False)
 
     class Extractor:

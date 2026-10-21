@@ -45,7 +45,8 @@ async def get_agent_status(agent_id: str):
     Verifica si un agente local específico está conectado vía WebSocket.
     """
     connected = agent_manager.is_agent_connected(agent_id)
-    return {"agent_id": agent_id, "connected": connected}
+    return {"agent_id": agent_id, "connected": connected,
+            "connection_id": agent_manager.connection_id(agent_id)}
 
 @router.post("/database")
 async def connect_database(conn_data: DatabaseConnectionReq):

@@ -5,7 +5,7 @@ import { getAgentStatus } from "@/services/extractApi";
 export type AgentStatus = "idle" | "checking" | "connected" | "disconnected" | "error";
 // ID supplied by the session, whose sole identity adapter is agentIdentity.
 export function useAgentStatus(enabled: boolean, agentId: string) {
-  const [state, setState] = useState<{ status: AgentStatus; error: string | null }>({ status: "idle", error: null });
+  const [state, setState] = useState<{ status: AgentStatus; error: string | null; connectionId?: string | null }>({ status: "idle", error: null });
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!enabled || !agentId) { setState({ status: "idle", error: null }); return; }
@@ -20,7 +20,7 @@ export function useAgentStatus(enabled: boolean, agentId: string) {
       controller = new AbortController();
       try {
         const data = await getAgentStatus(agentId, controller.signal);
-        if (!disposed && version === generation) setState({ status: data.connected ? "connected" : "disconnected", error: null });
+        if (!disposed && version === generation) setState({ status: data.connected ? "connected" : "disconnected", error: null, connectionId: data.connection_id });
       } catch (error) {
         if (!disposed && version === generation) setState({ status: "error", error: error instanceof Error ? error.message : "No se pudo consultar el agente." });
       } finally {

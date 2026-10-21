@@ -1,6 +1,7 @@
 """JSON value policy shared by HTTP previews and the local agent."""
 import datetime
 import math
+from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -8,6 +9,8 @@ import pandas as pd
 
 
 def clean_value(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return str(value) if value.is_finite() else None
     if isinstance(value, dict):
         return {str(key): clean_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):

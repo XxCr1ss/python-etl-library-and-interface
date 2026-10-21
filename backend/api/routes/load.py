@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from starlette.concurrency import run_in_threadpool
 from typing import List, Dict, Any, Optional, Literal, Tuple
 from services import load_service
 from api.routes.transform import SourceModel, StepModel
@@ -14,13 +15,21 @@ class TargetConnectionModel(BaseModel):
     user: str
     password: str
     service_name: Optional[str] = None
+    use_agent: bool = False
+    agent_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def valid_agent(self):
+        if self.use_agent and (not self.agent_id or not self.agent_id.strip()):
+            raise ValueError("Falta agent_id para utilizar el agente local.")
+        return self
 
     @field_validator("db_type")
     @classmethod
     def supported_engine(cls, value):
         if value.lower() not in ("postgresql", "mysql", "oracle"):
             raise ValueError("db_type debe ser postgresql, mysql u oracle.")
-        return value
+        return value.lower()
 
 class LoadConfigModel(BaseModel):
     table_name: str = Field(min_length=1)
@@ -48,7 +57,10 @@ async def test_warehouse_connection(req: TargetConnectionModel):
     """
     try:
         config_dict = req.model_dump(exclude_none=True)
-        result = load_service.test_target_connection(config_dict)
+        if req.use_agent:
+            result = await load_service.test_target_connection_agent(config_dict)
+        else:
+            result = await run_in_threadpool(load_service.test_target_connection, config_dict)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

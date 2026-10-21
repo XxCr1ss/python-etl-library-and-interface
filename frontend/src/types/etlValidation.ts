@@ -45,7 +45,12 @@ function reference(v: Record<string, unknown>, store: CredentialStore, legacy: b
 }
 export function parseTarget(v: unknown, store: CredentialStore, legacy = false): TargetDescriptor {
   const fields = connection(v); check(object(v));
-  return { ...fields, credentialRef: reference(v, store, legacy) };
+  check(v.use_agent === undefined || typeof v.use_agent === "boolean");
+  check(v.agent_id === undefined || v.agent_id === null || typeof v.agent_id === "string");
+  check(!v.use_agent || (typeof v.agent_id === "string" && !!v.agent_id.trim()));
+  return { ...fields, credentialRef: reference(v, store, legacy),
+    ...(v.use_agent !== undefined ? { use_agent: v.use_agent as boolean } : {}),
+    ...(v.agent_id !== undefined ? { agent_id: v.agent_id as string | null } : {}) };
 }
 export function parseSource(v: unknown, store: CredentialStore, legacy = false): SourceDescriptor {
   check(object(v));

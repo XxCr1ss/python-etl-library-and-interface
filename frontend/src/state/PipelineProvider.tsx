@@ -14,6 +14,7 @@ import * as selectors from "./pipelineSelectors";
 import { sourceLabel } from "./pipelineLabels";
 import { loadConfigDto } from "./loadValidation";
 import { unknownLoadMessage } from "./loadReport";
+import { useAgentStatus } from "@/hooks/useAgentStatus";
 
 export interface LoadApproval {
   revision: number; targetVersion: number; loadVersion: number; previewRequestId?: string; config: LoadConfigDto;
@@ -25,6 +26,11 @@ function useSessionCore() {
   const current = useRef(state);
   const [credentials] = useState(() => new CredentialStore());
   const [agentId, setAgentId] = useState("");
+  const [watchTargetAgent, setWatchTargetAgent] = useState(false);
+  const targetAgent = useAgentStatus(watchTargetAgent || !!state.target?.use_agent, state.target?.use_agent ? state.target.agent_id || "" : agentId);
+  const targetAgentRef = useRef(targetAgent);
+  targetAgentRef.current = targetAgent;
+  const previousAgent = useRef(targetAgent);
   const hydrated = useRef(false);
   const previewSequence = useRef(0);
   const loadInFlight = useRef(false);
@@ -35,6 +41,16 @@ function useSessionCore() {
   }, []);
   const snapshot = useCallback(() => current.current, []);
   const editable = useCallback(() => current.current.hydrationStatus !== "hydrating" && !current.current.recoveryRequired && current.current.execution?.status !== "running", []);
+  useEffect(() => {
+    const previous = previousAgent.current;
+    previousAgent.current = targetAgent;
+    if (current.current.target?.use_agent && previous.status === "connected" &&
+      (targetAgent.status !== "connected" || previous.connectionId !== targetAgent.connectionId)) {
+      targetTestSequence.current++;
+      dispatch({ type: "targetTransportInvalidated" });
+    }
+  }, [targetAgent, dispatch]);
+  const agentReady = useCallback(() => !current.current.target?.use_agent || targetAgentRef.current.status === "connected", []);
   useEffect(() => {
     if (hydrated.current) return; hydrated.current = true;
     dispatch({ type: "hydrate", state: hydrateSession(browserSessionStorage(), credentials) });
@@ -107,6 +123,7 @@ function useSessionCore() {
     const snapshot = current.current;
     const requestId = ++targetTestSequence.current;
     if (!snapshot.target || !editable()) throw new Error("Configura el destino e ingresa su contraseña.");
+    if (!agentReady()) throw new Error("Conecta el agente local antes de probar el destino.");
     if (![snapshot.target.host, snapshot.target.database, snapshot.target.user].every(x => !!x.trim())) throw new Error("Completa host, base de datos y usuario del destino.");
     dispatch({ type: "targetChecked", version: snapshot.targetVersion, success: false });
     try {
@@ -117,10 +134,11 @@ function useSessionCore() {
       if (requestId === targetTestSequence.current) dispatch({ type: "targetChecked", version: snapshot.targetVersion, success: false });
       throw error;
     }
-  }, [credentials, dispatch, editable]);
+  }, [credentials, dispatch, editable, agentReady]);
   const runLoad = useCallback(async (approval?: LoadApproval) => {
     const snapshot = current.current;
     if (loadInFlight.current || !selectors.canExecuteLoad(snapshot, credentials)) return;
+    if (!agentReady()) throw new Error("Conecta el agente local y prueba de nuevo el destino antes de cargar.");
     if (approval && (approval.revision !== snapshot.revision || approval.targetVersion !== snapshot.targetVersion ||
       approval.loadVersion !== snapshot.loadVersion || approval.previewRequestId !== snapshot.preview.requestId)) throw new Error("La configuración cambió. Revisa y confirma la carga otra vez.");
     if (snapshot.loadConfig.if_exists === "replace" && !approval) throw new Error("Confirma la tabla y el destino antes de reemplazar.");
@@ -147,7 +165,7 @@ function useSessionCore() {
       const message = error instanceof Error ? error.message : "No se recibió una respuesta válida.";
       dispatch({ type: "executionFinish", record: { ...record, status, finishedAt: new Date().toISOString(), durationMs: Date.now() - started }, error: message });
     } finally { loadInFlight.current = false; }
-  }, [credentials, dispatch]);
+  }, [credentials, dispatch, agentReady]);
   const newLoad = useCallback(() => {
     if (!editable()) return;
     const target = current.current.target;
@@ -159,9 +177,9 @@ function useSessionCore() {
     credentials.clear(); dispatch({ type: "reset" });
   }, [credentials, dispatch]);
   const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) dispatch({ type: "loadConfig", config: parseLoadConfig(config) }); }, [dispatch, editable]);
-  return useMemo(() => ({ state, snapshot, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,
-    canTransform: selectors.canTransform(state, credentials), canVisitLoad: selectors.canVisitLoad(state), isReadyForLoad: selectors.isReadyForLoad(state, credentials), canExecuteLoad: selectors.canExecuteLoad(state, credentials) }),
-  [state, snapshot, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig]);
+  return useMemo(() => ({ state, snapshot, credentials, agentId, targetAgent, setWatchTargetAgent, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,
+    canTransform: selectors.canTransform(state, credentials), canVisitLoad: selectors.canVisitLoad(state), isReadyForLoad: selectors.isReadyForLoad(state, credentials), canExecuteLoad: selectors.canExecuteLoad(state, credentials) && agentReady() }),
+  [state, snapshot, credentials, agentId, targetAgent, agentReady, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig]);
 }
 export const PipelineContext = createContext<ReturnType<typeof useSessionCore> | null>(null);
 export function PipelineProvider({ children }: { children: ReactNode }) {

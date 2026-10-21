@@ -75,6 +75,6 @@ describe("destination configuration version and validation", () => {
     await user.clear(screen.getByLabelText("Puerto"));
     await user.click(screen.getByRole("button", { name: "Probar Conexión Bodega" }));
     await screen.findByText("Conectado Correctamente"); expect(stored().target.port).toBeNull();
-    expect(screen.queryByLabelText(/agente/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Usar agente local híbrido" })).not.toBeChecked();
   });
 });
