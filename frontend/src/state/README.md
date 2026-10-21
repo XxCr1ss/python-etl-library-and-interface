@@ -31,3 +31,11 @@ El tema tiene su propio adaptador `components/layout/themeStorage.ts`; solo guar
 Las vistas/formularios conservan su organización: extracción por features (04), registry/edición/reordenación visible (05), validación completa de carga y reporte (06), motores/E2E (07) siguen separados.
 
 Reversión por grupos: servicios/tipos, estado/adaptadores y consumidores. Volver a un frontend antiguo requiere reiniciar la sesión; nunca restaurar persistencia de contraseñas.
+
+## Vinculación del diagrama
+
+El layout ETL monta `features/diagram/DiagramCoordinator` bajo el provider. Sus conexiones temporales tienen registro propio en memoria, independiente de referencias que `CredentialStore.retain()` elimina al desmontar Extracción. La ruta `(diagram)/extract/diagram` no monta otro pipeline ni identidad de agente.
+
+`coordinator.ts` es el propietario del protocolo y `client.ts` la vista remota. Validan versión, vínculo, instancia y request ID, aíslan propietarios, descartan respuestas viejas y deduplican selecciones. Un timeout no significa éxito: se reconcilia con el mismo ID. Ruta/revisión se verifican al solicitar y aplicar; editor abierto o carga en ejecución bloquean el cambio.
+
+`useDiagramSync` guarda solo el vínculo opaco en `sessionStorage.etl_diagram_binding_v1`, nunca passwords/filas. `pagehide` del diagrama cierra el canal local y conserva temporalmente el vínculo del propietario para permitir F5; presencia caducada libera recursos. Recargar propietario elimina secretos/vínculos. La cache de muestras conserva hasta cinco tablas en memoria y se invalida al actualizar esquema o perder contexto.

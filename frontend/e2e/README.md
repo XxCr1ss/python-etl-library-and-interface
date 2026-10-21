@@ -1,5 +1,13 @@
 # Fase 07: arranque, pruebas y soporte
 
+## Pruebas del diagrama E-R
+
+`e2e/mock/diagram.spec.ts` abre dos páginas del mismo contexto, comprueba restricción a Transformación, confirmar/cancelar origen, F5, muestra acotada, resize por pointer/teclado y reflow. Una fixture de 20 tablas/30 relaciones y 50 columnas valida accesibilidad/contraste en ambos temas y produce capturas sintéticas para revisión.
+
+`e2e/real/diagram.spec.ts` usa `seed-diagram` del harness PostgreSQL para crear tablas propias con restricciones FK simples, compuestas y autorreferentes reales. Verifica grafo, muestra HTTP y cambio de origen entre pestañas. Mantiene las restricciones de artefactos del perfil real. `backend/tests/integration/test_schema_graph_integration.py` añade paridad HTTP/agente CLI real.
+
+Para ejecutar solo esta funcionalidad: `npm run test:e2e:mock -- diagram.spec.ts` y después `npm run test:e2e:real -- diagram.spec.ts`. Nunca ejecutar ambos perfiles a la vez. Los tests `src/tests/diagram-*.test.*` cubren contratos, aislamiento, cancelación, estado obsoleto, confirmación y panel; los umbrales críticos se mantienen en 80% líneas/75% ramas. `test:e2e:visual` compara también dos referencias propias del diagrama (claro/oscuro a 1440 px), además de las doce existentes de Transformación/editor, sin actualizarlas automáticamente.
+
 Revisado el 16 de octubre de 2026 (America/Bogota). Este manual está versionado aquí; la copia de `Planes/evidencia-fase07/` es local porque `Planes/` está ignorada por Git.
 
 ## Instalación limpia

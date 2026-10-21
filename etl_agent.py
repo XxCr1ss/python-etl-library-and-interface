@@ -34,7 +34,7 @@ def clean_records(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
         records.append(record)
     return records
 
-async def handle_get_metadata(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _get_metadata(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Establece conexión a base de datos local y extrae nombres de tablas y esquemas."""
     db_type = payload.get("db_type")
     host = payload.get("host")
@@ -70,41 +70,40 @@ async def handle_get_metadata(payload: Dict[str, Any]) -> Dict[str, Any]:
             "schema_preview": schema_preview
         }
 
-async def handle_get_preview(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Obtiene una muestra (preview) de una tabla local."""
-    db_type = payload.get("db_type")
-    host = payload.get("host")
-    port = payload.get("port")
-    database = payload.get("database")
-    user = payload.get("user")
-    password = payload.get("password")
-    service_name = payload.get("service_name")
-    table_name = payload.get("table_name")
-    limit = payload.get("limit", 5)
-    
-    if not table_name:
-        raise ValueError("Falta el parámetro 'table_name' para previsualizar datos.")
-        
-    print(f"📊 [Local] Extrayendo vista previa de tabla '{table_name}'...")
-    with DB_Extractor(
-        db_type=db_type,
-        password=password,
-        database=database,
-        host=host,
-        user=user,
-        port=port,
-        service_name=service_name
-    ) as extractor:
-        df = extractor.sample_data(table_name, limit)
-        preview_data = clean_records(df, limit)
-        return {
-            "status": "success",
-            "table_name": table_name,
-            "preview_data": preview_data,
-            "total_rows": len(df)
-        }
+def _connection(payload):
+    return {key: payload.get(key) for key in
+            ("db_type", "host", "port", "database", "user", "password", "service_name")}
 
-async def handle_get_table(payload: Dict[str, Any]) -> Dict[str, Any]:
+
+def _get_preview(payload):
+    from etl.extractors.schema_graph import preview_result
+    with DB_Extractor(**_connection(payload)) as extractor:
+        return preview_result(extractor, payload.get("table_name"), payload.get("limit", 5))
+
+
+def _get_schema_graph(payload):
+    from etl.extractors.schema_graph import schema_graph
+    with DB_Extractor(**_connection(payload)) as extractor:
+        return schema_graph(extractor.engine)
+
+
+async def handle_get_metadata(payload):
+    return await asyncio.to_thread(_get_metadata, payload)
+
+
+async def handle_get_preview(payload):
+    return await asyncio.to_thread(_get_preview, payload)
+
+
+async def handle_get_schema_graph(payload):
+    return await asyncio.to_thread(_get_schema_graph, payload)
+
+
+async def handle_get_table(payload):
+    return await asyncio.to_thread(_get_table, payload)
+
+
+def _get_table(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Obtiene todos los registros de una tabla local."""
     db_type = payload.get("db_type")
     host = payload.get("host")
@@ -158,6 +157,8 @@ async def agent_loop(server_url: str, agent_id: str):
                 try:
                     if action == "get_metadata":
                         result_data = await handle_get_metadata(payload)
+                    elif action == "get_schema_graph":
+                        result_data = await handle_get_schema_graph(payload)
                     elif action == "get_preview":
                         result_data = await handle_get_preview(payload)
                     elif action == "get_table":

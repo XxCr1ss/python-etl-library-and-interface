@@ -233,12 +233,27 @@ class PostgresTestHarness:
             self._engine.dispose()
             self._engine = None
 
+    def seed_diagram(self, prefix: str) -> dict[str, str]:
+        """Create only registered tables, with real simple/composite SQL FK constraints."""
+        parent = self.register_table(f"{prefix}_parent")
+        child = self.register_table(f"{prefix}_child")
+        with self.engine.begin() as conn:
+            conn.execute(text(f"CREATE TABLE {parent} (id INTEGER, version INTEGER, code TEXT UNIQUE, PRIMARY KEY (id, version))"))
+            conn.execute(text(f"CREATE TABLE {child} (id INTEGER PRIMARY KEY, parent_id INTEGER, version INTEGER, code TEXT, "
+                              f"FOREIGN KEY (parent_id, version) REFERENCES {parent}(id, version), "
+                              f"FOREIGN KEY (code) REFERENCES {parent}(code), FOREIGN KEY (id) REFERENCES {child}(id))"))
+            conn.execute(text(f"INSERT INTO {parent} VALUES (1, 1, 'sample')"))
+            conn.execute(text(f"INSERT INTO {child} VALUES (1, 1, 1, 'sample')"))
+        return {"parent": parent, "child": child}
+
 
 def _main() -> int:
     parser = argparse.ArgumentParser(description="PostgreSQL integration test harness CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("check-config")
+    diagram_parser = sub.add_parser("seed-diagram")
+    diagram_parser.add_argument("--prefix", required=True)
 
     seed_parser = sub.add_parser("seed-table")
     seed_parser.add_argument("--table", required=True)
@@ -257,6 +272,8 @@ def _main() -> int:
         if args.command == "check-config":
             result = harness.check_connectivity()
             print(json.dumps(result))
+        elif args.command == "seed-diagram":
+            print(json.dumps(harness.seed_diagram(args.prefix)))
         elif args.command == "seed-table":
             rows = json.loads(args.rows_json)
             harness.seed_table(args.table, rows)

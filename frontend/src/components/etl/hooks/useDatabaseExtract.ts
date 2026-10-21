@@ -6,8 +6,10 @@ import { databaseConnection, initialDatabaseDraft, updateDatabaseDraft, validate
 import type { DatabaseMetadata } from "@/types/etl";
 import { useExtractRequest } from "./useExtractRequest";
 import type { ExtractResult } from "./types";
+import { useDiagramCoordinator } from "@/features/diagram/DiagramCoordinator";
 
 export function useDatabaseExtract(active: boolean, agentId: string) {
+  const diagram = useDiagramCoordinator();
   const [draft, setDraft] = useState<DatabaseDraft>(initialDatabaseDraft);
   const [errors, setErrors] = useState<DatabaseErrors>({});
   const [table, setTable] = useState("");
@@ -26,6 +28,7 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
     previousAgentReady.current = agentReady;
   }, [draft.use_agent, agentReady, invalidateConnection, invalidatePreview]);
   function edit(patch: Partial<DatabaseDraft>) {
+    diagram?.invalidate();
     connection.invalidate(); preview.invalidate(); setTable(""); setErrors({});
     setDraft(current => updateDatabaseDraft(current, patch));
   }
@@ -33,6 +36,7 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
     if (!agentReady || connection.status === "pending") return;
     const invalid = validateDatabaseDraft(draft); setErrors(invalid);
     if (Object.keys(invalid).length) return;
+    diagram?.invalidate();
     preview.invalidate(); setTable("");
     void connection.run(signal => getDatabaseMetadata(databaseConnection(draft, agentId), signal));
   }
@@ -49,5 +53,5 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
     });
   }
   return { ...preview, draft, errors, edit, table, selectTable, connect, connection, agent, agentReady,
-    invalidate: () => { connection.invalidate(); preview.invalidate(); setTable(""); } };
+    invalidate: () => { diagram?.invalidate(); connection.invalidate(); preview.invalidate(); setTable(""); } };
 }

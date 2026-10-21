@@ -1,6 +1,6 @@
 import sys
 from etl.error_utils import public_error
-from sqlalchemy import create_engine, text, inspect
+from sqlalchemy import create_engine, text, inspect, MetaData, Table, select
 import pandas as pd
 from typing import Optional, List, Dict, Any
 
@@ -442,13 +442,15 @@ class DB_Extractor:
             Muestra de datos de la tabla
         """
         try:
-            query = f"SELECT * FROM {table_name} LIMIT {n}"
-            if self.db_type == "oracle":
-                query = f"SELECT * FROM {table_name} WHERE ROWNUM <= {n}"
-            elif self.db_type == "postgresql":
-                query = f"SELECT * FROM {table_name} LIMIT {n}"
-                
-            return self.execute_query(query)
+            if type(n) is not int or n < 1:
+                raise ValueError("El tamaño de la muestra debe ser un entero positivo.")
+            if self.engine is None:
+                raise ValueError("No hay conexión activa.")
+            with self.engine.connect() as connection:
+                if table_name not in inspect(connection).get_table_names():
+                    raise ValueError("La tabla no está disponible en el esquema actual.")
+                table = Table(table_name, MetaData(), autoload_with=connection, resolve_fks=False)
+                return pd.read_sql_query(select(table).limit(n), connection)
         except Exception as e:
             print(f"❌ Error al obtener muestra de '{table_name}': {public_error(e, {'password': self.password})}")
             raise
@@ -474,7 +476,11 @@ class DB_Extractor:
 
     def __enter__(self):
         """Soporte para context manager (with statement)."""
-        self.connect()
+        try:
+            self.connect()
+        except Exception:
+            self.close_connection()
+            raise
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
