@@ -18,7 +18,17 @@ def public_error(error, payload=None):
                 collect(item)
 
     collect(payload)
-    message = str(error)
+    if isinstance(error, UnicodeDecodeError) and isinstance(getattr(error, "object", None), bytes):
+        for enc in ("cp1252", "iso-8859-1", "latin-1", "utf-8"):
+            try:
+                message = error.object.decode(enc)
+                break
+            except Exception:
+                pass
+        else:
+            message = error.object.decode("latin-1", errors="replace")
+    else:
+        message = str(error)
     # Remove the entire URL, including URLs with masked passwords.
     message = re.sub(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+", "[conexión omitida]", message)
     for secret in sorted(secrets, key=len, reverse=True):

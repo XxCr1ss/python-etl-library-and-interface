@@ -1,7 +1,65 @@
+import sys
 from etl.error_utils import public_error
 from sqlalchemy import create_engine, text, inspect
 import pandas as pd
 from typing import Optional, List, Dict, Any
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+def _decode_bytes_safely(raw: bytes) -> str:
+    for enc in ("cp1252", "iso-8859-1", "latin-1", "utf-8"):
+        try:
+            return raw.decode(enc)
+        except Exception:
+            continue
+    return raw.decode("latin-1", errors="replace")
+
+def _patch_psycopg2_encoding() -> None:
+    try:
+        import psycopg2
+        import psycopg2._psycopg
+    except ImportError:
+        return
+
+    if getattr(psycopg2, "_orig_connect_patched", None):
+        return
+
+    _orig_connect = psycopg2.connect
+    psycopg2._orig_connect_patched = _orig_connect
+
+    def _safe_connect(*args, **kwargs):
+        try:
+            return _orig_connect(*args, **kwargs)
+        except UnicodeDecodeError as exc:
+            raw = getattr(exc, "object", None)
+            decoded = _decode_bytes_safely(raw) if isinstance(raw, bytes) else str(exc)
+            raise psycopg2.OperationalError(decoded) from exc
+
+    psycopg2.connect = _safe_connect
+
+    if hasattr(psycopg2._psycopg, "_connect"):
+        _orig_c_connect = psycopg2._psycopg._connect
+
+        def _safe_c_connect(*args, **kwargs):
+            try:
+                return _orig_c_connect(*args, **kwargs)
+            except UnicodeDecodeError as exc:
+                raw = getattr(exc, "object", None)
+                decoded = _decode_bytes_safely(raw) if isinstance(raw, bytes) else str(exc)
+                raise psycopg2.OperationalError(decoded) from exc
+
+        psycopg2._psycopg._connect = _safe_c_connect
+
+_patch_psycopg2_encoding()
 
 class DB_Extractor:
     """
@@ -115,6 +173,12 @@ class DB_Extractor:
             # Validar conexión ejecutando una consulta simple
             with self.engine.connect():
                 print(f"✅ Conexión exitosa a {self.db_type.upper()} en la base de datos '{self.database}'.")
+        except UnicodeDecodeError as e:
+            raw = getattr(e, "object", None)
+            decoded = _decode_bytes_safely(raw) if isinstance(raw, bytes) else str(e)
+            cleaned = public_error(decoded, {"password": self.password})
+            print(f"❌ Error al conectar a la base de datos: {cleaned}")
+            raise ConnectionError(cleaned) from e
         except Exception as e:
             print(f"❌ Error al conectar a la base de datos: {public_error(e, {'password': self.password})}")
             raise

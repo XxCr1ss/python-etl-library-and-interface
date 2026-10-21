@@ -63,8 +63,13 @@ async def connect_database(conn_data: DatabaseConnectionReq):
                 payload=conn_data.model_dump(exclude={"use_agent", "agent_id"})
             )
             if result.get("status") == "error":
-                raise HTTPException(status_code=500, detail=result.get("message"))
+                err_msg = result.get("message") or "Error desconocido en el agente local"
+                if not err_msg.startswith("Error a través del agente local:"):
+                    err_msg = f"Error a través del agente local: {err_msg}"
+                raise HTTPException(status_code=500, detail=err_msg)
             return result.get("data")
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error a través del agente local: {str(e)}")
 
@@ -106,8 +111,13 @@ async def preview_database_table(conn_data: DatabasePreviewReq):
                 payload=conn_data.model_dump(exclude={"use_agent", "agent_id"})
             )
             if result.get("status") == "error":
-                raise HTTPException(status_code=500, detail=result.get("message"))
+                err_msg = result.get("message") or "Error desconocido en el agente local"
+                if not err_msg.startswith("Error a través del agente local:"):
+                    err_msg = f"Error a través del agente local: {err_msg}"
+                raise HTTPException(status_code=500, detail=err_msg)
             return result.get("data")
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error a través del agente local: {str(e)}")
 

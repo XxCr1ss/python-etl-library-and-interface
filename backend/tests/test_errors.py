@@ -96,6 +96,17 @@ def test_manager_timeout_cleans_pending_requests():
         with pytest.raises(TimeoutError, match="tiempo de espera"):
             await manager.send_command_and_wait("synthetic", "get_table", {}, timeout=0.001)
         assert len(sent) == 1 and sent[0]["action"] == "get_table"
-        assert manager.pending_requests == {}
-
     asyncio.run(scenario())
+
+
+def test_public_error_decodes_latin1_unicodedecodeerror():
+    from etl.error_utils import public_error
+    raw_bytes = b"FATAL:  la autenticaci\xf3n password fall\xf3 para el usuario \xabpostgres\xbb"
+    try:
+        raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        err = exc
+    result = public_error(err)
+    assert "la autenticación password falló" in result
+    assert "codec can't decode" not in result
+

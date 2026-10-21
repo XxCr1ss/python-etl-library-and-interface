@@ -173,11 +173,22 @@ async def agent_loop(server_url: str, agent_id: str):
                     print(f"📤 Comando procesado con éxito. Enviando respuesta...")
                     
                 except Exception as e:
-                    print(f"❌ Error al procesar comando: {public_error(e, payload)}")
+                    err_msg = str(e)
+                    if isinstance(e, UnicodeDecodeError) and isinstance(getattr(e, "object", None), bytes):
+                        for enc in ("cp1252", "iso-8859-1", "latin-1", "utf-8"):
+                            try:
+                                err_msg = e.object.decode(enc)
+                                break
+                            except Exception:
+                                pass
+                        else:
+                            err_msg = e.object.decode("latin-1", errors="replace")
+                    sanitized_msg = public_error(err_msg, payload)
+                    print(f"❌ Error al procesar comando: {sanitized_msg}")
                     response = {
                         "request_id": request_id,
                         "status": "error",
-                        "message": public_error(e, payload)
+                        "message": sanitized_msg
                     }
                 
                 await websocket.send(json.dumps(response))
