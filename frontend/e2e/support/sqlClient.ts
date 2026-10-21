@@ -42,6 +42,10 @@ export function seedTable(tableName: string, rows: Record<string, unknown>[]): v
   runSqlHarness(["seed-table", "--table", tableName, "--rows-json", JSON.stringify(rows)]);
 }
 
+export function seedDiagram(prefix: string): { parent: string; child: string } {
+  return JSON.parse(runSqlHarness(["seed-diagram", "--prefix", prefix]));
+}
+
 export function inspectTable(tableName: string): InspectedTable {
   return JSON.parse(runSqlHarness(["inspect-table", "--table", tableName])) as InspectedTable;
 }

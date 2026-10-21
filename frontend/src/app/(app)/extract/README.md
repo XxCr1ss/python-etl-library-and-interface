@@ -11,3 +11,15 @@ La contraseña es `undefined` hasta ingresarla o confirmar vacío explícito. So
 Conteos: archivo/fecha son dataset; BD es muestra, con total sin consultar. Se conservan columnas de metadata BD cuando están disponibles; una muestra vacía válida permite continuar sin inventar esquema. La tabla distingue NULL, texto vacío, 0, false y JSON recursivo. Archivos temporales pueden expirar; Transform ofrece volver a subir cuando falla la preview de archivo.
 
 Verificación: `npm run test:run`, `npm run typecheck`, `npm run lint`, `npm run build`. Pruebas dedicadas: extract, extract-requests y agent-status. MSW verifica interacción/payloads, no motores reales. Registro y limitación de revisión visual de 04 en `Planes/evidencia-fase04/VERIFICACIONES.md`.
+
+## Diagrama entidad-relación
+
+Tras comprobar una conexión, «Abrir diagrama E-R en otra pestaña» abre `/extract/diagram` y conserva el proceso ETL. Incluye columnas/PK/FK, conexiones por columna, zoom, búsqueda, reorganización y alternativa textual. Las relaciones provienen de restricciones SQL reales, incluidas FK compuestas, claves únicas y autorrelaciones; las referencias externas no pueden seleccionarse como origen.
+
+Seleccionar una tabla consulta hasta diez filas en el panel inferior, con resize por ratón/táctil/teclado, scroll y colapso sin otra consulta. La muestra no es el total de la tabla. `/extract/database/preview` conserva cinco filas por defecto y añade `limit` (1..10), `columns`, `dtypes` y `sample_rows`.
+
+Para usar una tabla como origen, abre Transformación en la pestaña ETL y pulsa «Usar como origen en Transformación» desde el diagrama. El receptor vuelve a validar ruta, revisión y disponibilidad antes de confirmar. Sustituir el origen reinicia receta/preview/configuración de carga/FK y exige comprobar destino otra vez; cancelar conserva todo. No se crea automáticamente un join.
+
+Las credenciales quedan en memoria en la pestaña ETL: `features/diagram/DiagramCoordinator` conserva la conexión al navegar y actúa como intermediario HTTP. El diagrama recibe metadatos/muestras por BroadcastChannel aislado. Editar conexión, resetear o perder agente invalida el vínculo. F5 del diagrama puede renegociarlo; F5/cierre de ETL exige volver a conectar y abrir. Sin BroadcastChannel se muestra incompatibilidad; storage restringido conserva funcionamiento en memoria y explica recuperación.
+
+El agente necesita `get_schema_graph`: actualizar/reiniciar `etl_agent.py` al usar modo híbrido. La primera entrega consulta el esquema predeterminado. PostgreSQL tiene tests reales HTTP, agente CLI y navegador; MySQL/Oracle conservan adaptador, sin certificación con motores reales en esta entrega.

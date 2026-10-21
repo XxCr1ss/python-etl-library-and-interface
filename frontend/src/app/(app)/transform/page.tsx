@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useEffect } from "react";
+import { useDiagramCoordinator } from "@/features/diagram/DiagramCoordinator";
 import { Alert, Button } from "@/components/ui";
 import { CredentialRecoveryDialog } from "@/components/etl/CredentialRecoveryDialog";
 import { sourceName } from "@/types/etlLabels";
@@ -12,6 +14,10 @@ import { useStepEditor } from "./hooks/useStepEditor";
 
 export default function TransformPage() {
   const session = useTransformPreview(); const editor = useStepEditor();
+  const diagram = useDiagramCoordinator();
+  const setEditorOpen = diagram?.setEditorOpen;
+  const editorOpen = !!editor.target;
+  useEffect(() => { setEditorOpen?.(editorOpen); return () => setEditorOpen?.(false); }, [setEditorOpen, editorOpen]);
   const { source, recipe, preview } = session.state; const data = session.displayData;
   if (session.state.hydrationStatus === "hydrating") return <p role="status">Verificando configuración de la ETL…</p>;
   if (!source) return <section className="mx-auto max-w-xl space-y-4 rounded-xl border border-line bg-surface p-6 text-center">

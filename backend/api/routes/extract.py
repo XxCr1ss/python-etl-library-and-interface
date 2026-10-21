@@ -1,5 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
+from etl.error_utils import public_error
+from schema_graph_models import SchemaGraphResponse
 from typing import Optional
 from services import extract_service
 from services.agent_manager import agent_manager
@@ -92,51 +95,37 @@ async def connect_database(conn_data: DatabaseConnectionReq):
 
 class DatabasePreviewReq(DatabaseConnectionReq):
     table_name: str
+    limit: int = Field(default=5, ge=1, le=10, strict=True)
+
+
+@router.post("/database/schema-graph", response_model=SchemaGraphResponse)
+async def database_schema_graph(conn_data: DatabaseConnectionReq):
+    return await database_read(conn_data, "get_schema_graph", extract_service.get_database_schema_graph)
+
+
+async def database_read(conn_data, action, operation):
+    if conn_data.db_type.lower() not in ["postgresql", "mysql", "oracle"]:
+        raise HTTPException(status_code=400, detail="Motor de base de datos no soportado.")
+    payload = conn_data.model_dump(exclude={"use_agent", "agent_id"})
+    try:
+        if conn_data.use_agent:
+            if not conn_data.agent_id:
+                raise HTTPException(status_code=400, detail="Falta el 'agent_id' para utilizar el agente local.")
+            result = await agent_manager.send_command_and_wait(
+                agent_id=conn_data.agent_id, action=action, payload=payload)
+            if result.get("status") == "error":
+                raise ValueError(result.get("message") or "Error del agente. Comprueba que esté actualizado.")
+            return result.get("data")
+        return await run_in_threadpool(operation, **payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400 if isinstance(exc, ValueError) else 500,
+                            detail=public_error(exc, payload)) from exc
 
 @router.post("/database/preview")
 async def preview_database_table(conn_data: DatabasePreviewReq):
-    """
-    Endpoint para obtener una vista previa de las filas reales de una tabla en la base de datos conectada.
-    """
-    if conn_data.db_type.lower() not in ["postgresql", "mysql", "oracle"]:
-        raise HTTPException(status_code=400, detail="Motor de base de datos no soportado. Debe ser 'postgresql', 'mysql' o 'oracle'.")
-        
-    if conn_data.use_agent:
-        if not conn_data.agent_id:
-            raise HTTPException(status_code=400, detail="Falta el 'agent_id' para utilizar el agente local.")
-        try:
-            result = await agent_manager.send_command_and_wait(
-                agent_id=conn_data.agent_id,
-                action="get_preview",
-                payload=conn_data.model_dump(exclude={"use_agent", "agent_id"})
-            )
-            if result.get("status") == "error":
-                err_msg = result.get("message") or "Error desconocido en el agente local"
-                if not err_msg.startswith("Error a través del agente local:"):
-                    err_msg = f"Error a través del agente local: {err_msg}"
-                raise HTTPException(status_code=500, detail=err_msg)
-            return result.get("data")
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error a través del agente local: {str(e)}")
-
-    try:
-        result = extract_service.get_table_preview(
-            db_type=conn_data.db_type,
-            host=conn_data.host,
-            port=conn_data.port,
-            database=conn_data.database,
-            user=conn_data.user,
-            password=conn_data.password,
-            table_name=conn_data.table_name,
-            service_name=conn_data.service_name
-        )
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener la vista previa de la tabla: {str(e)}")
+    return await database_read(conn_data, "get_preview", extract_service.get_table_preview)
 
 
 @router.post("/date-dimension/preview")

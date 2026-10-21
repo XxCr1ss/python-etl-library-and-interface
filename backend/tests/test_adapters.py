@@ -34,7 +34,8 @@ def test_database_preview_is_sample_count_and_empty_source_preserves_columns(cli
     monkeypatch.setattr(transform_service, "DB_Extractor", Extractor)
     response = client.post("/api/v1/extract/database/preview", json={**CONNECTION, "table_name": "t"})
     assert response.status_code == 200
-    assert response.json() == {"status": "success", "table_name": "t", "preview_data": [{"id": 1}, {"id": 2}], "total_rows": 2}
+    assert response.json() == {"status": "success", "table_name": "t", "preview_data": [{"id": 1}, {"id": 2}], "total_rows": 2,
+                               "columns": ["id"], "dtypes": {"id": "int64"}, "limit": 5, "sample_rows": 2}
     assert calls == [("t", 5)]
     response = client.post("/api/v1/transform/preview", json={
         "source": {"type": "database", **CONNECTION, "table_name": "t"}, "steps": []})

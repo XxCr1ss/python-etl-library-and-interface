@@ -33,6 +33,7 @@ function useSessionCore() {
     current.current = pipelineReducer(current.current, action);
     reactDispatch(action);
   }, []);
+  const snapshot = useCallback(() => current.current, []);
   const editable = useCallback(() => current.current.hydrationStatus !== "hydrating" && !current.current.recoveryRequired && current.current.execution?.status !== "running", []);
   useEffect(() => {
     if (hydrated.current) return; hydrated.current = true;
@@ -158,9 +159,9 @@ function useSessionCore() {
     credentials.clear(); dispatch({ type: "reset" });
   }, [credentials, dispatch]);
   const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) dispatch({ type: "loadConfig", config: parseLoadConfig(config) }); }, [dispatch, editable]);
-  return useMemo(() => ({ state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,
+  return useMemo(() => ({ state, snapshot, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,
     canTransform: selectors.canTransform(state, credentials), canVisitLoad: selectors.canVisitLoad(state), isReadyForLoad: selectors.isReadyForLoad(state, credentials), canExecuteLoad: selectors.canExecuteLoad(state, credentials) }),
-  [state, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig]);
+  [state, snapshot, credentials, agentId, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig]);
 }
 export const PipelineContext = createContext<ReturnType<typeof useSessionCore> | null>(null);
 export function PipelineProvider({ children }: { children: ReactNode }) {

@@ -132,47 +132,18 @@ def get_database_metadata(
             )
         raise
 
+def get_database_schema_graph(**connection) -> Dict[str, Any]:
+    from etl.extractors.schema_graph import schema_graph
+    with DB_Extractor(**connection) as extractor:
+        return schema_graph(extractor.engine)
+
+
 def get_table_preview(
-    db_type: str,
-    host: str,
-    port: Optional[int],
-    database: str,
-    user: str,
-    password: str,
-    table_name: str,
-    service_name: Optional[str] = None,
-    limit: int = 5
+    db_type: str, host: str, port: Optional[int], database: str,
+    user: str, password: str, table_name: str,
+    service_name: Optional[str] = None, limit: int = 5
 ) -> Dict[str, Any]:
-    """
-    Conecta a la base de datos usando DB_Extractor, obtiene una muestra de la tabla dada,
-    y retorna los registros limpios compatibles con JSON.
-    """
-    try:
-        with DB_Extractor(
-            db_type=db_type,
-            password=password,
-            database=database,
-            host=host,
-            user=user,
-            port=port,
-            service_name=service_name
-        ) as extractor:
-            df = extractor.sample_data(table_name, limit)
-            preview_data = clean_records(df, limit)
-            
-            return {
-                "status": "success",
-                "table_name": table_name,
-                "preview_data": preview_data,
-                "total_rows": len(df)
-            }
-    except UnicodeDecodeError as e:
-        raise ValueError(
-            f"Error de conexión a la base de datos: error de codificación del mensaje en Windows (habitualmente esto indica que el servidor de base de datos '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión)."
-        ) from e
-    except Exception as e:
-        if "codec can't decode" in str(e) or "UnicodeDecodeError" in type(e).__name__:
-            raise ValueError(
-                f"Error de conexión a la base de datos: error de decodificación en Windows (habitualmente esto indica que el servidor de base de datos '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión)."
-            )
-        raise
+    from etl.extractors.schema_graph import preview_result
+    with DB_Extractor(db_type=db_type, host=host, port=port, database=database,
+                      user=user, password=password, service_name=service_name) as extractor:
+        return preview_result(extractor, table_name, limit)

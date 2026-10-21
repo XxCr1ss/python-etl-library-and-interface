@@ -1,0 +1,4 @@
+.react-flow { --xy-background-color: var(--ui-surface); --xy-edge-stroke: var(--ui-action); --xy-controls-button-background-color: var(--ui-surface); --xy-controls-button-background-color-hover: var(--ui-surface-muted); --xy-controls-button-color: var(--ui-content); --xy-controls-button-border-color: var(--ui-line); }
+.react-flow__node-table:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 4px; border-radius: 12px; }
+.react-flow__controls-button { color: var(--ui-content); }
+.react-flow__controls-button svg { fill: currentColor; }

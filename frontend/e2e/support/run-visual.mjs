@@ -6,7 +6,7 @@ if (process.platform !== "win32") {
   process.exit(1);
 }
 const cli = fileURLToPath(new URL("../../node_modules/@playwright/test/cli.js", import.meta.url));
-const result = spawnSync(process.execPath, [cli, "test", "--project=mock", "final-audit.spec.ts", ...process.argv.slice(2)], {
+const result = spawnSync(process.execPath, [cli, "test", "--project=mock", "final-audit.spec.ts", "diagram.spec.ts", ...process.argv.slice(2)], {
   stdio: "inherit", env: { ...process.env, ETL_E2E_VISUAL: "1" },
 });
 process.exit(result.status ?? 1);
