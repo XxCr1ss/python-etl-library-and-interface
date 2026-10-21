@@ -77,7 +77,8 @@ class DB_Extractor:
     """
     
     def __init__(self, db_type: str, password: str, database: str, host: str = "localhost", 
-                 user: str = "root", port: Optional[int] = None, service_name: Optional[str] = None):
+                 user: str = "root", port: Optional[int] = None, service_name: Optional[str] = None,
+                 connect_timeout: Optional[int] = None):
         """
         Inicializa el extractor de base de datos con parámetros de conexión.
         
@@ -111,6 +112,7 @@ class DB_Extractor:
         self.database = database
         self.service_name = service_name
         self.port = port or self._default_port()
+        self.connect_timeout = connect_timeout
         self.engine = None 
 
     def _default_port(self) -> int:
@@ -154,19 +156,21 @@ class DB_Extractor:
         try:
             if self.db_type == "mysql":  
                 self.engine = create_engine(
-                    f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+                    f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+                    connect_args={"connect_timeout": self.connect_timeout} if self.connect_timeout else {}
                 )
             elif self.db_type == "postgresql":
                 self.engine = create_engine(
                     f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
-                    connect_args={'client_encoding': 'utf8'}
+                    connect_args={'client_encoding': 'utf8', **({"connect_timeout": self.connect_timeout} if self.connect_timeout else {})}
                 )
             elif self.db_type == "oracle":
                 if not self.service_name:
                     raise ValueError("Debe proporcionar 'service_name' para Oracle.")
                 
                 dsn = f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={self.host})(PORT={self.port}))(CONNECT_DATA=(SERVICE_NAME={self.service_name})))"
-                self.engine = create_engine(f"oracle+oracledb://{self.user}:{self.password}@{dsn}")
+                self.engine = create_engine(f"oracle+oracledb://{self.user}:{self.password}@{dsn}",
+                                            connect_args={"tcp_connect_timeout": self.connect_timeout} if self.connect_timeout else {})
             else:
                 raise ValueError("Tipo de base de datos no soportado. Usa 'mysql', 'postgresql' o 'oracle'.")
 

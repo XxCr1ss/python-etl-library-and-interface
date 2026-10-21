@@ -11,8 +11,8 @@ export function sourceDto(source: SourceDescriptor, store: CredentialStore): Sou
     ...(clean.use_agent !== undefined ? { use_agent: clean.use_agent } : {}), ...(clean.agent_id !== undefined ? { agent_id: clean.agent_id } : {}) };
 }
 export function targetDto(target: TargetDescriptor, store: CredentialStore): TargetConnectionDto {
-  const { credentialRef, ...fields } = parseTarget(target, store);
-  return { ...fields, password: store.get(credentialRef) };
+  const { credentialRef, use_agent, agent_id, ...fields } = parseTarget(target, store);
+  return { ...fields, password: store.get(credentialRef), ...(use_agent ? { use_agent: true, agent_id } : {}) };
 }
 export function stepDto(step: TransformStep, store: CredentialStore): StepDto {
   const clean = parseStep(step, store);

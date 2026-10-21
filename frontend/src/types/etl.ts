@@ -4,8 +4,9 @@ export type DatabaseType = "postgresql" | "mysql" | "oracle";
 export interface TargetConnectionDto {
   db_type: DatabaseType; host: string; port?: number | null; database: string;
   user: string; password: string; service_name?: string | null;
+  use_agent?: boolean; agent_id?: string | null;
 }
-export type SourceConnectionDto = TargetConnectionDto & { use_agent?: boolean; agent_id?: string | null };
+export type SourceConnectionDto = TargetConnectionDto;
 export type SourceDto =
   | { type: "file"; filepath: string; sheet_name?: string | null }
   | ({ type: "database"; table_name: string } & SourceConnectionDto)

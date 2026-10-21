@@ -5,6 +5,9 @@ import pandas as pd
 import pytest
 
 from services import load_service
+from etl import DB_Loader
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 
 DATE = {"type": "date_dimension", "start_year": 2024, "end_year": 2024}
 CONNECTION = {"db_type": "postgresql", "host": "synthetic", "database": "test",
@@ -23,20 +26,11 @@ def test_date_http_to_loader(client, monkeypatch):
 
     received = []
 
-    class Engine:
-        def connect(self):
-            return nullcontext(object())
-
-        class url:
-            @staticmethod
-            def get_backend_name():
-                return "postgresql"
+    engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
 
     class Extractor:
-        engine = Engine()
-
         def __init__(self, **kwargs):
-            pass
+            self.engine = engine
 
         def __enter__(self):
             return self
@@ -44,31 +38,22 @@ def test_date_http_to_loader(client, monkeypatch):
         def __exit__(self, *args):
             pass
 
-    class Loader:
-        def __init__(self, **kwargs):
-            pass
-
+    class Loader(DB_Loader):
         def load_dimension(self, dfs, **kwargs):
             received.append(dfs.copy())
-
-    def read_sql(query, conn):
-        if "EXISTS" in query:
-            return pd.DataFrame({"exists": [True]})
-        if "COUNT" in query:
-            return pd.DataFrame({"total": [999]})
-        return received[0].head(5)
+            return super().load_dimension(dfs, **kwargs)
 
     monkeypatch.setattr(load_service, "DB_Extractor", Extractor)
     monkeypatch.setattr(load_service, "DB_Loader", Loader)
-    monkeypatch.setattr(load_service.pd, "read_sql", read_sql)
     response = client.post("/api/v1/load/execute", json={
         "source": DATE, "target_connection": CONNECTION,
         "load_config": {"table_name": "dim_fecha", "table_type": "dimension"}, "recipe": []})
     assert response.status_code == 200, response.text
     assert len(received) == 1 and len(received[0]) == 366
     assert received[0]["fecha"].iloc[[0, -1]].tolist() == ["2024-01-01", "2024-12-31"]
-    assert response.json()["total_rows"] == 999  # destination total, never inserted rows
+    assert response.json()["total_rows"] == 366
     assert set(response.json()) == {"status", "message", "table_name", "table_type", "total_rows", "preview_data"}
+    engine.dispose()
 
 
 @pytest.mark.parametrize("years", [ {}, {"start_year": 2024}, {"end_year": 2024},

@@ -1,188 +1,97 @@
+"""Load orchestration; persistence and transport live in the reusable etl core."""
+import asyncio
 import os
-import pandas as pd
-from typing import Dict, Any, List, Optional
+import math
+
+import pandas as pd  # Kept as an adapter seam for existing characterization tests.
 from etl import DB_Extractor, DB_Loader
+from etl.load_execution import connection_parameters, persist_and_verify, test_connection, validate_load_config
+from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, MAX_LOAD_ROWS,
+                                LoadValidationError, encode_dataset, strict_json)
+from services.agent_manager import agent_manager
 from services.transform_service import load_source_df, apply_transformation_steps
-from services.extract_service import clean_records
 
-def test_target_connection(target_config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Verifica de forma activa la conexión a la bodega de datos destino (Target DB).
-    """
-    db_type = target_config.get("db_type")
-    host = target_config.get("host")
-    port = target_config.get("port")
-    database = target_config.get("database")
-    user = target_config.get("user")
-    password = target_config.get("password")
-    service_name = target_config.get("service_name")
-    
+def _timeout(name, default):
+    value = float(os.environ.get(name, default))
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} debe ser un tiempo positivo y finito.")
+    return value
+
+
+TEST_TIMEOUT = _timeout("ETL_AGENT_TEST_TIMEOUT", "15")
+LOAD_TIMEOUT = _timeout("ETL_AGENT_LOAD_TIMEOUT", "120")
+
+
+def test_target_connection(target_config):
+    return test_connection(target_config, extractor_factory=DB_Extractor)
+
+
+def _result(response):
+    if not isinstance(response, dict) or response.get("status") != "success" or not isinstance(response.get("data"), dict):
+        raise LoadValidationError("El agente no pudo completar la operación; revisa su configuración y el destino.")
+    return response["data"]
+
+
+async def _capabilities(target):
+    agent_id = target.get("agent_id")
+    if not isinstance(agent_id, str) or not agent_id.strip():
+        raise LoadValidationError("Falta agent_id para utilizar el agente local.")
+    generation = agent_manager.connection_id(agent_id)
+    response = await agent_manager.send_command_and_wait(agent_id, "get_capabilities", {}, timeout=TEST_TIMEOUT)
+    if not isinstance(response, dict) or response.get("status") != "success" or not isinstance(response.get("data"), dict):
+        raise LoadValidationError("Actualiza el agente y habilita Load con python etl_agent.py --allow-load.")
+    data = response["data"]
+    if (type(data.get("load_protocol_version")) is not int or data["load_protocol_version"] != LOAD_PROTOCOL_VERSION or data.get("load_enabled") is not True or
+            not isinstance(data.get("actions"), list) or not all(isinstance(a, str) for a in data["actions"]) or
+            not {"test_target_connection", "execute_load"}.issubset(data["actions"]) or
+            any(type(data.get(k)) is not int or data[k] <= 0 for k in ("max_load_message_bytes", "max_load_rows"))):
+        raise LoadValidationError("Actualiza el agente y habilita Load con python etl_agent.py --allow-load.")
+    if generation != agent_manager.connection_id(agent_id):
+        raise LoadValidationError("La conexión del agente cambió; prueba de nuevo el destino.")
+    return agent_id, generation, min(MAX_LOAD_MESSAGE_BYTES, data["max_load_message_bytes"]), min(MAX_LOAD_ROWS, data["max_load_rows"])
+
+
+async def test_target_connection_agent(target_config):
+    params = connection_parameters(target_config)
+    agent_id, generation, _, _ = await _capabilities(target_config)
+    data = _result(await agent_manager.send_command_and_wait(agent_id, "test_target_connection", params,
+                   timeout=TEST_TIMEOUT, expected_connection=generation))
+    if data.get("status") != "success" or not isinstance(data.get("message"), str):
+        raise LoadValidationError("Respuesta de prueba del agente inválida.")
+    return {"status": "success", "message": "Conexión exitosa a la base de datos destino mediante agente local."}
+
+
+def _validate_report(data, config):
+    name, kind, _, _ = validate_load_config(config)
+    if (data.get("status") != "success" or data.get("table_name") != name or data.get("table_type") != kind or
+            type(data.get("total_rows")) is not int or data["total_rows"] < 0 or
+            not isinstance(data.get("preview_data"), list) or len(data["preview_data"]) > 5 or
+            not all(isinstance(row, dict) for row in data["preview_data"])):
+        raise LoadValidationError("No se pudo confirmar un reporte válido del agente; revisa el destino antes de repetir.")
     try:
-        # Intentar conectar usando DB_Extractor como manejador de contexto
-        with DB_Extractor(
-            db_type=db_type,
-            password=password,
-            database=database,
-            host=host,
-            user=user,
-            port=port,
-            service_name=service_name
-        ) as extractor:
-            if extractor.check_connection_status():
-                return {
-                    "status": "success",
-                    "message": f"Conexión exitosa a la base de datos destino '{database}' ({db_type.upper()})."
-                }
-            else:
-                raise ValueError("La prueba de conexión retornó un estado inactivo.")
-    except UnicodeDecodeError as e:
-        raise ValueError(
-            f"Error de conexión a la base de datos destino: error de decodificación del mensaje en Windows (habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión)."
-        ) from e
-    except Exception as e:
-        if "codec can't decode" in str(e) or "UnicodeDecodeError" in type(e).__name__:
-            raise ValueError(
-                f"Error de conexión a la base de datos destino: error de decodificación en Windows (habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión)."
-            )
-        raise ValueError(f"No se pudo conectar a la base de datos destino: {str(e)}")
+        strict_json(data["preview_data"])
+    except (ValueError, TypeError):
+        raise LoadValidationError("La muestra del agente no cumple el contrato JSON; revisa el destino antes de repetir.") from None
+    # Do not echo arbitrary diagnostic text from an agent into the report.
+    return {"status": "success", "message": f"Carga completada de forma exitosa en la tabla '{name}' ({kind.upper()}).",
+            "table_name": name, "table_type": kind, "total_rows": data["total_rows"], "preview_data": data["preview_data"]}
 
-async def execute_load(
-    source: Dict[str, Any],
-    target_config: Dict[str, Any],
-    load_config: Dict[str, Any],
-    recipe: List[Dict[str, Any]]
-) -> Dict[str, Any]:
-    """
-    Ejecuta el flujo completo de la ETL:
-    1. Carga los datos originales desde la fuente activa.
-    2. Aplica la receta secuencial de transformaciones.
-    3. Conecta a la bodega de datos destino y persiste los datos (dimensión o hecho).
-    4. Verifica la carga retornando un reporte con conteo de registros e inserciones.
-    """
-    # 1. Procesamiento de Transformaciones
+
+async def execute_load(source, target_config, load_config, recipe):
+    connection_parameters(target_config)
+    validate_load_config(load_config)
+    capability = await _capabilities(target_config) if target_config.get("use_agent") else None
     try:
-        df_src = await load_source_df(source)
-        df_final = await apply_transformation_steps(df_src, recipe)
-    except Exception as e:
-        raise ValueError(f"Error en la ejecución del pipeline de transformación: {str(e)}")
-
-    db_type = target_config.get("db_type")
-    host = target_config.get("host")
-    port = target_config.get("port")
-    database = target_config.get("database")
-    user = target_config.get("user")
-    password = target_config.get("password")
-    service_name = target_config.get("service_name")
-
-    table_name = load_config.get("table_name")
-    table_type = load_config.get("table_type", "dimension").lower()
-    if_exists = load_config.get("if_exists")
-
-    if not table_name:
-        raise ValueError("El parámetro 'table_name' es requerido para ejecutar la carga.")
-
-    # Comportamiento por defecto para cargas si no se define if_exists
-    if not if_exists:
-        if_exists = "replace" if table_type == "dimension" else "append"
-
-    # 2. Conexión y persistencia en la Bodega de Datos
-    try:
-        with DB_Extractor(
-            db_type=db_type,
-            password=password,
-            database=database,
-            host=host,
-            user=user,
-            port=port,
-            service_name=service_name
-        ) as extractor:
-            
-            loader = DB_Loader(engine=extractor.engine)
-
-            # Carga según el tipo de tabla
-            if table_type == "dimension":
-                loader.load_dimension(
-                    dfs=df_final,
-                    table_names=table_name,
-                    if_exists=if_exists
-                )
-            elif table_type == "fact":
-                # Convertir foreign_keys a formato de tupla para DB_Loader
-                fk_input = load_config.get("foreign_keys") or {}
-                fk_map = {}
-                for fk_col, val in fk_input.items():
-                    if isinstance(val, list) and len(val) == 2:
-                        fk_map[fk_col] = (val[0], val[1])
-                    elif isinstance(val, tuple) and len(val) == 2:
-                        fk_map[fk_col] = val
-                    else:
-                        raise ValueError(f"Mapeo de clave foránea inválido para '{fk_col}': debe ser una lista de [tabla_dimension, columna_pk]")
-
-                loader.load_fact(
-                    df=df_final,
-                    table_name=table_name,
-                    foreign_keys_map=fk_map,
-                    if_exists=if_exists,
-                    validate_foreign_keys=True
-                )
-            else:
-                raise ValueError(f"Tipo de tabla '{table_type}' no soportado. Debe ser 'dimension' o 'fact'.")
-
-            # 3. Verificación Post-Carga
-            with extractor.engine.connect() as conn:
-                db_backend = extractor.engine.url.get_backend_name()
-                
-                # Validar existencia de la tabla
-                if db_backend == "postgresql":
-                    exists_query = f"""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
-                        WHERE table_name = '{table_name}'
-                    );
-                    """
-                    exists = pd.read_sql(exists_query, conn).iloc[0, 0]
-                elif db_backend == "mysql":
-                    exists_query = f"SHOW TABLES LIKE '{table_name}'"
-                    res = pd.read_sql(exists_query, conn)
-                    exists = len(res) > 0
-                elif db_backend == "oracle":
-                    exists_query = f"SELECT table_name FROM user_tables WHERE table_name = UPPER('{table_name}')"
-                    res = pd.read_sql(exists_query, conn)
-                    exists = len(res) > 0
-                else:
-                    exists = True
-
-                if not exists:
-                    raise ValueError(f"La tabla destino '{table_name}' no existe en la base de datos después de la carga.")
-
-                # Contar filas cargadas en total
-                total_query = f"SELECT COUNT(*) AS total FROM {table_name}"
-                total_rows = int(pd.read_sql(total_query, conn)["total"].iloc[0])
-
-                # Muestra de datos insertados
-                sample_query = f"SELECT * FROM {table_name} LIMIT 5"
-                if db_backend == "oracle":
-                    sample_query = f"SELECT * FROM {table_name} WHERE ROWNUM <= 5"
-                
-                sample_df = pd.read_sql(sample_query, conn)
-                preview_data = clean_records(sample_df, 5)
-
-            return {
-                "status": "success",
-                "message": f"Carga completada de forma exitosa en la tabla '{table_name}' ({table_type.upper()}).",
-                "table_name": table_name,
-                "table_type": table_type,
-                "total_rows": total_rows,
-                "preview_data": preview_data
-            }
-
-    except UnicodeDecodeError as e:
-        raise ValueError(
-            f"Error de conexión a la base de datos destino durante la carga: error de decodificación del mensaje en Windows ({str(e)}). Habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión."
-        ) from e
-    except Exception as e:
-        if "codec can't decode" in str(e) or "UnicodeDecodeError" in type(e).__name__:
-            raise ValueError(
-                f"Error de conexión a la base de datos destino durante la carga: error de decodificación en Windows ({str(e)}). Habitualmente esto indica que el servidor destino '{db_type}' en '{host}:{port or 'default'}' no está activo o rechazó la conexión."
-            )
-        raise ValueError(f"Fallo en el proceso de carga a la base de datos destino: {str(e)}")
+        frame = await load_source_df(source)
+        frame = await apply_transformation_steps(frame, recipe)
+    except Exception:
+        raise LoadValidationError("No se pudo completar la transformación antes de la carga.") from None
+    if capability:
+        agent_id, generation, max_bytes, max_rows = capability
+        dataset = await asyncio.to_thread(encode_dataset, frame, max_bytes, max_rows)
+        payload = {"load_protocol_version": LOAD_PROTOCOL_VERSION, "target_connection": connection_parameters(target_config),
+                   "load_config": load_config, "dataset": dataset}
+        response = await agent_manager.send_command_and_wait(agent_id, "execute_load", payload,
+                       timeout=LOAD_TIMEOUT, expected_connection=generation, max_message_bytes=max_bytes)
+        return _validate_report(_result(response), load_config)
+    return await asyncio.to_thread(persist_and_verify, frame, target_config, load_config, DB_Extractor, DB_Loader)

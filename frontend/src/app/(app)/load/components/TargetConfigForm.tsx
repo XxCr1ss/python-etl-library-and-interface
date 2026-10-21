@@ -1,6 +1,7 @@
 "use client";
 import { DatabaseConnectionFields } from "@/components/etl/DatabaseConnectionFields";
 import { Button } from "@/components/ui";
+import { HybridAgentInstructions } from "@/components/etl/HybridAgentInstructions";
 import type { useTargetConnection } from "../hooks/useTargetConnection";
 
 export default function TargetConfigForm({ connection }: { connection: ReturnType<typeof useTargetConnection> }) {
@@ -9,7 +10,15 @@ export default function TargetConfigForm({ connection }: { connection: ReturnTyp
     <p className="text-sm text-content-muted">Prueba el destino después de cada cambio de conexión.</p>
     <form noValidate onSubmit={e => { e.preventDefault(); void connection.test(); }} className="space-y-4">
       <DatabaseConnectionFields value={connection.draft} onChange={connection.change} errors={connection.errors} />
-      <Button type="submit" isLoading={connection.testing}>Probar Conexión Bodega</Button>
+      <label className="flex items-center gap-2 text-sm text-content">
+        <input type="checkbox" checked={connection.draft.use_agent} onChange={e => connection.change({ use_agent: e.target.checked })} />
+        Usar agente local híbrido
+      </label>
+      {connection.draft.use_agent && <>
+        <p className="text-sm text-content-muted">El host y puerto del destino se resuelven desde la máquina del agente. Prueba de nuevo después de reconectarlo.</p>
+        <HybridAgentInstructions agentId={connection.agentId} status={connection.agent.status} error={connection.agent.error} onRetry={connection.agent.retry} allowLoad />
+      </>}
+      <Button type="submit" disabled={!connection.agentReady || (connection.draft.use_agent && !connection.agentId)} isLoading={connection.testing}>Probar Conexión Bodega</Button>
     </form>
     <p role="status" className={connection.connected ? "text-success" : "text-content-muted"}>
       {connection.connected ? "Conectado Correctamente" : "Conexión pendiente de prueba"}

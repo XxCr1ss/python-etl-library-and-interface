@@ -72,19 +72,21 @@ app.add_middleware(
 @app.websocket("/api/v1/ws/agent/{agent_id}")
 async def websocket_endpoint(websocket: WebSocket, agent_id: str):
     await websocket.accept()
-    agent_manager.register_agent(agent_id, websocket)
+    if not agent_manager.register_agent(agent_id, websocket):
+        await websocket.close(code=1008, reason="Identificador de agente ya conectado.")
+        return
     try:
         while True:
             # Escuchar respuestas en formato JSON del agente
             data = await websocket.receive_json()
-            request_id = data.get("request_id")
-            if request_id:
-                agent_manager.resolve_request(request_id, data)
+            request_id = data.get("request_id") if isinstance(data, dict) else None
+            if isinstance(request_id, str):
+                agent_manager.resolve_request(request_id, data, agent_id, websocket)
     except WebSocketDisconnect:
-        agent_manager.unregister_agent(agent_id)
+        agent_manager.unregister_agent(agent_id, websocket)
     except Exception as e:
-        print(f"⚠️ Error en canal WebSocket del agente {agent_id}: {e}")
-        agent_manager.unregister_agent(agent_id)
+        print("Error de transporte en canal del agente.")
+        agent_manager.unregister_agent(agent_id, websocket)
 
 # Registrar routers
 app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"])

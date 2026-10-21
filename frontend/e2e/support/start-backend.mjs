@@ -76,7 +76,8 @@ fs.mkdirSync(uploadDir, { recursive: true });
 
 const child = spawn(
   pythonExe,
-  ["-m", "uvicorn", "main:app", "--app-dir", path.join(repoRoot, "backend"), "--host", "127.0.0.1", "--port", "8000"],
+  ["-m", "uvicorn", "main:app", "--app-dir", path.join(repoRoot, "backend"), "--host", "127.0.0.1", "--port", "8000",
+    "--workers", "1", "--ws-max-size", mergedEnv.ETL_LOAD_MAX_MESSAGE_BYTES || "52428800", "--ws-max-queue", "1"],
   {
     cwd: repoRoot,
     stdio: "inherit",

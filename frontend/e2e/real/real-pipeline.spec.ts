@@ -191,7 +191,7 @@ test.describe.serial("Suite E2E Real · Navegador + FastAPI + PostgreSQL (etl_te
 
     await page.getByRole("button", { name: "Iniciar Carga en Bodega de Datos" }).click();
     await expect(page.getByRole("heading", { name: "Resultado desconocido" })).toBeVisible();
-    await expect(page.getByText(/Valores no encontrados en dimensión/i)).toBeVisible();
+    await expect(page.getByText(/claves foráneas sin correspondencia/i)).toBeVisible();
 
     // Verificar por SQL independiente que factProtectedTable conserva exactamente sus 2 filas previas
     const sqlFactProtected = inspectTable(factProtectedTable);

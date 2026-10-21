@@ -27,6 +27,8 @@ def isolated_adapters(monkeypatch, tmp_path):
     monkeypatch.setattr(load_service, "DB_Loader", forbidden)
     monkeypatch.setattr(agent_manager, "active_agents", {})
     monkeypatch.setattr(agent_manager, "pending_requests", {})
+    monkeypatch.setattr(agent_manager, "generations", {})
+    monkeypatch.setattr(agent_manager, "uncertain_writes", set())
 
 
 @pytest.fixture
