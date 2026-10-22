@@ -2,6 +2,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PipelineProvider } from "@/state/PipelineProvider";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { DiagramCoordinator } from "@/features/diagram/DiagramCoordinator";
+import { WarehouseSessionProvider } from "@/features/warehouse/WarehouseSessionProvider";
 
 export default function AppLayout({
   children,
@@ -9,6 +10,6 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ThemeProvider><PipelineProvider><DiagramCoordinator><AppShell>{children}</AppShell></DiagramCoordinator></PipelineProvider></ThemeProvider>
+    <ThemeProvider><PipelineProvider><WarehouseSessionProvider><DiagramCoordinator><AppShell>{children}</AppShell></DiagramCoordinator></WarehouseSessionProvider></PipelineProvider></ThemeProvider>
   );
 }

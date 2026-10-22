@@ -11,6 +11,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const id = useId();
   const { state, credentials } = usePipelineSession();
   const items = [{ name: "Dashboard", href: "/dashboard", available: true, detail: "" }, ...pipelineStages(state, credentials),
+    { name: "Bodega de datos", href: "/analytics", available: true, detail: "" },
     { name: "Configuración", href: "/settings", available: true, detail: "" }];
   return <aside className="flex h-full w-64 max-w-full flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] text-content">
     <Link href="/dashboard" onClick={onNavigate} className="flex h-16 shrink-0 items-center gap-2 border-b border-[var(--sidebar-border)] px-6 font-bold">
@@ -23,7 +24,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           : <><span role="link" aria-disabled="true" aria-current={pathname === item.href ? "page" : undefined} aria-describedby={`${id}-${index}`} className="block px-3 py-2 text-sm font-semibold text-content-muted">{item.name}</span>
             <p id={`${id}-${index}`} className="px-3 pb-2 text-xs text-content-muted">{item.detail}</p></>}
       </div>)}
-      <p className="px-3 pt-6 text-xs text-content-muted">Bodega de Datos · Próximamente</p>
       <p className="px-3 text-xs text-content-muted">Monitoreo · Próximamente</p>
     </nav>
     <p className="border-t border-[var(--sidebar-border)] p-5 text-sm text-content-muted">Espacio de trabajo local<br /><span className="text-xs">Sesión de esta pestaña</span></p>

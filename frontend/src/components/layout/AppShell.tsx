@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="fixed inset-y-0 left-0 z-20 hidden md:block"><Sidebar /></div>
     <div className="min-w-0 md:ml-64">
       <Header onOpenNavigation={() => setOpen(true)} navigationOpen={open} triggerRef={triggerRef} />
-      <div className="p-4 md:px-8"><PipelineStepper /></div>
+      <div className="p-4 md:px-8">{pathname !== "/analytics" && <PipelineStepper />}</div>
       <main id="main-content" tabIndex={-1} className="min-w-0 p-4 pt-0 md:p-8 md:pt-0">{children}</main>
     </div>
     <div id="mobile-navigation">{open && <Modal open={open} onClose={() => setOpen(false)} title="Navegación" className="max-w-sm">

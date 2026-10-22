@@ -246,6 +246,27 @@ class PostgresTestHarness:
             conn.execute(text(f"INSERT INTO {child} VALUES (1, 1, 1, 'sample')"))
         return {"parent": parent, "child": child}
 
+    def seed_warehouse(self, prefix: str) -> dict[str, str]:
+        """Three synthetic facts, real composite dimension keys, exact independent oracles."""
+        from datetime import datetime
+        from decimal import Decimal
+        from sqlalchemy import Column, DateTime, ForeignKeyConstraint, Integer, MetaData, Numeric, String, Table
+        dimension = self.register_table(f"{prefix}_dimension")
+        fact = self.register_table(f"{prefix}_fact")
+        metadata = MetaData()
+        dim = Table(dimension, metadata, Column("id", Integer, primary_key=True), Column("version", Integer, primary_key=True), Column("category", String(80)))
+        facts = Table(fact, metadata, Column("id", Integer, primary_key=True), Column("dim_id", Integer), Column("version", Integer),
+                      Column("other_dim_id", Integer), Column("amount", Numeric(24, 4)), Column("occurred", DateTime), Column("note", String(100)),
+                      ForeignKeyConstraint(["dim_id", "version"], [dim.c.id, dim.c.version]),
+                      ForeignKeyConstraint(["other_dim_id", "version"], [dim.c.id, dim.c.version]))
+        with self.engine.begin() as conn:
+            metadata.create_all(conn)
+            conn.execute(dim.insert(), [{"id": 1, "version": 1, "category": "A"}, {"id": 2, "version": 1, "category": "B"}])
+            conn.execute(facts.insert(), [{"id": i, "dim_id": d, "version": 1, "other_dim_id": 2,
+                                          "amount": Decimal(amount), "occurred": datetime(2026, month, 15), "note": note}
+                                         for i, d, amount, month, note in [(1, 1, "10", 1, "=synthetic"), (2, 1, "20", 1, ""), (3, 2, "90", 2, None)]])
+        return {"dimension": dimension, "fact": fact}
+
 
 def _main() -> int:
     parser = argparse.ArgumentParser(description="PostgreSQL integration test harness CLI")
@@ -254,6 +275,8 @@ def _main() -> int:
     sub.add_parser("check-config")
     diagram_parser = sub.add_parser("seed-diagram")
     diagram_parser.add_argument("--prefix", required=True)
+    warehouse_parser = sub.add_parser("seed-warehouse")
+    warehouse_parser.add_argument("--prefix", required=True)
 
     seed_parser = sub.add_parser("seed-table")
     seed_parser.add_argument("--table", required=True)
@@ -274,6 +297,8 @@ def _main() -> int:
             print(json.dumps(result))
         elif args.command == "seed-diagram":
             print(json.dumps(harness.seed_diagram(args.prefix)))
+        elif args.command == "seed-warehouse":
+            print(json.dumps(harness.seed_warehouse(args.prefix)))
         elif args.command == "seed-table":
             rows = json.loads(args.rows_json)
             harness.seed_table(args.table, rows)

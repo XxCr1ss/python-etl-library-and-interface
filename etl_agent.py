@@ -19,6 +19,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from etl.extractors.db_extractor import DB_Extractor
 from etl.error_utils import public_error
 from etl.json_utils import clean_value
+from etl.warehouse.settings import capabilities as warehouse_capabilities, WarehouseError
+from etl.warehouse.execution import execute as execute_warehouse
 from etl.load_execution import persist_and_verify, test_connection
 from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, MAX_LOAD_ROWS,
                                 LoadValidationError, decode_dataset, serialize_command, strict_json)
@@ -26,10 +28,17 @@ from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, M
 _write_lock = threading.Lock()
 
 
-def load_capabilities(allow_load=False):
+def warehouse_transport_allowed(server_url):
+    parsed = urlsplit(server_url)
+    return parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"})
+
+
+def load_capabilities(allow_load=False, allow_warehouse=True):
     return {"load_protocol_version": LOAD_PROTOCOL_VERSION, "load_enabled": allow_load,
             "actions": ["test_target_connection", "execute_load"] if allow_load else [],
-            "max_load_message_bytes": MAX_LOAD_MESSAGE_BYTES, "max_load_rows": MAX_LOAD_ROWS}
+            "max_load_message_bytes": MAX_LOAD_MESSAGE_BYTES, "max_load_rows": MAX_LOAD_ROWS,
+            "warehouse": warehouse_capabilities() if allow_warehouse else None,
+            "warehouse_unavailable": None if allow_warehouse else "insecure_transport"}
 
 
 def _execute_load(payload, allow_load=False):
@@ -177,6 +186,7 @@ def _get_table(payload: Dict[str, Any]) -> Dict[str, Any]:
 async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False):
     """Bucle principal de conexión y escucha de comandos WebSocket."""
     ws_url = f"{server_url}/api/v1/ws/agent/{quote(agent_id, safe='')}".replace("http://", "ws://").replace("https://", "wss://")
+    allow_warehouse = warehouse_transport_allowed(server_url)
     print(f"⏳ Conectando al backend de la ETL en: {ws_url} ...")
     
     async for websocket in websockets.connect(ws_url, max_size=MAX_LOAD_MESSAGE_BYTES,
@@ -195,7 +205,14 @@ async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False):
                 # Procesar comando
                 try:
                     if action == "get_capabilities":
-                        result_data = load_capabilities(allow_load)
+                        result_data = load_capabilities(allow_load, allow_warehouse)
+                    elif action in warehouse_capabilities()["actions"]:
+                        if not allow_warehouse:
+                            raise WarehouseError("insecure_transport", "El túnel remoto requiere HTTPS/WSS para analítica.", 400)
+                        serialize_command(data, warehouse_capabilities()["limits"]["message_bytes"])
+                        if not isinstance(payload, dict) or set(payload) != {"request", "limits"}:
+                            raise WarehouseError("invalid_query", "Solicitud analítica inválida.")
+                        result_data = await asyncio.to_thread(execute_warehouse, action.removeprefix("warehouse_"), payload["request"], payload["limits"])
                     elif action == "test_target_connection":
                         result_data = await handle_test_target_connection(payload, allow_load)
                     elif action == "execute_load":
@@ -239,6 +256,9 @@ async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False):
                         "status": "error",
                         "message": sanitized_msg
                     }
+                    if isinstance(action, str) and action.startswith("warehouse_"):
+                        response["code"] = e.code if isinstance(e, WarehouseError) else "connection_failed"
+                        response["message"] = str(e) if isinstance(e, WarehouseError) else "No se pudo completar la lectura local."
                 
                 await websocket.send(strict_json(response))
                 

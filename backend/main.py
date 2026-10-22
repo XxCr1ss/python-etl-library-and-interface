@@ -23,7 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from etl.error_utils import public_error
-from api.routes import extract, transform, load
+from api.routes import extract, transform, load, warehouse
 from services.agent_manager import agent_manager
 
 app = FastAPI(
@@ -66,6 +66,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 # WebSocket Endpoint para el Agente Local Híbrido
@@ -92,6 +93,7 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
 app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"])
 app.include_router(transform.router, prefix="/api/v1/transform", tags=["Transformación"])
 app.include_router(load.router, prefix="/api/v1/load", tags=["Carga"])
+app.include_router(warehouse.router, prefix="/api/v1/warehouse", tags=["Bodega de datos"])
 
 @app.get("/api/v1/health")
 async def health_check():

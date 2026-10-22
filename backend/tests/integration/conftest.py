@@ -8,6 +8,9 @@ from etl.extractors.db_extractor import DB_Extractor
 from etl.loaders.db_loader import DB_Loader
 from services import extract_service, load_service, transform_service
 from tests.integration.sql_harness import PostgresTestHarness, load_test_db_config
+from etl.warehouse import execution as warehouse_execution
+
+_warehouse_engine_for = warehouse_execution.engine_for
 
 
 @pytest.fixture(autouse=True)
@@ -16,6 +19,7 @@ def enable_real_adapters_for_integration(monkeypatch, isolated_adapters):
     for module in (extract_service, transform_service, load_service):
         monkeypatch.setattr(module, "DB_Extractor", DB_Extractor)
     monkeypatch.setattr(load_service, "DB_Loader", DB_Loader)
+    monkeypatch.setattr(warehouse_execution, "engine_for", _warehouse_engine_for)
 
 
 @pytest.fixture
