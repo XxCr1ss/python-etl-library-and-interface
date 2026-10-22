@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { CredentialRecoveryDialog } from "@/components/etl/CredentialRecoveryDialog";
 import { Button, Modal } from "@/components/ui";
+import { ManualHelpLink } from "@/features/manual/components/ManualHelpLink";
 import { downloadLoadSummary, unknownLoadMessage } from "@/state/loadReport";
 import { useLoadPipeline } from "./hooks/useLoadPipeline";
 import { useTargetConnection } from "./hooks/useTargetConnection";
@@ -22,10 +23,10 @@ export default function LoadPage() {
   if (!source) return <section className="mx-auto max-w-lg py-12 space-y-4">
     <h1 className="text-2xl font-bold">Paso Bloqueado: Carga y Persistencia</h1>
     <p>Define primero un origen. Puedes cargar con una receta vacía después de validar su preview.</p>
-    <Link className="underline" href="/transform">Ir a Transformaciones</Link>
+    <Link className="underline" href="/transform">Ir a Transformaciones</Link><div><ManualHelpLink section="carga" /></div>
   </section>;
   return <div className="mx-auto max-w-7xl space-y-6">
-    <header><h1 className="text-2xl font-bold">Carga y reporte de ejecución</h1><p className="text-content-muted">Configura el destino y revisa el resultado de cada intento.</p></header>
+    <header><h1 className="text-2xl font-bold">Carga y reporte de ejecución</h1><p className="text-content-muted">Configura el destino y revisa el resultado de cada intento.</p><ManualHelpLink section="carga" /></header>
     <CredentialRecoveryDialog includeTarget />
     {preview.status === "error" && <div role="alert" className="text-danger"><p>{preview.error}</p>
       {source.type === "file" && <Link href="/extract" className="underline">Volver a subir el archivo temporal</Link>}
