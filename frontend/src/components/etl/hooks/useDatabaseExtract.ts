@@ -7,6 +7,7 @@ import type { DatabaseMetadata } from "@/types/etl";
 import { useExtractRequest } from "./useExtractRequest";
 import type { ExtractResult } from "./types";
 import { useDiagramCoordinator } from "@/features/diagram/DiagramCoordinator";
+import { referenceOf, type SavedConnection } from "@/services/connectionsApi";
 
 export function useDatabaseExtract(active: boolean, agentId: string) {
   const diagram = useDiagramCoordinator();
@@ -40,6 +41,12 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
     preview.invalidate(); setTable("");
     void connection.run(signal => getDatabaseMetadata(databaseConnection(draft, agentId), signal));
   }
+  function selectSaved(row: SavedConnection | null) {
+    diagram?.invalidate(); connection.invalidate(); preview.invalidate(); setTable(""); setErrors({});
+    setDraft(row ? { db_type: row.db_type, host: row.host, port: row.port == null ? "" : String(row.port),
+      database: row.database, user: row.user, password: undefined, service_name: row.service_name || "", use_agent: row.transport === "agent",
+      savedConnection: { ...referenceOf(row), ...(row.transport === "agent" ? { runtime_agent_id: agentId } : {}) } } : { ...initialDatabaseDraft, password: undefined });
+  }
   function selectTable(name: string) {
     preview.invalidate(); setTable(name);
     if (!name || !agentReady || connection.status !== "success" || !connection.result?.tables.includes(name)) return;
@@ -49,9 +56,12 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
     void preview.run(async signal => {
       const data = await previewDatabaseTable({ ...sourceConnection, table_name: name }, signal);
       return { data, columns, label: name, count: { kind: "sample", value: data.total_rows },
-        source: { type: "database", ...sourceConnection, table_name: name, total_rows: data.total_rows } };
+        source: { type: "database", ...(draft.savedConnection ? { db_type: draft.db_type, host: draft.host,
+          port: draft.port ? Number(draft.port) : null, database: draft.database, user: draft.user, service_name: draft.service_name,
+          use_agent: draft.use_agent, ...(draft.use_agent ? { agent_id: agentId } : {}),
+          savedConnection: draft.savedConnection } : sourceConnection), table_name: name, total_rows: data.total_rows } };
     });
   }
-  return { ...preview, draft, errors, edit, table, selectTable, connect, connection, agent, agentReady,
+  return { ...preview, draft, errors, edit, table, selectTable, selectSaved, connect, connection, agent, agentReady,
     invalidate: () => { diagram?.invalidate(); connection.invalidate(); preview.invalidate(); setTable(""); } };
 }

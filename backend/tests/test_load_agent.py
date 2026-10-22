@@ -86,7 +86,12 @@ def test_agent_requires_explicit_local_permission_and_protocol():
         etl_agent._execute_load({**payload, "load_protocol_version": 99}, True)
 
 
-def test_manager_binds_response_and_keeps_timed_out_write_exclusive():
+def test_manager_binds_response_and_keeps_timed_out_write_exclusive(monkeypatch):
+    # This test targets a timeout AFTER emission, not OS thread-pool startup.
+    # A 1ms deadline could previously expire during serialization on Windows.
+    async def serialize_inline(operation, *args):
+        return operation(*args)
+    monkeypatch.setattr("services.agent_manager.asyncio.to_thread", serialize_inline)
     async def run():
         manager = AgentManager()
         class Socket:

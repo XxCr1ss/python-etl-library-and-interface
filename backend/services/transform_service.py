@@ -1,3 +1,4 @@
+from etl.load_execution import positive_setting
 import os
 import pandas as pd
 from typing import Dict, Any, List, Optional
@@ -82,7 +83,8 @@ async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
             host=host,
             user=user,
             port=port,
-            service_name=service_name
+            service_name=service_name,
+            connect_timeout=positive_setting("ETL_SOURCE_CONNECT_TIMEOUT",10)
         ) as extractor:
             return extractor.get_table(table_name)
     elif source_type == "date_dimension":

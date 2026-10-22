@@ -1,6 +1,8 @@
 import sys
+import re
 from etl.error_utils import public_error
 from sqlalchemy import create_engine, text, inspect, MetaData, Table, select
+from sqlalchemy.engine import URL
 import pandas as pd
 from typing import Optional, List, Dict, Any
 
@@ -156,20 +158,24 @@ class DB_Extractor:
         try:
             if self.db_type == "mysql":  
                 self.engine = create_engine(
-                    f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+                    URL.create("mysql+pymysql", username=self.user, password=self.password,
+                               host=self.host, port=self.port, database=self.database),
                     connect_args={"connect_timeout": self.connect_timeout} if self.connect_timeout else {}
                 )
             elif self.db_type == "postgresql":
                 self.engine = create_engine(
-                    f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+                    URL.create("postgresql+psycopg2", username=self.user, password=self.password,
+                               host=self.host, port=self.port, database=self.database),
                     connect_args={'client_encoding': 'utf8', **({"connect_timeout": self.connect_timeout} if self.connect_timeout else {})}
                 )
             elif self.db_type == "oracle":
                 if not self.service_name:
                     raise ValueError("Debe proporcionar 'service_name' para Oracle.")
+                if not re.fullmatch(r"[A-Za-z0-9_.-]+", self.service_name):
+                    raise ValueError("Service name de Oracle inválido.")
                 
-                dsn = f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={self.host})(PORT={self.port}))(CONNECT_DATA=(SERVICE_NAME={self.service_name})))"
-                self.engine = create_engine(f"oracle+oracledb://{self.user}:{self.password}@{dsn}",
+                self.engine = create_engine(URL.create("oracle+oracledb", username=self.user, password=self.password,
+                                            host=self.host, port=self.port, query={"service_name": self.service_name}),
                                             connect_args={"tcp_connect_timeout": self.connect_timeout} if self.connect_timeout else {})
             else:
                 raise ValueError("Tipo de base de datos no soportado. Usa 'mysql', 'postgresql' o 'oracle'.")

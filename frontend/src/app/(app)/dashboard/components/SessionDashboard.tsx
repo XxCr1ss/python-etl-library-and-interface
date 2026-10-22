@@ -4,8 +4,11 @@ import { ResetPipelineButton } from "@/components/layout/ResetPipelineButton";
 import { SessionBanner } from "./SessionBanner";
 import { HistorySummary } from "./HistorySummary";
 import { ExecutionHistory } from "./ExecutionHistory";
+import { useAuth } from "@/auth/AuthProvider";
+import { RemoteMonitoring } from "@/features/monitoring/RemoteMonitoring";
 
 export function SessionDashboard() {
+  const { user } = useAuth();
   const { state, dispatch } = usePipelineSession();
   const blocked = state.hydrationStatus === "hydrating" || state.recoveryRequired || state.execution?.status === "running";
   return <div className="mx-auto max-w-6xl space-y-6 text-content">
@@ -14,8 +17,9 @@ export function SessionDashboard() {
       <ResetPipelineButton>Nuevo proceso</ResetPipelineButton>
     </div>
     {state.hydrationStatus === "hydrating" ? <p role="status">Restaurando sesión e historial…</p> : <>
-      <SessionBanner /><HistorySummary history={state.history} />
-      <ExecutionHistory history={state.history} disabled={blocked} recoveryRequired={state.historyRecoveryRequired} onClear={() => dispatch({ type: "clearHistory" })} />
+      <SessionBanner />
+      {user ? <RemoteMonitoring key={user.id} /> : <><HistorySummary history={state.history} />
+      <ExecutionHistory history={state.history} disabled={blocked} recoveryRequired={state.historyRecoveryRequired} onClear={() => dispatch({ type: "clearHistory" })} /></>}
     </>}
   </div>;
 }

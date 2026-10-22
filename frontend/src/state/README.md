@@ -39,3 +39,11 @@ El layout ETL monta `features/diagram/DiagramCoordinator` bajo el provider. Sus 
 `coordinator.ts` es el propietario del protocolo y `client.ts` la vista remota. Validan versión, vínculo, instancia y request ID, aíslan propietarios, descartan respuestas viejas y deduplican selecciones. Un timeout no significa éxito: se reconcilia con el mismo ID. Ruta/revisión se verifican al solicitar y aplicar; editor abierto o carga en ejecución bloquean el cambio.
 
 `useDiagramSync` guarda solo el vínculo opaco en `sessionStorage.etl_diagram_binding_v1`, nunca passwords/filas. `pagehide` del diagrama cierra el canal local y conserva temporalmente el vínculo del propietario para permitir F5; presencia caducada libera recursos. Recargar propietario elimina secretos/vínculos. La cache de muestras conserva hasta cinco tablas en memoria y se invalida al actualizar esquema o perder contexto.
+
+## Cuentas y conexiones guardadas
+
+AuthProvider remonta el workspace al cambiar de usuario para eliminar también las contraseñas de borradores locales. PipelineProvider espera a resolver Auth antes de hidratar. Invitados conservan el sobre v1; cuentas usan sobre v2 con ownerId. hydrateSession no restaura otro propietario ni importa invitados al iniciar sesión, incluso si falla removeItem. Ningún sobre contiene passwords o tokens.
+
+savedConnection contiene únicamente UUID, versión y, para agentes, el identificador del canal de esta sesión. Los serializadores emiten referencias sin credenciales; requiredConnections no solicita passwords guardados. Metadatos de presentación del diagrama no se envían a la API. Cada resolución se autoriza en backend. Conexiones guardadas de agentes requieren emparejamiento con usuario/sesión/generación de socket.
+
+Los requests comunes adjuntan bearer por services/apiClient y descartan respuestas al cambiar la cuenta. Cargas autenticadas añaden request_id; invitado mantiene el contrato HTTP anterior. El dashboard remoto depende del backend y no interpreta el total final del destino como filas insertadas.

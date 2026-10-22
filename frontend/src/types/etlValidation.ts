@@ -37,10 +37,18 @@ export function connection(v: unknown) {
   return { db_type: v.db_type, host: v.host, database: v.database, user: v.user,
     ...(v.port !== undefined ? { port: v.port } : {}), ...(v.service_name !== undefined ? { service_name: v.service_name } : {}) } as Omit<TargetDescriptor, "credentialRef">;
 }
+function savedReference(value: unknown) {
+  if (value === undefined) return undefined;
+  check(object(value) && typeof value.connection_id === "string" && /^[0-9a-f-]{36}$/i.test(value.connection_id) &&
+    Number.isInteger(value.connection_version) && Number(value.connection_version) > 0);
+  check(value.runtime_agent_id === undefined || (typeof value.runtime_agent_id === "string" && value.runtime_agent_id.length <= 120));
+  return { connection_id: value.connection_id, connection_version: Number(value.connection_version),
+    ...(typeof value.runtime_agent_id === "string" ? { runtime_agent_id: value.runtime_agent_id } : {}) };
+}
 function reference(v: Record<string, unknown>, store: CredentialStore, legacy: boolean) {
   const ref = legacy ? newId() : v.credentialRef;
   check(typeof ref === "string" && ref.length > 0);
-  if (legacy && Object.hasOwn(v, "password")) { check(typeof v.password === "string"); store.set(ref, v.password); }
+  if (legacy && !v.savedConnection && Object.hasOwn(v, "password")) { check(typeof v.password === "string"); store.set(ref, v.password); }
   return ref;
 }
 export function parseTarget(v: unknown, store: CredentialStore, legacy = false): TargetDescriptor {
@@ -48,7 +56,8 @@ export function parseTarget(v: unknown, store: CredentialStore, legacy = false):
   check(v.use_agent === undefined || typeof v.use_agent === "boolean");
   check(v.agent_id === undefined || v.agent_id === null || typeof v.agent_id === "string");
   check(!v.use_agent || (typeof v.agent_id === "string" && !!v.agent_id.trim()));
-  return { ...fields, credentialRef: reference(v, store, legacy),
+  const savedConnection = savedReference(v.savedConnection);
+  return { ...fields, credentialRef: reference(v, store, legacy), ...(savedConnection ? { savedConnection } : {}),
     ...(v.use_agent !== undefined ? { use_agent: v.use_agent as boolean } : {}),
     ...(v.agent_id !== undefined ? { agent_id: v.agent_id as string | null } : {}) };
 }
@@ -73,7 +82,8 @@ export function parseSource(v: unknown, store: CredentialStore, legacy = false):
   check(v.use_agent === undefined || typeof v.use_agent === "boolean");
   check(v.agent_id === undefined || v.agent_id === null || typeof v.agent_id === "string");
   check(!v.use_agent || (typeof v.agent_id === "string" && !!v.agent_id));
-  return { type: "database", ...fields, table_name: v.table_name, credentialRef: reference(v, store, legacy),
+  const savedConnection = savedReference(v.savedConnection);
+  return { type: "database", ...fields, table_name: v.table_name, credentialRef: reference(v, store, legacy), ...(savedConnection ? { savedConnection } : {}),
     ...(v.use_agent !== undefined ? { use_agent: v.use_agent as boolean } : {}), ...(v.agent_id !== undefined ? { agent_id: v.agent_id as string | null } : {}), ...meta };
 }
 function valid(rule: string, v: unknown): boolean {

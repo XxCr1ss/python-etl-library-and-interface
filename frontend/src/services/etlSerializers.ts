@@ -5,13 +5,15 @@ export function sourceDto(source: SourceDescriptor, store: CredentialStore): Sou
   const clean = parseSource(source, store);
   if (clean.type === "file") return { type: "file", filepath: clean.filepath, ...(clean.sheet_name !== undefined ? { sheet_name: clean.sheet_name } : {}) };
   if (clean.type === "date_dimension") return { type: "date_dimension", start_year: clean.start_year, end_year: clean.end_year };
+  if (clean.savedConnection) return { type: "database", table_name: clean.table_name, ...clean.savedConnection };
   return { type: "database", db_type: clean.db_type, host: clean.host, database: clean.database, user: clean.user,
     table_name: clean.table_name, password: store.get(clean.credentialRef),
     ...(clean.port !== undefined ? { port: clean.port } : {}), ...(clean.service_name !== undefined ? { service_name: clean.service_name } : {}),
     ...(clean.use_agent !== undefined ? { use_agent: clean.use_agent } : {}), ...(clean.agent_id !== undefined ? { agent_id: clean.agent_id } : {}) };
 }
 export function targetDto(target: TargetDescriptor, store: CredentialStore): TargetConnectionDto {
-  const { credentialRef, use_agent, agent_id, ...fields } = parseTarget(target, store);
+  const { credentialRef, use_agent, agent_id, savedConnection, ...fields } = parseTarget(target, store);
+  if (savedConnection) return savedConnection;
   return { ...fields, password: store.get(credentialRef), ...(use_agent ? { use_agent: true, agent_id } : {}) };
 }
 export function stepDto(step: TransformStep, store: CredentialStore): StepDto {
@@ -22,9 +24,9 @@ export function stepDto(step: TransformStep, store: CredentialStore): StepDto {
 }
 export function requiredConnections(source: SourceDescriptor | null, recipe: TransformStep[], target?: TargetDescriptor | null) {
   const sources: { credentialRef: string; alias: string }[] = [];
-  const add = (s: SourceDescriptor, alias: string) => { if (s.type === "database") sources.push({ credentialRef: s.credentialRef, alias }); };
+  const add = (s: SourceDescriptor, alias: string) => { if (s.type === "database" && !s.savedConnection) sources.push({ credentialRef: s.credentialRef, alias }); };
   if (source) add(source, "Origen principal");
   recipe.forEach((step, i) => { if ("right_source" in step.params) add(step.params.right_source, `Cruce ${i + 1}`); if ("secondary_source" in step.params) add(step.params.secondary_source, `Unión ${i + 1}`); });
-  if (target) sources.push({ credentialRef: target.credentialRef, alias: "Destino" });
+  if (target && !target.savedConnection) sources.push({ credentialRef: target.credentialRef, alias: "Destino" });
   return sources;
 }

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from pydantic import BaseModel, Field, model_validator
 from starlette.concurrency import run_in_threadpool
 from etl.error_utils import public_error
 from schema_graph_models import SchemaGraphResponse
@@ -7,19 +7,17 @@ from typing import Optional
 from services import extract_service
 from services.agent_manager import agent_manager
 from source_models import DateDimensionReq
+from connection_models import ConnectionInput
+from services.connection_service import resolve_connection
 
 router = APIRouter()
 
-class DatabaseConnectionReq(BaseModel):
-    db_type: str
-    host: str
-    port: Optional[int] = None
-    database: str
-    user: str
-    password: str
-    service_name: Optional[str] = None
-    use_agent: Optional[bool] = False
-    agent_id: Optional[str] = None
+class DatabaseConnectionReq(ConnectionInput):
+    @model_validator(mode="after")
+    def complete(self):
+        if not self.connection_id and (not all((self.db_type, self.host, self.database, self.user)) or self.password is None):
+            raise ValueError("Completa los datos de conexión.")
+        return self
 
 
 @router.post("/upload")
@@ -49,11 +47,12 @@ async def get_agent_status(agent_id: str):
             "connection_id": agent_manager.connection_id(agent_id)}
 
 @router.post("/database")
-async def connect_database(conn_data: DatabaseConnectionReq):
+async def connect_database(conn_data: DatabaseConnectionReq, request: Request):
     """
     Endpoint para probar conexión y extraer metadata de una base de datos relacional.
     Usa el DB_Extractor de la librería core o delega la consulta al agente local.
     """
+    conn_data = type(conn_data).model_validate(await resolve_connection(conn_data.model_dump(exclude_none=True), request))
     if conn_data.db_type.lower() not in ["postgresql", "mysql", "oracle"]:
         raise HTTPException(status_code=400, detail="Motor de base de datos no soportado. Debe ser 'postgresql', 'mysql' o 'oracle'.")
         
@@ -64,21 +63,21 @@ async def connect_database(conn_data: DatabaseConnectionReq):
             result = await agent_manager.send_command_and_wait(
                 agent_id=conn_data.agent_id,
                 action="get_metadata",
-                payload=conn_data.model_dump(exclude={"use_agent", "agent_id"})
+                payload=conn_data.model_dump(exclude={"use_agent", "agent_id", "connection_id", "connection_version", "runtime_agent_id"})
             )
             if result.get("status") == "error":
                 err_msg = result.get("message") or "Error desconocido en el agente local"
                 if not err_msg.startswith("Error a través del agente local:"):
                     err_msg = f"Error a través del agente local: {err_msg}"
-                raise HTTPException(status_code=500, detail=err_msg)
+                raise HTTPException(status_code=500, detail=public_error(err_msg, conn_data.model_dump()))
             return result.get("data")
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error a través del agente local: {str(e)}")
+            raise HTTPException(status_code=500, detail=public_error(e, conn_data.model_dump()))
 
     try:
-        result = extract_service.get_database_metadata(
+        result = await run_in_threadpool(extract_service.get_database_metadata,
             db_type=conn_data.db_type,
             host=conn_data.host,
             port=conn_data.port,
@@ -89,10 +88,10 @@ async def connect_database(conn_data: DatabaseConnectionReq):
         )
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=public_error(e, conn_data.model_dump()))
     except Exception as e:
         # Si hay un error de conexión u otro problema, lo reportamos con código 500
-        raise HTTPException(status_code=500, detail=f"Error de conexión a la base de datos: {str(e)}")
+        raise HTTPException(status_code=500, detail=public_error(e, conn_data.model_dump()))
 
 class DatabasePreviewReq(DatabaseConnectionReq):
     table_name: str
@@ -100,14 +99,15 @@ class DatabasePreviewReq(DatabaseConnectionReq):
 
 
 @router.post("/database/schema-graph", response_model=SchemaGraphResponse)
-async def database_schema_graph(conn_data: DatabaseConnectionReq):
-    return await database_read(conn_data, "get_schema_graph", extract_service.get_database_schema_graph)
+async def database_schema_graph(conn_data: DatabaseConnectionReq, request: Request):
+    return await database_read(conn_data, "get_schema_graph", extract_service.get_database_schema_graph, request)
 
 
-async def database_read(conn_data, action, operation):
+async def database_read(conn_data, action, operation, request):
+    conn_data = type(conn_data).model_validate(await resolve_connection(conn_data.model_dump(exclude_none=True), request))
     if conn_data.db_type.lower() not in ["postgresql", "mysql", "oracle"]:
         raise HTTPException(status_code=400, detail="Motor de base de datos no soportado.")
-    payload = conn_data.model_dump(exclude={"use_agent", "agent_id"})
+    payload = conn_data.model_dump(exclude={"use_agent", "agent_id", "connection_id", "connection_version", "runtime_agent_id"})
     try:
         if conn_data.use_agent:
             if not conn_data.agent_id:
@@ -125,8 +125,8 @@ async def database_read(conn_data, action, operation):
                             detail=public_error(exc, payload)) from exc
 
 @router.post("/database/preview")
-async def preview_database_table(conn_data: DatabasePreviewReq):
-    return await database_read(conn_data, "get_preview", extract_service.get_table_preview)
+async def preview_database_table(conn_data: DatabasePreviewReq, request: Request):
+    return await database_read(conn_data, "get_preview", extract_service.get_table_preview, request)
 
 
 @router.post("/date-dimension/preview")

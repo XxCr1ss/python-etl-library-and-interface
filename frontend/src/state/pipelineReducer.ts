@@ -22,6 +22,7 @@ export const initialState: PipelineState = {
   foreignKeys: [], executionError: null, loadVersion: 0,
 };
 export type PipelineAction =
+  | { type: "accountChanged" }
   | { type: "hydrate"; state: PipelineState }
   | { type: "warning"; message: string }
   | { type: "source"; source: SourceDescriptor }
@@ -48,6 +49,7 @@ function invalidate(state: PipelineState): PipelineState {
   return { ...state, revision, preview: { status: "pending", revision }, report: null, execution: null, executionError: null };
 }
 export function pipelineReducer(state: PipelineState, action: PipelineAction): PipelineState {
+  if (action.type === "accountChanged") return { ...initialState, hydrationStatus: "empty", revision: state.revision + 1 };
   if (action.type === "hydrate") return state.hydrationStatus === "hydrating" ? action.state : state;
   if (action.type === "warning") return { ...state, warning: action.message };
   if ((state.hydrationStatus === "hydrating" || state.recoveryRequired) && action.type !== "reset") return state;

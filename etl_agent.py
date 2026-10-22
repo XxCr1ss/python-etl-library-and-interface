@@ -3,6 +3,7 @@ import os
 import json
 import asyncio
 import argparse
+import getpass
 import threading
 from urllib.parse import urlsplit, quote
 import pandas as pd
@@ -183,14 +184,15 @@ def _get_table(payload: Dict[str, Any]) -> Dict[str, Any]:
             "total_rows": len(df)
         }
 
-async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False):
+async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False, pair_token: str | None = None):
     """Bucle principal de conexión y escucha de comandos WebSocket."""
     ws_url = f"{server_url}/api/v1/ws/agent/{quote(agent_id, safe='')}".replace("http://", "ws://").replace("https://", "wss://")
     allow_warehouse = warehouse_transport_allowed(server_url)
     print(f"⏳ Conectando al backend de la ETL en: {ws_url} ...")
     
     async for websocket in websockets.connect(ws_url, max_size=MAX_LOAD_MESSAGE_BYTES,
-                                              max_queue=1, ping_interval=20, ping_timeout=60):
+                                              max_queue=1, ping_interval=20, ping_timeout=60,
+                                              **({"additional_headers": {"X-ETL-Pair-Token": pair_token}} if pair_token else {})):
         try:
             print(f"🟢 [CONECTADO] Agente '{agent_id}' en línea y listo para recibir comandos.")
             
@@ -262,7 +264,13 @@ async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False):
                 
                 await websocket.send(strict_json(response))
                 
+            if pair_token:
+                print("La sesión del agente terminó. Genera otro código de emparejamiento para reconectar.")
+                return
         except websockets.ConnectionClosed:
+            if pair_token:
+                print("La sesión del agente terminó. Genera otro código de emparejamiento para reconectar.")
+                return
             print("⚠️ Conexión cerrada con el servidor. Intentando reconectar en 5 segundos...")
             await asyncio.sleep(5)
         except Exception as e:
@@ -274,6 +282,7 @@ def main():
     parser.add_argument("--allow-load", action="store_true", help="Permitir escrituras en la bodega local (entorno controlado).")
     parser.add_argument("--server-url", help="URL del backend, sin /api/v1; HTTPS para conexiones remotas.")
     parser.add_argument("--agent-id", help="Identificador del agente mostrado en la interfaz.")
+    parser.add_argument("--pair", action="store_true", help="Solicitar código de emparejamiento de un solo uso, sin mostrarlo en pantalla.")
     args = parser.parse_args()
     print("=" * 60)
     print("     🤖 AGENTE LOCAL HÍBRIDO - LIBRERÍA ETL FLOW 🤖")
@@ -295,12 +304,18 @@ def main():
     if (parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or
             parsed.query or parsed.fragment or parsed.path not in {"", "/"}):
         parser.error("Usa una URL de backend válida, sin credenciales, rutas ni parámetros.")
-    if args.allow_load and parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+    if (args.allow_load or args.pair) and parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
         parser.error("El backend remoto requiere HTTPS/WSS.")
     server_url = server_url.rstrip("/")
     print("Load habilitado explícitamente." if args.allow_load else "Solo extracción; añade --allow-load para permitir escrituras.")
     try:
-        asyncio.run(agent_loop(server_url, agent_id, args.allow_load))
+        if args.pair:
+            pair_token = getpass.getpass("Código temporal de emparejamiento: ").strip()
+            if not pair_token:
+                parser.error("Falta el código temporal.")
+            asyncio.run(agent_loop(server_url, agent_id, args.allow_load, pair_token))
+        else:
+            asyncio.run(agent_loop(server_url, agent_id, args.allow_load))
     except KeyboardInterrupt:
         print("\n🔒 Agente local detenido por el usuario. Cerrando recursos.")
         sys.exit(0)

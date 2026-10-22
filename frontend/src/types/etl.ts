@@ -1,11 +1,14 @@
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export type JsonRow = Record<string, JsonValue>;
 export type DatabaseType = "postgresql" | "mysql" | "oracle";
-export interface TargetConnectionDto {
+export interface ManualConnectionDto {
+  connection_id?: never; connection_version?: never;
   db_type: DatabaseType; host: string; port?: number | null; database: string;
   user: string; password: string; service_name?: string | null;
   use_agent?: boolean; agent_id?: string | null;
 }
+export interface SavedConnectionReference { connection_id: string; connection_version: number; runtime_agent_id?: string; display?: Omit<ManualConnectionDto, "password"> }
+export type TargetConnectionDto = ManualConnectionDto | (SavedConnectionReference & Partial<Record<Exclude<keyof ManualConnectionDto, "connection_id" | "connection_version">, never>>);
 export type SourceConnectionDto = TargetConnectionDto;
 export type SourceDto =
   | { type: "file"; filepath: string; sheet_name?: string | null }
@@ -15,9 +18,9 @@ export type RowCount = { kind: "sample" | "dataset" | "destination_total"; value
 type SourceMetadata = { filename?: string; unique_filename?: string; count?: RowCount };
 export type SourceDescriptor = (
   | Extract<SourceDto, { type: "file" | "date_dimension" }>
-  | (Omit<Extract<SourceDto, { type: "database" }>, "password"> & { credentialRef: string })
+  | (Omit<ManualConnectionDto, "password"> & { type: "database"; table_name: string; credentialRef: string; savedConnection?: SavedConnectionReference })
 ) & SourceMetadata;
-export type TargetDescriptor = Omit<TargetConnectionDto, "password"> & { credentialRef: string };
+export type TargetDescriptor = Omit<ManualConnectionDto, "password"> & { credentialRef: string; savedConnection?: SavedConnectionReference };
 type Columns = string | string[];
 type Column = { column: string };
 type Complement = { complement?: boolean };
@@ -75,7 +78,7 @@ export interface LoadConfigDto {
   table_name: string; table_type: "dimension" | "fact"; if_exists?: "replace" | "append" | "fail";
   foreign_keys?: Record<string, [string, string]>;
 }
-export interface LoadResponse extends ExtractionPreview { message: string; table_name: string; table_type: "dimension" | "fact" }
+export interface LoadResponse extends ExtractionPreview { message: string; table_name: string; table_type: "dimension" | "fact"; execution_id?: string; monitoring_pending?: boolean }
 export interface ExecutionRecord {
   reportVersion?: number;
   if_exists?: LoadConfigDto["if_exists"];

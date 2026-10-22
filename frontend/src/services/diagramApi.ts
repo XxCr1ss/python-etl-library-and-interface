@@ -2,6 +2,7 @@ import { object, request } from "./apiClient";
 import { extraction, requireContract as check, strings } from "./responseValidators";
 import type { SchemaGraph, TableSample } from "@/types/diagram";
 import type { SourceConnectionDto } from "@/types/etl";
+import { connectionWire } from "./connectionWire";
 const flag = (v: unknown) => v === null || typeof v === "boolean";
 export function schemaGraph(v: unknown): SchemaGraph {
   check(object(v) && v.status === "success" && typeof v.schema === "string" && Array.isArray(v.nodes) && Array.isArray(v.edges) && Array.isArray(v.warnings));
@@ -31,5 +32,5 @@ export function tableSample(v: unknown): TableSample {
   check(object(v) && typeof v.table_name === "string" && strings(v.columns) && new Set(v.columns).size === v.columns.length && object(v.dtypes) && Object.values(v.dtypes).every(t => typeof t === "string") && Number.isInteger(v.limit) && Number(v.limit) >= 1 && Number(v.limit) <= 10 && v.sample_rows === v.total_rows && Array.isArray(v.preview_data) && v.preview_data.length === v.sample_rows && Number(v.sample_rows) <= Number(v.limit));
   return v as unknown as TableSample;
 }
-export const getSchemaGraph = (connection: SourceConnectionDto, signal?: AbortSignal) => request("extract/database/schema-graph", schemaGraph, connection, signal);
-export const getTableSample = (connection: SourceConnectionDto, table_name: string, signal?: AbortSignal) => request("extract/database/preview", tableSample, { ...connection, table_name, limit: 10 }, signal);
+export const getSchemaGraph = (connection: SourceConnectionDto, signal?: AbortSignal) => request("extract/database/schema-graph", schemaGraph, connectionWire(connection), signal);
+export const getTableSample = (connection: SourceConnectionDto, table_name: string, signal?: AbortSignal) => request("extract/database/preview", tableSample, { ...connectionWire(connection), table_name, limit: 10 }, signal);

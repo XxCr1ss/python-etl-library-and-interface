@@ -10,6 +10,10 @@ export const SESSION_KEY = "etl_pipeline_session_v1";
 const legacyKeys = ["etl_active_source", "etl_transform_recipe"];
 export type StoragePort = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 export function browserSessionStorage(): StoragePort | null { try { return window.sessionStorage; } catch { return null; } }
+export function clearAccountSession() {
+  const storage = browserSessionStorage();
+  for (const key of [SESSION_KEY, ...legacyKeys]) { try { storage?.removeItem(key); } catch { /* Ownership checks also block restoration. */ } }
+}
 function record(v: unknown): ExecutionRecord {
   check(object(v) && typeof v.id === "string" && Number.isInteger(v.revision) && Number(v.revision) >= 0 && typeof v.startedAt === "string" && Number.isFinite(Date.parse(v.startedAt)) &&
     ["running", "success", "error", "unknown"].includes(String(v.status)) && typeof v.table_name === "string" && ["dimension", "fact"].includes(String(v.table_type)));
@@ -23,22 +27,22 @@ function record(v: unknown): ExecutionRecord {
     ...(v.sourceLabel !== undefined ? { sourceLabel: v.sourceLabel as string } : {}),
     ...(v.finishedAt !== undefined ? { finishedAt: v.finishedAt as string } : {}), ...(v.durationMs !== undefined ? { durationMs: Number(v.durationMs) } : {}), ...(v.total_rows !== undefined ? { total_rows: Number(v.total_rows) } : {}) };
 }
-export function persistedSession(state: PipelineState) {
+export function persistedSession(state: PipelineState, ownerId: string | null = null) {
   const empty = new CredentialStore();
-  return { schemaVersion: 1, source: state.source ? parseSource(state.source, empty) : null, recipe: state.recipe.map(s => parseStep(s, empty)), revision: state.revision,
+  return { schemaVersion: ownerId ? 2 : 1, ...(ownerId ? { ownerId } : {}), source: state.source ? parseSource(state.source, empty) : null, recipe: state.recipe.map(s => parseStep(s, empty)), revision: state.revision,
     target: state.target ? parseTarget(state.target, empty) : null, loadConfig: parseLoadConfig(loadConfigDto(state.loadConfig, state.foreignKeys)),
     foreignKeys: state.foreignKeys.map(({ id, column, table, primaryKey }) => ({ id, column, table, primaryKey })),
     history: state.history.slice(-50).map(r => ({ ...executionSummary(record(r)), ...(r.sourceLabel ? { sourceLabel: r.sourceLabel } : {}) })) };
 }
-export function persistSession(storage: StoragePort | null, state: PipelineState): string | null {
+export function persistSession(storage: StoragePort | null, state: PipelineState, ownerId: string | null = null): string | null {
   // Preserve unreadable history until the separate, confirmed clearHistory action.
   // The provider displays the recovery flag; the usable pipeline stays in memory.
   if (state.historyRecoveryRequired) return null;
-  try { if (!storage) throw new Error(); storage.setItem(SESSION_KEY, JSON.stringify(persistedSession(state))); return null; }
+  try { if (!storage) throw new Error(); storage.setItem(SESSION_KEY, JSON.stringify(persistedSession(state, ownerId))); return null; }
   catch { return "No se pudo guardar la sesión; los cambios se conservan en memoria y no se restaurarán tras recarga."; }
 }
 function readCurrent(v: unknown, store: CredentialStore): PipelineState {
-  check(object(v) && v.schemaVersion === 1 && Array.isArray(v.recipe) && Number.isInteger(v.revision) && Number(v.revision) >= 0);
+  check(object(v) && (v.schemaVersion === 1 || (v.schemaVersion === 2 && typeof v.ownerId === "string" && !!v.ownerId)) && Array.isArray(v.recipe) && Number.isInteger(v.revision) && Number(v.revision) >= 0);
   const source = v.source === null ? null : parseSource(v.source, store);
   const recipe = v.recipe.map(s => parseStep(s, store));
   check(new Set(recipe.map(s => s.id)).size === recipe.length && (!!source || !recipe.length));
@@ -67,15 +71,25 @@ function clearLegacy(storage: StoragePort): string | null {
   for (const key of legacyKeys) { try { storage.removeItem(key); if (storage.getItem(key) !== null) failed = true; } catch { failed = true; } }
   return failed ? "No se pudo confirmar la limpieza de los datos previos del navegador." : null;
 }
-export function hydrateSession(storage: StoragePort | null, store: CredentialStore): PipelineState {
+export function hydrateSession(storage: StoragePort | null, store: CredentialStore, ownerId: string | null = null): PipelineState {
   if (!storage) return { ...initialState, hydrationStatus: "recovered", warning: "Storage no disponible; la sesión se conserva solo en memoria." };
   let currentInvalid = false;
   try {
     const raw = storage.getItem(SESSION_KEY);
     if (raw !== null) {
-      try { const state = readCurrent(JSON.parse(raw) as unknown, store); const warning = clearLegacy(storage); return { ...state, warning }; }
+      try {
+        const input: unknown = JSON.parse(raw);
+        if (object(input) && (input.ownerId ?? null) !== ownerId) {
+          store.clear();
+          try { storage.removeItem(SESSION_KEY); } catch { /* Never restore another account even when deletion fails. */ }
+          clearLegacy(storage);
+          return { ...initialState, hydrationStatus: "empty" };
+        }
+        const state = readCurrent(input, store); const warning = clearLegacy(storage); return { ...state, warning };
+      }
       catch { currentInvalid = true; }
     }
+    if (ownerId) { store.clear(); clearLegacy(storage); return { ...initialState, hydrationStatus: "empty" }; }
     const oldSource = storage.getItem(legacyKeys[0]); const oldRecipe = storage.getItem(legacyKeys[1]);
     if (oldSource !== null) {
       const source = parseSource(JSON.parse(oldSource) as unknown, store, true);
