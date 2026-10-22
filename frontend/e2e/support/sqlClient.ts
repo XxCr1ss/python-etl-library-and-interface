@@ -46,6 +46,10 @@ export function seedDiagram(prefix: string): { parent: string; child: string } {
   return JSON.parse(runSqlHarness(["seed-diagram", "--prefix", prefix]));
 }
 
+export function seedWarehouse(prefix: string): { dimension: string; fact: string } {
+  return JSON.parse(runSqlHarness(["seed-warehouse", "--prefix", prefix]));
+}
+
 export function inspectTable(tableName: string): InspectedTable {
   return JSON.parse(runSqlHarness(["inspect-table", "--table", tableName])) as InspectedTable;
 }

@@ -175,6 +175,7 @@ function useSessionCore() {
   const reset = useCallback(() => {
     if (current.current.execution?.status === "running" || current.current.hydrationStatus === "hydrating") return;
     credentials.clear(); dispatch({ type: "reset" });
+    window.dispatchEvent(new Event("etl:session-reset"));
   }, [credentials, dispatch]);
   const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) dispatch({ type: "loadConfig", config: parseLoadConfig(config) }); }, [dispatch, editable]);
   return useMemo(() => ({ state, snapshot, credentials, agentId, targetAgent, setWatchTargetAgent, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,

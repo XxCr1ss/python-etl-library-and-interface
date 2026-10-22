@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from backend.main import app
 from services import extract_service, transform_service, load_service
 from services.agent_manager import agent_manager
+from etl.warehouse import execution as warehouse_execution
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +26,7 @@ def isolated_adapters(monkeypatch, tmp_path):
     for module in (extract_service, transform_service, load_service):
         monkeypatch.setattr(module, "DB_Extractor", forbidden)
     monkeypatch.setattr(load_service, "DB_Loader", forbidden)
+    monkeypatch.setattr(warehouse_execution, "engine_for", forbidden)
     monkeypatch.setattr(agent_manager, "active_agents", {})
     monkeypatch.setattr(agent_manager, "pending_requests", {})
     monkeypatch.setattr(agent_manager, "generations", {})
