@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Tabs } from "@/components/ui";
+import { ManualHelpLink } from "@/features/manual/components/ManualHelpLink";
 import { SourceSummary } from "@/components/etl/SourceSummary";
 import { usePipelineSession } from "@/hooks/usePipelineSession";
 import { useFileExtract } from "./hooks/useFileExtract";
@@ -37,7 +38,7 @@ export default function ExtractPage() {
   }
   return <div className="mx-auto max-w-6xl space-y-6">
     <header><p className="text-sm font-semibold text-action">Paso 1 · Origen</p><h1 className="mt-1 text-2xl font-bold text-content">Extracción de Datos</h1>
-      <p className="mt-2 text-content-muted">Conecta una base de datos, sube un archivo o genera una dimensión fecha. Revisa la muestra antes de confirmar.</p></header>
+      <p className="mt-2 text-content-muted">Conecta una base de datos, sube un archivo o genera una dimensión fecha. Revisa la muestra antes de confirmar.</p><ManualHelpLink section="extraccion" /></header>
     <SourceSummary source={session.state.source} />
     {confirmationError && <Alert tone="error" title="No se pudo confirmar">{confirmationError}</Alert>}
     {blocked && <Alert title="Confirmación no disponible">Espera a que termine la ejecución o recupera la sesión para cambiar el origen.</Alert>}

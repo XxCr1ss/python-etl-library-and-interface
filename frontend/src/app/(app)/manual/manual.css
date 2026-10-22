@@ -1,0 +1,12 @@
+#manual-document { --manual-offset: 5rem; container-type: inline-size; container-name: manual; }
+#manual-document .manual-anchor { scroll-margin-top: var(--manual-offset); }
+#manual-document .manual-anchor:focus-visible { outline: 2px solid var(--ui-action); outline-offset: 4px; border-radius: 4px; }
+#manual-document .manual-sidebar { display: none; }
+@container manual (min-width: 60rem) {
+  #manual-document .manual-layout { grid-template-columns: 16rem minmax(0, 1fr); gap: 2rem; }
+  #manual-document .manual-index-trigger { display: none; }
+  #manual-document .manual-sidebar { display: block; position: sticky; top: var(--manual-offset); max-height: calc(100dvh - var(--manual-offset) - 1rem); overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #manual-document * { scroll-behavior: auto; transition: none; }
+}
