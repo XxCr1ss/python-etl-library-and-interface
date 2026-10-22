@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from typing import List, Dict, Any, Optional
 from services import transform_service
 from source_models import SourceModel
+from services.connection_service import resolve_pipeline
+from etl.error_utils import public_error
 from operation_catalog import EXTRA_OPERATIONS, JOIN_PARAMS
 
 router = APIRouter()
@@ -126,14 +128,15 @@ async def get_supported_operations():
     return CATALOG_OPERATIONS
 
 @router.post("/preview")
-async def transform_preview(req: TransformPreviewReq):
+async def transform_preview(req: TransformPreviewReq, request: Request):
     """
     Recibe la configuración de origen y una lista de transformaciones,
     y retorna la vista previa de los datos resultantes.
     """
+    source_dict, steps_dict = {}, []
     try:
-        source_dict = req.source.model_dump(exclude_none=True)
-        steps_dict = [step.model_dump() for step in req.steps]
+        source_dict, steps_dict = await resolve_pipeline(req.source.model_dump(exclude_none=True),
+            [step.model_dump() for step in req.steps], request)
         
         result = await transform_service.process_transform_preview(
             source=source_dict,
@@ -141,9 +144,11 @@ async def transform_preview(req: TransformPreviewReq):
             limit=req.limit
         )
         return result
+    except HTTPException:
+        raise
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=public_error(e, {"source": source_dict, "steps": steps_dict}))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en el motor de transformación: {str(e)}")
+        raise HTTPException(status_code=500, detail=public_error(e, {"source": source_dict, "steps": steps_dict}))

@@ -4,7 +4,7 @@ import { ApiError } from "@/services/apiClient";
 import { requiredConnections, sourceDto, stepDto, targetDto } from "@/services/etlSerializers";
 import { executeLoad, testTargetConnection } from "@/services/loadApi";
 import { previewTransform } from "@/services/transformApi";
-import type { LoadConfigDto, TargetConnectionDto, TransformStep } from "@/types/etl";
+import type { LoadConfigDto, ManualConnectionDto, SavedConnectionReference, TransformStep } from "@/types/etl";
 import { parseLoadConfig, parseSource, parseStep, parseTarget } from "@/types/etlValidation";
 import { CredentialStore, newId } from "./credentialStore";
 import { getAgentIdentity } from "./agentIdentity";
@@ -15,6 +15,7 @@ import { sourceLabel } from "./pipelineLabels";
 import { loadConfigDto } from "./loadValidation";
 import { unknownLoadMessage } from "./loadReport";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
+import { useAuth } from "@/auth/AuthProvider";
 
 export interface LoadApproval {
   revision: number; targetVersion: number; loadVersion: number; previewRequestId?: string; config: LoadConfigDto;
@@ -22,6 +23,7 @@ export interface LoadApproval {
 }
 
 function useSessionCore() {
+  const { user, loading: authLoading } = useAuth();
   const [state, reactDispatch] = useReducer(pipelineReducer, initialState);
   const current = useRef(state);
   const [credentials] = useState(() => new CredentialStore());
@@ -39,6 +41,15 @@ function useSessionCore() {
     current.current = pipelineReducer(current.current, action);
     reactDispatch(action);
   }, []);
+  useEffect(() => {
+    const changed = () => {
+      credentials.clear(); previewSequence.current++; targetTestSequence.current++;
+      dispatch({ type: "accountChanged" });
+      window.dispatchEvent(new Event("etl:session-reset"));
+    };
+    window.addEventListener("etl:auth-changed", changed);
+    return () => window.removeEventListener("etl:auth-changed", changed);
+  }, [credentials, dispatch]);
   const snapshot = useCallback(() => current.current, []);
   const editable = useCallback(() => current.current.hydrationStatus !== "hydrating" && !current.current.recoveryRequired && current.current.execution?.status !== "running", []);
   useEffect(() => {
@@ -52,17 +63,17 @@ function useSessionCore() {
   }, [targetAgent, dispatch]);
   const agentReady = useCallback(() => !current.current.target?.use_agent || targetAgentRef.current.status === "connected", []);
   useEffect(() => {
-    if (hydrated.current) return; hydrated.current = true;
-    dispatch({ type: "hydrate", state: hydrateSession(browserSessionStorage(), credentials) });
+    if (hydrated.current || authLoading) return; hydrated.current = true;
+    dispatch({ type: "hydrate", state: hydrateSession(browserSessionStorage(), credentials, user?.id ?? null) });
     const identity = getAgentIdentity(); setAgentId(identity.id);
     if (identity.warning) dispatch({ type: "warning", message: [current.current.warning, identity.warning].filter(Boolean).join(" ") });
-  }, [credentials, dispatch]);
+  }, [credentials, dispatch, authLoading, user?.id]);
   useEffect(() => {
     if (state.hydrationStatus === "hydrating" || state.recoveryRequired) return;
     credentials.retain(requiredConnections(state.source, state.recipe, state.target).map(x => x.credentialRef));
-    const warning = persistSession(browserSessionStorage(), state);
+    const warning = persistSession(browserSessionStorage(), state, user?.id ?? null);
     if (warning && !state.warning?.includes(warning)) dispatch({ type: "warning", message: [state.warning, warning].filter(Boolean).join(" ") });
-  }, [state, credentials, dispatch]);
+  }, [state, credentials, dispatch, user?.id]);
   useEffect(() => {
     if (state.execution?.status !== "running") return;
     const onExit = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -90,11 +101,12 @@ function useSessionCore() {
     const clean = recipe.map(step => parseStep(step, credentials)); transferCredentials(clean, temporary);
     dispatch({ type: "replaceRecipe", recipe: clean });
   }, [credentials, dispatch, editable, transferCredentials]);
-  const setTarget = useCallback((input: Omit<TargetConnectionDto, "password"> & { password?: string }) => {
+  const setTarget = useCallback((input: Omit<ManualConnectionDto, "password"> & { password?: string; savedConnection?: SavedConnectionReference }) => {
     if (!editable()) return;
     const ref = current.current.target?.credentialRef || newId();
     const target = parseTarget({ ...input, credentialRef: ref }, credentials);
-    if (typeof input.password === "string") credentials.set(ref, input.password);
+    if (input.savedConnection) credentials.delete(ref);
+    else if (typeof input.password === "string") credentials.set(ref, input.password);
     dispatch({ type: "target", target });
   }, [credentials, dispatch, editable]);
   const recoverCredentials = useCallback((entries: Record<string, string>) => {
@@ -154,10 +166,11 @@ function useSessionCore() {
       reportVersion: 1, if_exists: payload.load_config.if_exists,
       table_name: payload.load_config.table_name, table_type: payload.load_config.table_type };
     dispatch({ type: "executionStart", record });
-    const warning = persistSession(browserSessionStorage(), current.current);
+    const warning = persistSession(browserSessionStorage(), current.current, user?.id ?? null);
     if (warning) dispatch({ type: "warning", message: warning });
     try {
-      const report = await executeLoad(payload);
+      const report = await executeLoad(user ? { ...payload, request_id: record.id } : payload);
+      if (report.monitoring_pending) dispatch({ type: "warning", message: "La carga se confirmó; el historial remoto está pendiente. No repitas la escritura." });
       if (report.table_name !== record.table_name || report.table_type !== record.table_type) throw new ApiError("contract", "La respuesta no corresponde a la tabla y al tipo enviados.");
       dispatch({ type: "executionFinish", record: { ...record, status: "success", finishedAt: new Date().toISOString(), durationMs: Date.now() - started, total_rows: report.total_rows }, report });
     } catch (error) {
@@ -165,7 +178,7 @@ function useSessionCore() {
       const message = error instanceof Error ? error.message : "No se recibió una respuesta válida.";
       dispatch({ type: "executionFinish", record: { ...record, status, finishedAt: new Date().toISOString(), durationMs: Date.now() - started }, error: message });
     } finally { loadInFlight.current = false; }
-  }, [credentials, dispatch, agentReady]);
+  }, [credentials, dispatch, agentReady, user]);
   const newLoad = useCallback(() => {
     if (!editable()) return;
     const target = current.current.target;

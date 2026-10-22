@@ -25,11 +25,17 @@ export function DiagramCoordinator({ children }: { children: ReactNode }) {
       stamp: JSON.stringify([pathname, state.revision, state.targetVersion, state.loadVersion, state.credentialVersion, state.execution?.status, editorOpen.current]),
       sourceMatches: (connection, table) => {
         const source = state.source;
+        if (connection.connection_id) return source?.type === "database" && source.table_name === table &&
+          source.savedConnection?.connection_id === connection.connection_id && source.savedConnection.connection_version === connection.connection_version &&
+          source.savedConnection.runtime_agent_id === connection.runtime_agent_id;
         return source?.type === "database" && source.table_name === table &&
           (["db_type", "host", "port", "database", "user", "service_name", "use_agent", "agent_id"] as const).every(k => (source[k] ?? null) === (connection[k] ?? null)) &&
           s.credentials.has(source.credentialRef) && s.credentials.get(source.credentialRef) === connection.password;
       } };
-  }, (connection, table) => current.current.session.confirmSource({ type: "database", ...connection, table_name: table }), setPending));
+  }, (connection, table) => current.current.session.confirmSource(connection.connection_id
+    ? { type: "database", ...connection.display, savedConnection: { connection_id: connection.connection_id, connection_version: connection.connection_version,
+      ...(connection.runtime_agent_id ? { runtime_agent_id: connection.runtime_agent_id } : {}) }, table_name: table }
+    : { type: "database", ...connection, table_name: table }), setPending));
   const previous = useRef(session.state);
   useEffect(() => {
     if (!session.state.source && session.state.revision !== previous.current.revision) owner.invalidate();
@@ -41,7 +47,8 @@ export function DiagramCoordinator({ children }: { children: ReactNode }) {
     const timer = setInterval(() => {
       if (owner.expire()) setOpeningWarning("El diagrama no confirmó su apertura. Revisa el bloqueo de nuevas pestañas del navegador y vuelve a abrirlo desde Extracción.");
       if (checking) return;
-      const agents = Array.from(new Set(owner.connections().filter(c => c.use_agent).map(c => c.agent_id).filter((id): id is string => !!id)));
+      const agents = Array.from(new Set(owner.connections().filter(c => c.use_agent || (c.connection_id && c.display?.use_agent))
+        .map(c => c.connection_id ? c.runtime_agent_id : c.agent_id).filter((id): id is string => !!id)));
       checking = true;
       void Promise.all(agents.map(id => getAgentStatus(id, abort.signal))).then(states => {
         if (!abort.signal.aborted && states.some(s => !s.connected)) owner.invalidate();

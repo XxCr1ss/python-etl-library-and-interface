@@ -18,13 +18,15 @@ if backend_dir not in sys.path:
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Request
+from fastapi import Request, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from etl.error_utils import public_error
 from api.routes import extract, transform, load, warehouse
 from services.agent_manager import agent_manager
+from services.auth_service import optional_user
+from api.routes import connections, monitoring, agents
 
 app = FastAPI(
     title="ETL Flow API",
@@ -51,14 +53,9 @@ async def public_http_error_handler(request: Request, exc: StarletteHTTPExceptio
     return JSONResponse(status_code=exc.status_code, content={"detail": detail}, headers=exc.headers)
 
 # Configuración de CORS para permitir peticiones del frontend (Next.js)
-cors_origins = [
-    "http://localhost:3000", 
-    "https://etl-flow.vercel.app",
-    "https://etl-flow-frontend.vercel.app"
-]
-env_origins = os.getenv("CORS_ORIGINS")
-if env_origins:
-    cors_origins.extend([origin.strip() for origin in env_origins.split(",")])
+cors_origins = [origin.strip().rstrip("/") for origin in
+                os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+                if origin.strip() and origin.strip() != "*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,10 +69,22 @@ app.add_middleware(
 # WebSocket Endpoint para el Agente Local Híbrido
 @app.websocket("/api/v1/ws/agent/{agent_id}")
 async def websocket_endpoint(websocket: WebSocket, agent_id: str):
+    origin = websocket.headers.get("origin")
+    if origin and origin.rstrip("/") not in cors_origins:
+        await websocket.close(code=1008, reason="Origen no autorizado.")
+        return
+    from services.agent_pairing import consume
+    pair_code = websocket.headers.get("x-etl-pair-token")
+    owner = consume(agent_id, pair_code) if pair_code else None
+    if pair_code and owner is None:
+        await websocket.close(code=1008, reason="Emparejamiento inválido o vencido.")
+        return
     await websocket.accept()
     if not agent_manager.register_agent(agent_id, websocket):
         await websocket.close(code=1008, reason="Identificador de agente ya conectado.")
         return
+    if owner:
+        agent_manager.paired_owners[agent_id] = (*owner, agent_manager.connection_id(agent_id))
     try:
         while True:
             # Escuchar respuestas en formato JSON del agente
@@ -90,10 +99,14 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
         agent_manager.unregister_agent(agent_id, websocket)
 
 # Registrar routers
-app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"])
-app.include_router(transform.router, prefix="/api/v1/transform", tags=["Transformación"])
-app.include_router(load.router, prefix="/api/v1/load", tags=["Carga"])
-app.include_router(warehouse.router, prefix="/api/v1/warehouse", tags=["Bodega de datos"])
+app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"], dependencies=[Depends(optional_user)])
+app.include_router(transform.router, prefix="/api/v1/transform", tags=["Transformación"], dependencies=[Depends(optional_user)])
+app.include_router(load.router, prefix="/api/v1/load", tags=["Carga"], dependencies=[Depends(optional_user)])
+app.include_router(warehouse.router, prefix="/api/v1/warehouse", tags=["Bodega de datos"], dependencies=[Depends(optional_user)])
+
+app.include_router(connections.router, prefix="/api/v1/connections", tags=["Conexiones"])
+app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoreo"])
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agentes"])
 
 @app.get("/api/v1/health")
 async def health_check():

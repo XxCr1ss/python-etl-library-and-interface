@@ -1,0 +1,1 @@
+-- Intentionally empty: no real accounts, credentials or business data in seeds.

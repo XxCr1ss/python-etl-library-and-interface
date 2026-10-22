@@ -1,7 +1,7 @@
-import type { ExtractionPreview, RowCount, SourceDto } from "@/types/etl";
+import type { ExtractionPreview, RowCount, SourceDto, SourceDescriptor, SavedConnectionReference } from "@/types/etl";
 
 export interface ExtractResult {
-  source: SourceDto & { filename?: string; unique_filename?: string; total_rows: number };
+  source: (SourceDto | (Omit<Extract<SourceDescriptor, { type: "database" }>, "credentialRef"> & { savedConnection: SavedConnectionReference })) & { filename?: string; unique_filename?: string; total_rows: number };
   data: ExtractionPreview;
   count: RowCount;
   label: string;

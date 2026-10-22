@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePipelineSession } from "@/hooks/usePipelineSession";
 import { initialDatabaseDraft, updateDatabaseDraft, validateDatabaseDraft, type DatabaseDraft, type DatabaseErrors } from "@/components/etl/DatabaseConnectionFields";
+import { referenceOf, type SavedConnection } from "@/services/connectionsApi";
 
 const emptyTarget = (): DatabaseDraft => ({ ...initialDatabaseDraft, host: "", use_agent: false });
 export function useTargetConnection() {
@@ -47,6 +48,13 @@ export function useTargetConnection() {
     catch (error) { if (id === request.current) setMessage(error instanceof Error ? error.message : "No se pudo probar la conexión."); }
     finally { if (id === request.current) setTesting(false); }
   };
-  return { draft, change, test, errors, testing, message, agentId, agentReady, agent: session.targetAgent,
+  const selectSaved = (row: SavedConnection | null) => {
+    request.current++; setMessage(null); setErrors({});
+    session.setTarget(row ? { db_type: row.db_type, host: row.host, port: row.port, database: row.database,
+      user: row.user, service_name: row.service_name, use_agent: row.transport === "agent", agent_id: row.transport === "agent" ? agentId : null,
+      savedConnection: { ...referenceOf(row), ...(row.transport === "agent" ? { runtime_agent_id: agentId } : {}) } }
+      : { db_type: "postgresql", host: "", port: 5432, database: "", user: "", use_agent: false });
+  };
+  return { draft, change, test, selectSaved, errors, testing, message, agentId, agentReady, agent: session.targetAgent,
     connected: agentReady && targetCheckedVersion !== null && targetCheckedVersion === targetVersion };
 }

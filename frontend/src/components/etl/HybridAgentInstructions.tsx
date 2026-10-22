@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { API_URL } from "@/services/apiClient";
 import { Alert, Button } from "@/components/ui";
 import type { AgentStatus } from "@/hooks/useAgentStatus";
+import { AgentPairing } from "./AgentPairing";
 
 export const agentBackendUrl = API_URL.replace(/\/api\/v1$/, "");
 export const agentSocketUrl = `${agentBackendUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/api/v1/ws/agent/`;
@@ -31,5 +32,6 @@ export function HybridAgentInstructions({ agentId, status, error, onRetry, allow
     <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!agentId} onClick={() => void copy()}>Copiar instrucciones</Button>
       <Button variant="outline" onClick={onRetry}>Reintentar estado del agente</Button></div>
     {feedback && <p role="status">{feedback}</p>}
+    <AgentPairing agentId={agentId} connected={status === "connected"} />
   </div>;
 }

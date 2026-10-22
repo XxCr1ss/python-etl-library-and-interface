@@ -22,6 +22,7 @@ class AgentManager:
         self.active_agents: dict[str, WebSocket] = {}
         self.pending_requests: dict[str, PendingRequest] = {}
         self.generations: dict[str, str] = {}
+        self.paired_owners: dict[str, tuple[str, str, str]] = {}
         # Kept across disconnects: reconnecting cannot prove an old write stopped.
         self.uncertain_writes: set[str] = set()
 
@@ -38,6 +39,7 @@ class AgentManager:
             return
         del self.active_agents[agent_id]
         self.generations.pop(agent_id, None)
+        self.paired_owners.pop(agent_id, None)
         for key, pending in list(self.pending_requests.items()):
             if pending.agent_id == agent_id and pending.websocket is active:
                 if pending.action == "execute_load":
@@ -60,6 +62,14 @@ class AgentManager:
                                     max_message_bytes=MAX_LOAD_MESSAGE_BYTES) -> dict:
         if not self.is_agent_connected(agent_id):
             raise ValueError("El agente no está conectado.")
+        from services.agent_pairing import agent_bindings
+        binding = agent_bindings.get().get(agent_id)
+        if agent_id in self.paired_owners:
+            if not binding or binding != self.connection_id(agent_id):
+                raise ValueError("El agente requiere emparejamiento con la sesión actual.")
+            expected_connection = binding
+        elif binding:
+            raise ValueError("El emparejamiento del agente cambió; vuelve a conectarlo.")
         if expected_connection is not None and self.connection_id(agent_id) != expected_connection:
             raise ValueError("La conexión del agente cambió; prueba de nuevo el destino.")
         if self.is_busy(agent_id):

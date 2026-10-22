@@ -1,4 +1,4 @@
-import type { TargetConnectionDto } from "./etl";
+import type { ManualConnectionDto } from "./etl";
 
 export type Scalar = string | number | boolean | null;
 export type LogicalType = "integer" | "decimal" | "float" | "boolean" | "string" | "date" | "datetime";
@@ -42,4 +42,4 @@ export interface ResultMeta { returned_rows: number; applied_limit: number; trun
 export interface Result { status: "success"; columns: ResultColumn[]; data: Record<string, Scalar>[]; warnings: WarehouseWarning[]; meta: ResultMeta }
 export interface QueryResult extends Result { summary_kpis: { metric_id: string; aggregation: string; value: Scalar; logical_type: LogicalType; encoding: Encoding }[]; filtered_rows: CountValue }
 export interface DetailResult extends Result { pagination: { mode: "page" | "sample"; page: number; page_size: number; has_more: boolean; total_records: CountValue | null } }
-export type Connection = TargetConnectionDto;
+export type Connection = ManualConnectionDto;

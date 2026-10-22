@@ -96,6 +96,7 @@ function useWarehouseCore() {
     if (!pipeline.state.target) return;
     try {
       const target = targetDto(pipeline.state.target, pipeline.credentials);
+      if (target.password === undefined) throw new Error("Usa una conexión manual de lectura en Bodega de datos.");
       invalidate(); const { password, ...fields } = target;
       credentials.set("warehouse", password); setPasswordProvided(true);
       setConnection({ ...fields, port: fields.port ?? { postgresql: 5432, mysql: 3306, oracle: 1521 }[fields.db_type] }); setCopied(true);

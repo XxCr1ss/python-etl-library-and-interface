@@ -9,6 +9,8 @@ ENV/
 .env
 .env.local
 .env.*.local
+.env.*
+!**/.env.example
 
 # Archivos de Python
 __pycache__/

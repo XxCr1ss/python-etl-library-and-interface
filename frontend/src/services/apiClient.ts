@@ -1,3 +1,4 @@
+import { accessToken, authEpoch } from "./authSession";
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/+$/, "");
 export class ApiError extends Error {
   constructor(public kind: "http" | "network" | "contract" | "aborted", message: string, public status?: number) { super(message); this.name = "ApiError"; }
@@ -15,14 +16,20 @@ function passwords(value: unknown): string[] {
   if (!object(value)) return [];
   return Object.entries(value).flatMap(([k, v]) => k === "password" && typeof v === "string" ? [v] : passwords(v));
 }
-export async function request<T>(path: string, validate: (v: unknown) => T, body?: unknown, signal?: AbortSignal): Promise<T> {
+export async function request<T>(path: string, validate: (v: unknown) => T, body?: unknown, signal?: AbortSignal, method?: "GET" | "POST" | "PATCH" | "DELETE"): Promise<T> {
   let response: Response;
+  const epoch = authEpoch();
   try {
+    const token = await accessToken();
+    if (epoch !== authEpoch()) throw new ApiError("aborted", "La cuenta cambió; vuelve a intentar la operación.");
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    if (body !== undefined && !(body instanceof FormData)) headers["Content-Type"] = "application/json";
     response = await fetch(`${API_URL}/${path.replace(/^\/+/, "")}`, {
-      method: body === undefined ? "GET" : "POST", signal,
-      ...(body === undefined ? {} : body instanceof FormData ? { body } : { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }),
+      method: method ?? (body === undefined ? "GET" : "POST"), signal, headers, cache: "no-store",
+      ...(body === undefined ? {} : body instanceof FormData ? { body } : { body: JSON.stringify(body) }),
     });
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw new ApiError("aborted", "Solicitud cancelada");
     throw new ApiError("network", "No se pudo confirmar la respuesta del servidor. Comprueba la conexión.");
   }
@@ -31,6 +38,7 @@ export async function request<T>(path: string, validate: (v: unknown) => T, body
     if (signal?.aborted) throw new ApiError("aborted", "Solicitud cancelada");
     data = undefined;
   }
+  if (epoch !== authEpoch()) throw new ApiError("aborted", "La cuenta cambió; se descartó la respuesta anterior.");
   if (!response.ok) {
     const fallback = `Error del servidor (${response.status})`;
     const detail = object(data) ? data.detail : undefined;

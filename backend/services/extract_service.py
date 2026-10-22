@@ -1,3 +1,4 @@
+from etl.load_execution import positive_setting
 import os
 import uuid
 import tempfile
@@ -99,7 +100,8 @@ def get_database_metadata(
             host=host,
             user=user,
             port=port,
-            service_name=service_name
+            service_name=service_name,
+            connect_timeout=positive_setting("ETL_SOURCE_CONNECT_TIMEOUT",10)
         ) as extractor:
             # Obtener lista de tablas
             tables = extractor.get_table_names()
@@ -134,7 +136,7 @@ def get_database_metadata(
 
 def get_database_schema_graph(**connection) -> Dict[str, Any]:
     from etl.extractors.schema_graph import schema_graph
-    with DB_Extractor(**connection) as extractor:
+    with DB_Extractor(**connection, connect_timeout=positive_setting("ETL_SOURCE_CONNECT_TIMEOUT",10)) as extractor:
         return schema_graph(extractor.engine)
 
 
@@ -145,5 +147,5 @@ def get_table_preview(
 ) -> Dict[str, Any]:
     from etl.extractors.schema_graph import preview_result
     with DB_Extractor(db_type=db_type, host=host, port=port, database=database,
-                      user=user, password=password, service_name=service_name) as extractor:
+                      user=user, password=password, service_name=service_name, connect_timeout=positive_setting("ETL_SOURCE_CONNECT_TIMEOUT",10)) as extractor:
         return preview_result(extractor, table_name, limit)

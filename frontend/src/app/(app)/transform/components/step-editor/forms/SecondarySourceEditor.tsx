@@ -3,6 +3,7 @@ import { Alert, Button, Select } from "@/components/ui";
 import { SourceFilePicker } from "@/components/etl/SourceFilePicker";
 import { DatabaseConnectionFields } from "@/components/etl/DatabaseConnectionFields";
 import { HybridAgentInstructions } from "@/components/etl/HybridAgentInstructions";
+import { SavedConnectionsSelector } from "@/components/etl/SavedConnectionsSelector";
 import { useFileExtract } from "@/components/etl/hooks/useFileExtract";
 import { useDatabaseExtract } from "@/components/etl/hooks/useDatabaseExtract";
 import { usePipelineSession } from "@/hooks/usePipelineSession";
@@ -32,6 +33,7 @@ function SecondarySourceDraft({ credentials, onConfirm }: { credentials: Credent
     <Select label="Tipo de fuente secundaria" value={kind} onChange={e => { file.invalidate(); db.invalidate(); setKind(e.target.value); }}><option value="file">Archivo</option><option value="database">Base de datos</option></Select>
     {kind === "file" ? <><SourceFilePicker file={file.file} onSelect={file.select} /><Button variant="outline" isLoading={file.status === "pending"} disabled={!file.file} onClick={file.submit}>Procesar archivo secundario</Button></>
       : <>
+        <SavedConnectionsSelector type="source" selected={db.draft.savedConnection?.connection_id} onSelect={db.selectSaved} />
         <DatabaseConnectionFields value={db.draft} errors={db.errors} onChange={db.edit} />
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={db.draft.use_agent} onChange={e => db.edit({ use_agent: e.target.checked })} />Usar agente local híbrido</label>
         {db.draft.use_agent && <HybridAgentInstructions agentId={agentId} {...db.agent} onRetry={db.agent.retry} />}

@@ -2,6 +2,7 @@
 from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, BeforeValidator, model_validator
+from connection_models import ConnectionInput
 
 
 def reject_boolean_year(value):
@@ -33,16 +34,10 @@ class DateDimensionReq(BaseModel):
         return self
 
 
-class SourceModel(BaseModel):
+class SourceModel(ConnectionInput):
     type: Literal["file", "database", "date_dimension"]
     filepath: Optional[str] = None
     sheet_name: Optional[str] = None
-    db_type: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    database: Optional[str] = None
-    user: Optional[str] = None
-    password: Optional[str] = None
     table_name: Optional[str] = None
     service_name: Optional[str] = None
     use_agent: Optional[bool] = False
@@ -57,10 +52,11 @@ class SourceModel(BaseModel):
         if self.type == "date_dimension":
             validate_year_range(self.start_year, self.end_year)
         if self.type == "database":
-            if not all((self.db_type, self.host, self.database, self.user, self.table_name)) or self.password is None:
-                raise ValueError("La fuente BD requiere db_type, host, database, user, password y table_name.")
-            if self.db_type.lower() not in ("postgresql", "mysql", "oracle"):
-                raise ValueError("db_type debe ser postgresql, mysql u oracle.")
+            self.require_connection()
+            if not self.table_name:
+                raise ValueError("Falta la tabla de origen.")
+        elif self.connection_id:
+            raise ValueError("Una conexión guardada requiere una fuente database.")
         if self.use_agent:
             if self.type != "database" or not self.agent_id or not self.agent_id.strip():
                 raise ValueError("El agente requiere una fuente database y agent_id.")
