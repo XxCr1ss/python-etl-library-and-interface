@@ -12,12 +12,16 @@ import { FileUploadTab } from "./components/FileUploadTab";
 import { DatabaseTab } from "./components/DatabaseTab";
 import { DateDimensionTab } from "./components/DateDimensionTab";
 import { ExtractPreviewSection } from "./components/ExtractPreviewSection";
+import { useDatabaseExtractContext } from "@/components/etl/DatabaseExtractProvider";
 
 type Tab = "file" | "database" | "date_dimension";
 export default function ExtractPage() {
   const router = useRouter();
   const session = usePipelineSession();
-  const [activeTab, setActiveTab] = useState<Tab>("file");
+  const memory = useDatabaseExtractContext();
+  const [localTab, setLocalTab] = useState<Tab>("file");
+  const activeTab = memory?.activeTab ?? localTab;
+  const setActiveTab = memory?.setActiveTab ?? setLocalTab;
   const [confirmationError, setConfirmationError] = useState<string | null>(null);
   const file = useFileExtract(activeTab === "file");
   const database = useDatabaseExtract(activeTab === "database", session.agentId);
@@ -26,10 +30,11 @@ export default function ExtractPage() {
   const blocked = session.state.execution?.status === "running" || session.state.hydrationStatus === "hydrating" || session.state.recoveryRequired;
   function changeTab(id: string) {
     if (id === activeTab) return;
-    current.invalidate(); setConfirmationError(null); setActiveTab(id as Tab);
+    if (activeTab !== "database" || !memory) current.invalidate();
+    setConfirmationError(null); setActiveTab(id as Tab);
   }
   function confirm() {
-    if (blocked || current.status !== "success" || !current.result) return;
+    if (blocked || (activeTab === "database" && !database.canConfirm) || current.status !== "success" || !current.result) return;
     const previous = session.state.source;
     if (previous && !window.confirm(`Confirmar «${current.result.label}» reemplazará la fuente activa y descartará ${session.state.recipe.length} pasos, la preview y la configuración de carga. ¿Continuar?`)) return;
     try {
@@ -50,7 +55,7 @@ export default function ExtractPage() {
       ]} />
       <ExtractPreviewSection status={current.status} error={current.error} rows={current.result?.data.preview_data}
         columns={current.result?.columns}
-        count={current.result?.count} label={current.result?.label} disabled={blocked} onContinue={confirm} />
+        count={current.result?.count} label={current.result?.label} disabled={blocked || (activeTab === "database" && !database.canConfirm)} onContinue={confirm} />
     </div>
   </div>;
 }

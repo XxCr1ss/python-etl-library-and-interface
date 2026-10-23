@@ -2,11 +2,11 @@
 
 ## Pruebas del diagrama E-R
 
-`e2e/mock/diagram.spec.ts` abre dos páginas del mismo contexto, comprueba restricción a Transformación, confirmar/cancelar origen, F5, muestra acotada, resize por pointer/teclado y reflow. Una fixture de 20 tablas/30 relaciones y 50 columnas valida accesibilidad/contraste en ambos temas y produce capturas sintéticas para revisión.
+`e2e/mock/diagram.spec.ts` abre dos páginas del mismo contexto, comprueba restricción a Transformación, confirmar/cancelar origen, F5, muestra acotada, resize por pointer/teclado y reflow. Una fixture de 20 tablas/30 relaciones y 50 columnas valida accesibilidad/contraste del tema claro con ambos esquemas del sistema y produce capturas sintéticas para revisión.
 
 `e2e/real/diagram.spec.ts` usa `seed-diagram` del harness PostgreSQL para crear tablas propias con restricciones FK simples, compuestas y autorreferentes reales. Verifica grafo, muestra HTTP y cambio de origen entre pestañas. Mantiene las restricciones de artefactos del perfil real. `backend/tests/integration/test_schema_graph_integration.py` añade paridad HTTP/agente CLI real.
 
-Para ejecutar solo esta funcionalidad: `npm run test:e2e:mock -- diagram.spec.ts` y después `npm run test:e2e:real -- diagram.spec.ts`. Nunca ejecutar ambos perfiles a la vez. Los tests `src/tests/diagram-*.test.*` cubren contratos, aislamiento, cancelación, estado obsoleto, confirmación y panel; los umbrales críticos se mantienen en 80% líneas/75% ramas. `test:e2e:visual` compara también dos referencias propias del diagrama (claro/oscuro a 1440 px), además de las doce existentes de Transformación/editor, sin actualizarlas automáticamente.
+Para ejecutar solo esta funcionalidad: `npm run test:e2e:mock -- diagram.spec.ts` y después `npm run test:e2e:real -- diagram.spec.ts`. Nunca ejecutar ambos perfiles a la vez. Los tests `src/tests/diagram-*.test.*` cubren contratos, aislamiento, cancelación, estado obsoleto, confirmación y panel; los umbrales críticos se mantienen en 80% líneas/75% ramas. `test:e2e:visual` compara siete referencias claras: diagrama a 1440 px y Transformación/editor a 375, 768 y 1440 px, sin actualizarlas automáticamente.
 
 Revisado el 16 de octubre de 2026 (America/Bogota). Este manual está versionado aquí; la copia de `Planes/evidencia-fase07/` es local porque `Planes/` está ignorada por Git.
 
@@ -57,7 +57,7 @@ npm --prefix frontend run build
 npm --prefix frontend run test:e2e:mock
 npm --prefix frontend run test:e2e:real
 .\.venv\Scripts\python.exe backend/tests/integration/artifact_audit.py frontend/test-results/real
-# Solo Windows: compara las 12 referencias visuales revisadas
+# Solo Windows: compara las 7 referencias visuales claras revisadas
 npm --prefix frontend run test:e2e:visual
 ```
 
@@ -85,7 +85,7 @@ V8 exige 80% líneas y 75% ramas globales y por grupos críticos: serializadores
 
 ## Auditoría de interfaz y rendimiento
 
-`final-audit.spec.ts` recorre claro/oscuro y 375×812, 768×1024, 1440×900. Comprueba axe WCAG A/AA con contraste, semántica, foco cíclico/restaurado, movimiento reducido, modal, tabla 10×50 y ausencia de overflow del documento. Adjunta capturas y casos `incomplete` para revisión; axe no certifica lectores de pantalla ni sustituye revisión humana.
+`final-audit.spec.ts` verifica tema claro con sistema claro/oscuro a 375×812, 768×1024, 1440×900. Comprueba axe WCAG A/AA con contraste, semántica, foco cíclico/restaurado, movimiento reducido, modal, tabla 10×50 y ausencia de overflow del documento. Adjunta capturas y casos `incomplete` para revisión; axe no certifica lectores de pantalla ni sustituye revisión humana.
 
 El reflow equivalente a 200% usa viewport CSS 720×450 respecto a pantalla 1440×900, con footer del editor accesible y operable. Certifica reflow, no todas las combinaciones de zoom nativo/lector/navegador. La comparación visual se realiza en el mismo Windows/Chromium/fixtures; CI no regenera snapshots automáticamente.
 
@@ -151,3 +151,5 @@ Error de red/HTTP distinto de 422 tras enviar carga implica unknown. Navegar/F5 
 4. Probar destino descartable, tabla etl_e2e_demo_ventas, dimensión/replace; confirmar y comprobar total 12.
 5. Revisar dashboard, export sin requests/filas/secretos y F5 con reingreso de credenciales.
 6. Limpiar solo esa tabla: `python backend/tests/integration/sql_harness.py drop-tables --tables etl_e2e_demo_ventas` con el mismo entorno de pruebas.
+
+Las regresiones de `diagram.spec.ts` alternan foco entre pestañas y reproducen `visibilitychange` también en Chromium headless, que puede considerar visibles ambas páginas. Verifican conexión directa y agente simulado, reconexión con el mismo diagrama, apertura desde Transformación y recuperación del formulario al regresar. La comprobación geométrica a 1440/1920 px exige alineación con el stepper y 256 px de ancho adicional al ocultar navegación. La variante real de `e2e/real/diagram.spec.ts` repite el caso con PostgreSQL y un proceso CLI de agente, incluyendo cinco alternancias, reconexión y apertura desde Transformación. Si existe un virtualenv antiguo de replay, definir `PYTHON_EXECUTABLE` con la ruta del entorno actual antes de ejecutar el perfil real.

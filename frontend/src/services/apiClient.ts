@@ -1,4 +1,5 @@
 import { accessToken, authEpoch } from "./authSession";
+import { queueAgentRead, sourceAgentIds } from "./agentReadQueue";
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/+$/, "");
 export class ApiError extends Error {
   constructor(public kind: "http" | "network" | "contract" | "aborted", message: string, public status?: number) { super(message); this.name = "ApiError"; }
@@ -16,7 +17,23 @@ function passwords(value: unknown): string[] {
   if (!object(value)) return [];
   return Object.entries(value).flatMap(([k, v]) => k === "password" && typeof v === "string" ? [v] : passwords(v));
 }
-export async function request<T>(path: string, validate: (v: unknown) => T, body?: unknown, signal?: AbortSignal, method?: "GET" | "POST" | "PATCH" | "DELETE"): Promise<T> {
+const sourceReadPaths = new Set(["extract/database", "extract/database/preview", "extract/database/schema-graph", "transform/preview"]);
+export function request<T>(path: string, validate: (v: unknown) => T, body?: unknown, signal?: AbortSignal, method?: "GET" | "POST" | "PATCH" | "DELETE"): Promise<T> {
+  const agents = sourceReadPaths.has(path.replace(/^\/+/, "")) ? sourceAgentIds(body) : [];
+  if (!agents.length) return performRequest(path, validate, body, signal, method);
+  const epoch = authEpoch();
+  const check = () => {
+    if (signal?.aborted || epoch !== authEpoch()) throw new ApiError("aborted", "Solicitud cancelada");
+  };
+  return queueAgentRead(agents, async () => {
+    check();
+    // An active read must finish before releasing the agent's slot. Aborting
+    // fetch does not prove that the CLI agent has finished its command.
+    try { const data = await performRequest(path, validate, body, undefined, method); check(); return data; }
+    catch (error) { check(); throw error; }
+  });
+}
+async function performRequest<T>(path: string, validate: (v: unknown) => T, body?: unknown, signal?: AbortSignal, method?: "GET" | "POST" | "PATCH" | "DELETE"): Promise<T> {
   let response: Response;
   const epoch = authEpoch();
   try {

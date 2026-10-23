@@ -8,6 +8,7 @@ import { API_URL } from "./fixtures/api";
 import { graphFixture, sampleFixture, diagramConnection } from "./fixtures/diagram";
 import { TestChannel } from "./diagram-channel";
 import { server } from "./mocks/server";
+import type { SourceConnectionDto } from "@/types/etl";
 let context: OwnerContext;
 let owner: DiagramOwner;
 let clients: DiagramClient[];
@@ -23,14 +24,50 @@ beforeEach(() => {
     }));
 });
 afterEach(() => { clients.forEach(c => c.close()); owner.invalidate(); TestChannel.clear(); });
-async function connect() {
-  const url = owner.open(diagramConnection);
+async function connect(connection: SourceConnectionDto = diagramConnection) {
+  const url = owner.open(connection);
   const binding: Binding = JSON.parse(decodeURIComponent(url.split("#")[1]));
   const changed = vi.fn(); const client = new DiagramClient(binding, changed); clients.push(client);
   await waitFor(() => expect(client.state.connected).toBe(true));
   return { client, changed, binding };
 }
 describe("diagram tab bridge", () => {
+  it("suspends and refreshes only the affected connection, then invalidates it without closing unrelated diagrams", async () => {
+    const { client } = await connect();
+    const other = await connect({ ...diagramConnection, host: "another-host" });
+    owner.suspend(diagramConnection, "Verificando conexión");
+    await waitFor(() => expect(client.state.owner?.suspended).toBe(true));
+    expect(other.client.state.owner?.suspended).toBe(false);
+    await expect(client.graph()).rejects.toThrow("Verificando conexión");
+    owner.refresh(diagramConnection);
+    await waitFor(() => expect(client.state.owner?.generation).toBe(1));
+    expect(await client.graph()).toEqual(graphFixture);
+    expect(other.client.state.owner?.generation).toBe(0);
+    owner.invalidate(diagramConnection);
+    await waitFor(() => expect(client.state.invalid).toBe(true));
+    expect(other.client.state.invalid).toBe(false);
+  });
+  it("recovers an agent connection and cancels a selection while it is unavailable", async () => {
+    context.route = "/transform";
+    const { client } = await connect({ ...diagramConnection, use_agent: true, agent_id: "agent-a" });
+    await client.graph(); client.useTable("child");
+    await waitFor(() => expect(client.state.selection?.status).toBe("pending_confirmation"));
+    owner.agentStatus("agent-a", false);
+    await waitFor(() => expect(client.state.selection?.status).toBe("cancelled"));
+    expect(client.state.invalid).toBe(false); expect(confirm).not.toHaveBeenCalled();
+    owner.agentStatus("agent-a", true);
+    await waitFor(() => expect(client.state.owner?.available).toBe(true));
+    expect(client.state.owner?.generation).toBe(1);
+    await client.graph(); expect(await client.preview("child")).toEqual(sampleFixture);
+  });
+  it("keeps established links through a long background pause and probes immediately on return", async () => {
+    const { client } = await connect();
+    vi.useFakeTimers(); vi.setSystemTime(Date.now() + 300000);
+    expect(owner.expire()).toBe(0);
+    client.probe(); await vi.advanceTimersByTimeAsync(1);
+    expect(client.state.connected).toBe(true); expect(client.state.invalid).toBe(false);
+    vi.useRealTimers();
+  });
   it("handshakes with the current route and proxies metadata/rows without credentials on the channel", async () => {
     const { client } = await connect();
     expect(client.state.owner?.route).toBe("/extract");

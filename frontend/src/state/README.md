@@ -26,7 +26,7 @@ Desde 03, shell/stepper/dashboard consumen sesión/selectores e historial. Los r
 
 Un historial ilegible se aísla del pipeline válido mediante `historyRecoveryRequired`, solo en memoria. Se muestra un aviso; la fuente/receta/configuración siguen disponibles, pero no se sobrescribe el storage original hasta confirmar «Borrar historial de esta pestaña». El borrado limpia ese indicador y reanuda la persistencia. Reiniciar pipeline conserva tanto el historial como su recuperación pendiente; las credenciales sí se limpian. La corrupción del JSON completo, fuente/receta o versión sigue requiriendo restablecer sesión, sin truncar recetas.
 
-El tema tiene su propio adaptador `components/layout/themeStorage.ts`; solo guarda `system | light | dark` en `localStorage.etl_theme_preference`. Un script en head aplica `.dark` antes del body y el provider sigue los cambios de sistema. La excepción de hidratación se limita a la clase de `<html>`, no al resto del árbol. Revertir tema requiere retirar juntos bootstrap, provider, `darkMode: class` y variables `.dark`.
+La herramienta usa tema claro fijo, con `color-scheme: light` y React Flow en modo claro. No monta selector, provider ni script de tema; las preferencias heredadas de `localStorage.etl_theme_preference` se ignoran. La navegación de escritorio se puede ocultar desde la cabecera sin desmontar el pipeline y libera su ancho al contenido.
 
 Las vistas/formularios conservan su organización: extracción por features (04), registry/edición/reordenación visible (05), validación completa de carga y reporte (06), motores/E2E (07) siguen separados.
 
@@ -38,7 +38,7 @@ El layout ETL monta `features/diagram/DiagramCoordinator` bajo el provider. Sus 
 
 `coordinator.ts` es el propietario del protocolo y `client.ts` la vista remota. Validan versión, vínculo, instancia y request ID, aíslan propietarios, descartan respuestas viejas y deduplican selecciones. Un timeout no significa éxito: se reconcilia con el mismo ID. Ruta/revisión se verifican al solicitar y aplicar; editor abierto o carga en ejecución bloquean el cambio.
 
-`useDiagramSync` guarda solo el vínculo opaco en `sessionStorage.etl_diagram_binding_v1`, nunca passwords/filas. `pagehide` del diagrama cierra el canal local y conserva temporalmente el vínculo del propietario para permitir F5; presencia caducada libera recursos. Recargar propietario elimina secretos/vínculos. La cache de muestras conserva hasta cinco tablas en memoria y se invalida al actualizar esquema o perder contexto.
+`useDiagramSync` guarda solo el vínculo opaco en `sessionStorage.etl_diagram_binding_v1`, nunca passwords/filas. `pagehide` del diagrama cierra el canal local y conserva temporalmente el vínculo del propietario para permitir F5; los vínculos sin abrir caducan a los 20 s y los establecidos se conservan hasta 24 h sin presencia para tolerar pestañas en segundo plano. Recargar propietario elimina secretos/vínculos. La cache de muestras conserva hasta cinco tablas en memoria y se invalida al actualizar esquema o perder contexto.
 
 ## Cuentas y conexiones guardadas
 
@@ -47,3 +47,9 @@ AuthProvider remonta el workspace al cambiar de usuario para eliminar también l
 savedConnection contiene únicamente UUID, versión y, para agentes, el identificador del canal de esta sesión. Los serializadores emiten referencias sin credenciales; requiredConnections no solicita passwords guardados. Metadatos de presentación del diagrama no se envían a la API. Cada resolución se autoriza en backend. Conexiones guardadas de agentes requieren emparejamiento con usuario/sesión/generación de socket.
 
 Los requests comunes adjuntan bearer por services/apiClient y descartan respuestas al cambiar la cuenta. Cargas autenticadas añaden request_id; invitado mantiene el contrato HTTP anterior. El dashboard remoto depende del backend y no interpreta el total final del destino como filas insertadas.
+
+`DatabaseExtractProvider`, bajo el coordinador, conserva el formulario de base de datos, tablas, selección, muestra y pestaña de origen en memoria durante la navegación interna. Reset y cambio de cuenta descartan ese contexto. Verificar el agente al cambiar de pestaña conserva los resultados; una desconexión real cancela solicitudes y exige revalidar antes de confirmar. La comprobación temporal tampoco invalida una prueba de destino vigente si vuelve la misma conexión del agente.
+
+Revalidar la misma conexión suspende el vínculo y publica una nueva generación de metadatos al completarse. Las muestras se consultan de nuevo y se descartan respuestas de generaciones anteriores. Desconexión/error de agente suspende únicamente sus vínculos, que recuperan esquema al volver; editar conexión invalida únicamente los vínculos correspondientes. Transformación puede abrir el diagrama desde el origen confirmado, incluidas referencias guardadas, sin reenviar secretos al canal.
+
+Las lecturas de fuentes por agente se coordinan en `services/agentReadQueue.ts`, compartida por Extracción, diagrama y preview de Transformación dentro de la pestaña propietaria. Una operación con fuentes secundarias reserva todos sus agentes hasta terminar la respuesta HTTP. Las lecturas canceladas en espera no se envían; una lectura activa termina antes de liberar el turno y su resultado cancelado se descarta, porque abortar fetch no demuestra que el agente terminó. No se encolan escrituras ni se reintentan solicitudes. El cambio de cuenta impide enviar lecturas pendientes del contexto anterior.

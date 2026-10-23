@@ -66,11 +66,13 @@ test("conserva origen, receta, destino y credenciales al consultar ayuda y regre
 });
 
 for (const theme of ["light", "dark"]) for (const width of [375, 768, 1024, 1440]) {
-  test(`manual accesible y adaptable: ${theme}, ${width}px`, async ({ page, mockApi }, testInfo) => {
+  test(`manual claro con preferencia heredada ${theme}: accesible y adaptable a ${width}px`, async ({ page, mockApi }, testInfo) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width, height: 800 });
     await page.addInitScript(value => localStorage.setItem("etl_theme_preference", value), theme);
     await page.goto("/manual");
+    await expect(page.locator("html")).not.toHaveClass(/dark/);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
     await expect(page.getByRole("heading", { level: 1, name: "Manual de usuario" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (width < 1280) {

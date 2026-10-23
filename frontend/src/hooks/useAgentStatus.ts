@@ -29,7 +29,7 @@ export function useAgentStatus(enabled: boolean, agentId: string) {
     }
     function visibility() {
       generation++; clearTimeout(timer); controller?.abort();
-      setState({ status: "checking", error: null });
+      setState(previous => ({ ...previous, status: "checking", error: null }));
       if (!document.hidden) void check();
     }
     void check(); document.addEventListener("visibilitychange", visibility);

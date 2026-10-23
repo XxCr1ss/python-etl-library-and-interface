@@ -1,6 +1,6 @@
 "use client";
 import { Alert, Button, Select } from "@/components/ui";
-import { useDiagramCoordinator } from "@/features/diagram/DiagramCoordinator";
+import { OpenDiagramLink } from "@/features/diagram/OpenDiagramLink";
 import { databaseConnection } from "@/components/etl/DatabaseConnectionFields";
 import { DatabaseConnectionFields } from "@/components/etl/DatabaseConnectionFields";
 import { HybridAgentInstructions } from "@/components/etl/HybridAgentInstructions";
@@ -9,7 +9,6 @@ import { SaveConnectionInSitu } from "@/components/etl/SaveConnectionInSitu";
 import type { useDatabaseExtract } from "../hooks/useDatabaseExtract";
 
 export function DatabaseTab({ model, agentId }: { model: ReturnType<typeof useDatabaseExtract>; agentId: string }) {
-  const diagram = useDiagramCoordinator();
   return <div className="space-y-5">
     <SavedConnectionsSelector type="source" selected={model.draft.savedConnection?.connection_id} onSelect={model.selectSaved} />
     <form noValidate className="space-y-5" onSubmit={event => { event.preventDefault(); model.connect(); }}>
@@ -21,19 +20,12 @@ export function DatabaseTab({ model, agentId }: { model: ReturnType<typeof useDa
       {!model.agentReady && <p className="text-sm text-content-muted">Conecta el agente y comprueba su estado para iniciar la extracción.</p>}
     </form>
     {model.connection.error && <Alert tone="error" title="No se pudo conectar">{model.connection.error}</Alert>}
-    {model.connection.status === "success" && <>
-      <p role="status" className="text-sm text-success">Conexión comprobada. {model.connection.result!.tables.length} tablas disponibles.</p>
+    {model.connection.result && <>
+      <p role="status" className={`text-sm ${model.canConfirm ? "text-success" : "text-warning"}`}>{model.canConfirm ? "Conexión comprobada." : "Conexión pendiente de revalidación."} {model.connection.result.tables.length} tablas disponibles.</p>
       <SaveConnectionInSitu key={JSON.stringify([model.draft.db_type, model.draft.host, model.draft.database, model.draft.user])} draft={model.draft} type="source" agentId={agentId} />
-      {diagram && <a href="/extract/diagram" target="_blank" rel="noopener noreferrer"
-        aria-disabled={!model.agentReady || typeof BroadcastChannel === "undefined"}
-        className="inline-flex rounded-lg border border-line px-4 py-2 text-sm font-semibold text-action focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
-        onClick={event => {
-          if (!model.agentReady || typeof BroadcastChannel === "undefined") { event.preventDefault(); return; }
-          event.currentTarget.href = diagram.open(databaseConnection(model.draft, agentId));
-        }}>Abrir diagrama E-R en otra pestaña</a>}
-      {typeof window !== "undefined" && typeof BroadcastChannel === "undefined" && <p role="status">Este navegador no permite vincular el diagrama entre pestañas.</p>}
+      <OpenDiagramLink connection={databaseConnection(model.draft, agentId)} disabled={!model.canConfirm} />
       {model.connection.result!.tables.length === 0 ? <p className="text-content-muted">La conexión no devolvió tablas. Revisa la base de datos y sus permisos.</p>
-        : <Select label="Tabla de origen" value={model.table} onChange={e => model.selectTable(e.target.value)}>
+        : <Select label="Tabla de origen" value={model.table} disabled={!model.canConfirm} onChange={e => model.selectTable(e.target.value)}>
           <option value="">Selecciona una tabla</option>{model.connection.result!.tables.map(name => <option key={name} value={name}>{name}</option>)}
         </Select>}
     </>}

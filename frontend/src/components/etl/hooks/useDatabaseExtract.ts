@@ -18,40 +18,54 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
   const preview = useExtractRequest<ExtractResult>(active);
   const agent = useAgentStatus(active && draft.use_agent, agentId);
   const agentReady = !draft.use_agent || agent.status === "connected";
-  const previousAgentReady = useRef(false);
-  const invalidateConnection = connection.invalidate;
-  const invalidatePreview = preview.invalidate;
+  const [needsRevalidation, setNeedsRevalidation] = useState(false);
+  const epoch = useRef(0);
+  const pauseConnection = connection.pause, pausePreview = preview.pause;
+  const suspend = diagram?.suspend;
   useEffect(() => {
-    if (draft.use_agent && !agentReady) {
-      invalidateConnection(previousAgentReady.current ? "El agente dejó de estar disponible. Comprueba su estado y vuelve a conectar." : null);
-      invalidatePreview(); setTable("");
+    if (draft.use_agent && ["disconnected", "error"].includes(agent.status)) {
+      epoch.current++; setNeedsRevalidation(true);
+      pauseConnection("El agente dejó de estar disponible. Comprueba su estado y vuelve a conectar."); pausePreview();
+      suspend?.(databaseConnection(draft, agentId), "El agente no está disponible. Comprueba su conexión; el diagrama se recuperará al volver.");
     }
-    previousAgentReady.current = agentReady;
-  }, [draft.use_agent, agentReady, invalidateConnection, invalidatePreview]);
+  }, [draft, agentId, agent.status, pauseConnection, pausePreview, suspend]);
   function edit(patch: Partial<DatabaseDraft>) {
-    diagram?.invalidate();
+    epoch.current++;
+    diagram?.invalidate(databaseConnection(draft, agentId));
     connection.invalidate(); preview.invalidate(); setTable(""); setErrors({});
+    setNeedsRevalidation(false);
     setDraft(current => updateDatabaseDraft(current, patch));
   }
-  function connect() {
+  async function connect() {
     if (!agentReady || connection.status === "pending") return;
     const invalid = validateDatabaseDraft(draft); setErrors(invalid);
     if (Object.keys(invalid).length) return;
-    diagram?.invalidate();
-    preview.invalidate(); setTable("");
-    void connection.run(signal => getDatabaseMetadata(databaseConnection(draft, agentId), signal));
+    const sourceConnection = databaseConnection(draft, agentId);
+    const requestEpoch = epoch.current;
+    diagram?.suspend(sourceConnection, "Verificando la conexión y actualizando las tablas…");
+    const metadata = await connection.run(signal => getDatabaseMetadata(sourceConnection, signal), true);
+    if (epoch.current !== requestEpoch) return;
+    if (!metadata) { diagram?.suspend(sourceConnection, "No se pudo comprobar la conexión. Vuelve a conectar desde Extracción."); return; }
+    setNeedsRevalidation(false); diagram?.refresh(sourceConnection);
+    preview.invalidate();
+    if (table && metadata.tables.includes(table)) loadTable(table, metadata);
+    else setTable("");
   }
   function selectSaved(row: SavedConnection | null) {
-    diagram?.invalidate(); connection.invalidate(); preview.invalidate(); setTable(""); setErrors({});
+    epoch.current++;
+    diagram?.invalidate(databaseConnection(draft, agentId)); connection.invalidate(); preview.invalidate(); setTable(""); setErrors({}); setNeedsRevalidation(false);
     setDraft(row ? { db_type: row.db_type, host: row.host, port: row.port == null ? "" : String(row.port),
       database: row.database, user: row.user, password: undefined, service_name: row.service_name || "", use_agent: row.transport === "agent",
       savedConnection: { ...referenceOf(row), ...(row.transport === "agent" ? { runtime_agent_id: agentId } : {}) } } : { ...initialDatabaseDraft, password: undefined });
   }
   function selectTable(name: string) {
     preview.invalidate(); setTable(name);
-    if (!name || !agentReady || connection.status !== "success" || !connection.result?.tables.includes(name)) return;
+    if (!name || !agentReady || needsRevalidation || connection.status !== "success" || !connection.result?.tables.includes(name)) return;
+    loadTable(name, connection.result);
+  }
+  function loadTable(name: string, metadata: DatabaseMetadata) {
     const sourceConnection = databaseConnection(draft, agentId);
-    const schema = connection.result?.schema_preview[name];
+    const schema = metadata.schema_preview[name];
     const columns = schema?.every((column): column is string => typeof column === "string") ? schema : undefined;
     void preview.run(async signal => {
       const data = await previewDatabaseTable({ ...sourceConnection, table_name: name }, signal);
@@ -62,6 +76,7 @@ export function useDatabaseExtract(active: boolean, agentId: string) {
           savedConnection: draft.savedConnection } : sourceConnection), table_name: name, total_rows: data.total_rows } };
     });
   }
-  return { ...preview, draft, errors, edit, table, selectTable, selectSaved, connect, connection, agent, agentReady,
-    invalidate: () => { diagram?.invalidate(); connection.invalidate(); preview.invalidate(); setTable(""); } };
+  return { ...preview, draft, errors, edit, table, selectTable, selectSaved, connect, connection, agent, agentReady, needsRevalidation,
+    canConfirm: agentReady && !needsRevalidation && connection.status === "success",
+    invalidate: () => { diagram?.invalidate(databaseConnection(draft, agentId)); connection.invalidate(); preview.invalidate(); setTable(""); } };
 }
