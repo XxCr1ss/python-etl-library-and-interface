@@ -3,12 +3,12 @@ import { parseSource, parseStep, parseTarget } from "@/types/etlValidation";
 import { CredentialStore } from "@/state/credentialStore";
 export function sourceDto(source: SourceDescriptor, store: CredentialStore): SourceDto {
   const clean = parseSource(source, store);
-  if (clean.type === "file") return { type: "file", filepath: clean.filepath, ...(clean.sheet_name !== undefined ? { sheet_name: clean.sheet_name } : {}) };
+  if (clean.type === "file") return { type: "file", filepath: clean.filepath, ...(clean.sheet_name !== undefined ? { sheet_name: clean.sheet_name } : {}), ...(clean.read_mode ? { read_mode: clean.read_mode } : {}) };
   if (clean.type === "date_dimension") return { type: "date_dimension", start_year: clean.start_year, end_year: clean.end_year };
-  if (clean.savedConnection) return { type: "database", table_name: clean.table_name, ...clean.savedConnection };
+  if (clean.savedConnection) return { type: "database", table_name: clean.table_name, ...clean.savedConnection, ...(clean.read_mode ? { read_mode: clean.read_mode } : {}) };
   return { type: "database", db_type: clean.db_type, host: clean.host, database: clean.database, user: clean.user,
     table_name: clean.table_name, password: store.get(clean.credentialRef),
-    ...(clean.port !== undefined ? { port: clean.port } : {}), ...(clean.service_name !== undefined ? { service_name: clean.service_name } : {}),
+    ...(clean.port !== undefined ? { port: clean.port } : {}), ...(clean.service_name !== undefined ? { service_name: clean.service_name } : {}), ...(clean.read_mode ? { read_mode: clean.read_mode } : {}),
     ...(clean.use_agent !== undefined ? { use_agent: clean.use_agent } : {}), ...(clean.agent_id !== undefined ? { agent_id: clean.agent_id } : {}) };
 }
 export function targetDto(target: TargetDescriptor, store: CredentialStore): TargetConnectionDto {

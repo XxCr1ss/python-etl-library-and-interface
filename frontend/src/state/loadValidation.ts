@@ -11,11 +11,13 @@ export function foreignKeyError(row: ForeignKeyRow, rows: ForeignKeyRow[], colum
   if (!simpleIdentifier(row.table) || !simpleIdentifier(row.primaryKey)) return "Usa nombres simples de tabla y PK, sin esquema ni citas.";
 }
 export function validLoadConfig(config: LoadConfigDto, rows: ForeignKeyRow[], columns: string[]) {
-  return simpleIdentifier(config.table_name) && ["replace", "append"].includes(config.if_exists || "") &&
+  return simpleIdentifier(config.table_name) && ["replace", "append", "fail", "reload", "schema_only"].includes(config.if_exists || "") &&
+    (!["reload", "schema_only"].includes(config.if_exists || "") || !!config.schema_spec) &&
+    (!config.schema_spec || (!!config.schema_spec.grain.trim() && config.schema_spec.columns.length === columns.length && config.schema_spec.columns.every(c => columns.includes(c.name)))) &&
     (config.table_type === "dimension" || rows.every(row => !foreignKeyError(row, rows, columns)));
 }
 export function loadConfigDto(config: LoadConfigDto, rows: ForeignKeyRow[]): LoadConfigDto {
   const { table_name, table_type, if_exists } = config;
-  return { table_name, table_type, if_exists, ...(table_type === "fact" && rows.length
+  return { table_name, table_type, if_exists, ...(config.schema_spec ? { schema_spec: config.schema_spec } : {}), ...(table_type === "fact" && rows.length
     ? { foreign_keys: Object.fromEntries(rows.map(row => [row.column, [row.table, row.primaryKey] as [string, string]])) } : {}) };
 }

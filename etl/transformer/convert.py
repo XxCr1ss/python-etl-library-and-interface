@@ -37,7 +37,6 @@ class ConvertOperations:
             raise
     
     @staticmethod
-    @staticmethod
     def convert_column_type(df, columns, dtype, show=0):
         """
         Convierte el tipo de una o varias columnas a un tipo de dato específico,
@@ -94,6 +93,30 @@ class ConvertOperations:
             for col, target_type in dtype.items():
                 if col not in df.columns:
                     raise ValueError(f"La columna '{col}' no existe en el DataFrame")
+
+                if target_type is bool or isinstance(target_type, str) and target_type in {"boolean", "bool", "decimal", "numeric", "integer", "bigint", "smallint", "serial", "bigserial", "int", "Int64"}:
+                    from etl.schema import ColumnSpec, convert_scalar
+                    kind = "boolean" if target_type is bool or target_type in {"boolean", "bool"} else "decimal" if target_type in {"decimal", "numeric"} else "integer"
+                    spec = ColumnSpec(name="value", type=kind, precision=38, scale=18)
+                    def convert_value(value):
+                        if kind == "integer" and isinstance(value, str):
+                            from decimal import Decimal, InvalidOperation
+                            try:
+                                Decimal(value)
+                            except InvalidOperation:
+                                # Preserve the existing numeric coercion contract without
+                                # routing valid large integers through floating point.
+                                return None
+                        return convert_scalar(value, spec)
+                    try:
+                        values = [convert_value(v) for v in df[col]]
+                    except (ValueError, TypeError, ArithmeticError):
+                        raise ValueError("La conversión no conserva el tipo/precisión; revisa los valores antes de continuar.") from None
+                    df[col] = pd.Series(values, index=df.index, dtype="boolean" if kind == "boolean" else "Int64" if kind == "integer" else "object")
+                    continue
+                if isinstance(target_type, str) and target_type in {"text", "varchar", "char", "str", "string"}:
+                    df[col] = df[col].astype("string")
+                    continue
 
                 # Si es un tipo de Postgres, lo traducimos
                 if target_type in pg_type_map:

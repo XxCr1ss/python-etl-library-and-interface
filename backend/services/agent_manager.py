@@ -85,7 +85,7 @@ class AgentManager:
             async with asyncio.timeout(timeout):
                 # Reserve before yielding; serialization must not block pings or
                 # allow a second caller to slip a write onto the same socket.
-                encoded = await asyncio.to_thread(serialize_command, message, max_message_bytes) if action == "execute_load" or action.startswith("warehouse_") else None
+                encoded = await asyncio.to_thread(serialize_command, message, max_message_bytes) if action in {"execute_load", "preview_load"} or action.startswith("warehouse_") else None
                 if future.done():
                     return future.result()
                 if self.active_agents.get(agent_id) is not websocket:

@@ -27,6 +27,7 @@ htmlcov/
 *.log
 *.tmp
 backend/uploads/*
+.etl_runtime/
 !backend/uploads/.gitkeep
 
 # Bases de datos locales SQLite

@@ -36,6 +36,7 @@ class DateDimensionReq(BaseModel):
 
 class SourceModel(ConnectionInput):
     type: Literal["file", "database", "date_dimension"]
+    read_mode: Optional[Literal["inferred", "exact"]] = None
     filepath: Optional[str] = None
     sheet_name: Optional[str] = None
     table_name: Optional[str] = None

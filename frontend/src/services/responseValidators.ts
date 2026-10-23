@@ -32,5 +32,7 @@ export function preview(v: unknown): PreviewResponse {
 export function load(v: unknown): LoadResponse {
   extraction(v); const safe = message(v);
   requireContract(object(v) && typeof v.table_name === "string" && ["dimension", "fact"].includes(String(v.table_type)));
+  requireContract([v.previous_rows, v.submitted_rows].every(x => x === undefined || Number.isSafeInteger(x) && Number(x) >= 0));
+  if (v.checks !== undefined) requireContract(Array.isArray(v.checks) && v.checks.every(c => object(c) && typeof c.column === "string" && ["not_null", "unique", "range", "sum"].includes(String(c.kind)) && ["error", "warning"].includes(String(c.severity)) && Number.isSafeInteger(c.failures) && Number(c.failures) >= 0));
   return { ...v, ...safe } as unknown as LoadResponse;
 }

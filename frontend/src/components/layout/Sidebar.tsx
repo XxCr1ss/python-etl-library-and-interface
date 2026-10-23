@@ -12,6 +12,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { state, credentials } = usePipelineSession();
   const items = [{ name: "Dashboard", href: "/dashboard", available: true, detail: "" }, ...pipelineStages(state, credentials),
     { name: "Bodega de datos", href: "/analytics", available: true, detail: "" },
+    { name: "Trabajos ETL", href: "/jobs", available: true, detail: "" },
     { name: "Mis conexiones", href: "/settings/connections", available: true, detail: "" },
     { name: "Configuración", href: "/settings", available: true, detail: "" },
     { name: "Manual de Usuario", href: "/manual", available: true, detail: "" }];

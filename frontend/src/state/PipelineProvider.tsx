@@ -154,7 +154,7 @@ function useSessionCore() {
     if (!agentReady()) throw new Error("Conecta el agente local y prueba de nuevo el destino antes de cargar.");
     if (approval && (approval.revision !== snapshot.revision || approval.targetVersion !== snapshot.targetVersion ||
       approval.loadVersion !== snapshot.loadVersion || approval.previewRequestId !== snapshot.preview.requestId)) throw new Error("La configuración cambió. Revisa y confirma la carga otra vez.");
-    if (snapshot.loadConfig.if_exists === "replace" && !approval) throw new Error("Confirma la tabla y el destino antes de reemplazar.");
+    if (["replace", "reload"].includes(snapshot.loadConfig.if_exists || "") && !approval) throw new Error("Confirma la tabla y el destino antes de reemplazar o recargar.");
     const unresolved = snapshot.execution?.status === "unknown" || snapshot.history.some(r => r.status === "unknown" && r.table_name === snapshot.loadConfig.table_name);
     if (unresolved && !approval?.reviewedUnknown) throw new Error(unknownLoadMessage);
     // Build the payload before recording a request that may reach the server.
@@ -191,7 +191,7 @@ function useSessionCore() {
     credentials.clear(); dispatch({ type: "reset" });
     window.dispatchEvent(new Event("etl:session-reset"));
   }, [credentials, dispatch]);
-  const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) dispatch({ type: "loadConfig", config: parseLoadConfig(config) }); }, [dispatch, editable]);
+  const setLoadConfig = useCallback((config: LoadConfigDto) => { if (editable()) { const parsed = parseLoadConfig(config); dispatch({ type: "loadConfig", config: parsed }); if (parsed.schema_spec) dispatch({ type: "exactReads" }); } }, [dispatch, editable]);
   return useMemo(() => ({ state, snapshot, credentials, agentId, targetAgent, setWatchTargetAgent, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig,
     canTransform: selectors.canTransform(state, credentials), canVisitLoad: selectors.canVisitLoad(state), isReadyForLoad: selectors.isReadyForLoad(state, credentials), canExecuteLoad: selectors.canExecuteLoad(state, credentials) && agentReady() }),
   [state, snapshot, credentials, agentId, targetAgent, agentReady, dispatch, confirmSource, addStep, editStep, restoreRecipe, setTarget, recoverCredentials, runPreview, testTarget, runLoad, newLoad, reset, setLoadConfig]);

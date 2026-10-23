@@ -9,7 +9,7 @@ from services.agent_manager import agent_manager
 
 
 async def perform(operation, request):
-    payload = request.model_dump()
+    payload = request.model_dump(mode="json")
     if not request.connection.use_agent:
         result = await run_in_threadpool(execute, operation, payload)
     else:
@@ -28,7 +28,7 @@ async def perform(operation, request):
                     raise WarehouseError("agent_incompatible", "El túnel remoto del agente requiere HTTPS/WSS para analítica.", 503)
                 raise WarehouseError("agent_incompatible", "Actualiza el agente para usar analítica de solo lectura.", 503)
             if (capability_response.get("status") != "success" or type(caps.get("protocol_version")) is not int or caps.get("protocol_version") != 1 or
-                    not isinstance(caps.get("actions"), list) or not all(isinstance(a, str) for a in caps["actions"]) or not set(ACTIONS).issubset(caps["actions"]) or
+                    not isinstance(caps.get("actions"), list) or not all(isinstance(a, str) for a in caps["actions"]) or "warehouse_" + operation not in caps["actions"] or
                     not isinstance(caps.get("limits"), dict) or
                     any(type(caps["limits"].get(k)) is not int or caps["limits"][k] <= 0 for k in LIMITS)):
                 raise WarehouseError("agent_incompatible", "Actualiza el agente para usar analítica de solo lectura.", 503)
@@ -56,7 +56,12 @@ async def perform(operation, request):
         except (ConnectionError, ValueError):
             raise WarehouseError("agent_unavailable", "La conexión del agente cambió o está ocupada; vuelve a conectar.", 503) from None
     try:
-        result = RESPONSES[operation].validate_python(result).model_dump(exclude_none=False, by_alias=True)
+        result = RESPONSES[operation].validate_python(result).model_dump(mode="json", exclude_none=False, by_alias=True)
+        if operation in {"analyze", "report"}:
+            expected = [request.analysis] if operation == "analyze" else request.analyses
+            actual = [result] if operation == "analyze" else result["results"]
+            if len(expected) != len(actual) or any(item["definition"] != spec.model_dump(mode="json") for item, spec in zip(actual, expected)):
+                raise TypeError()
         bounded(result)
         if operation in {"query", "detail"}:
             expected = [x.id for x in request.query.dimensions] + [x.id for x in request.query.metrics] if operation == "query" else [x.id for x in request.columns]

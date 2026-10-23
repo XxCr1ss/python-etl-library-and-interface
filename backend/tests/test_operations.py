@@ -20,7 +20,8 @@ def test_exact_catalog_dispatcher_frontend_parity(client):
     assert response.status_code == 200
     catalog = response.json()
     types = [item["type"] for item in catalog]
-    tree = ast.parse(inspect.getsource(transform_service.apply_transformation_steps))
+    from etl.recipe import apply_transformation_steps as apply_core_recipe
+    tree = ast.parse(inspect.getsource(apply_core_recipe))
     dispatched = []
     # Only the dispatch chain: nested ifs choose which core join to call again.
     loop = next(node for node in tree.body[0].body if isinstance(node, ast.For))

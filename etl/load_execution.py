@@ -43,8 +43,16 @@ def validate_load_config(config):
     if kind not in {"dimension", "fact"}:
         raise LoadValidationError("Tipo de tabla inválido.")
     mode = config.get("if_exists") or ("replace" if kind == "dimension" else "append")
-    if mode not in {"replace", "append", "fail"}:
+    if mode not in {"replace", "append", "fail", "reload", "schema_only"}:
         raise LoadValidationError("Modo de carga inválido.")
+    if mode in {"reload", "schema_only"} and not config.get("schema_spec"):
+        raise LoadValidationError("Recargar conservando estructura requiere un esquema explícito.")
+    if config.get("schema_spec") is not None:
+        from etl.schema import LoadSchemaSpec
+        try:
+            LoadSchemaSpec.model_validate(config["schema_spec"])
+        except ValueError:
+            raise LoadValidationError("Contrato de esquema inválido.") from None
     keys = config.get("foreign_keys") or {}
     if not isinstance(keys, dict):
         raise LoadValidationError("Mapeo de claves foráneas inválido.")
@@ -84,6 +92,14 @@ def persist_and_verify(frame, target, config, extractor_factory=DB_Extractor, lo
     try:
         with extractor_factory(**params, connect_timeout=positive_setting("ETL_TARGET_CONNECT_TIMEOUT", 10)) as extractor:
             stage = "persistencia"
+            if config.get("schema_spec"):
+                from etl.schema import LoadSchemaSpec, ForeignKeySpec, persist_schema
+                result = persist_schema(frame, extractor.engine, name, mode,
+                                        LoadSchemaSpec.model_validate(config["schema_spec"]), config.get("preview_only", False),
+                                        [ForeignKeySpec(columns=[column], target_table=pair[0], target_columns=[pair[1]]) for column, pair in keys.items()])
+                return {**result, "table_type": kind}
+            if config.get("preview_only"):
+                raise LoadValidationError("La vista previa de impacto requiere un esquema explícito.")
             loader = loader_factory(engine=extractor.engine)
             if kind == "dimension":
                 loader.load_dimension(dfs=frame, table_names=name, if_exists=mode)

@@ -16,12 +16,36 @@ from etl import (
 from services.extract_service import clean_records, clean_value
 from source_models import SourceModel
 
-async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
+async def load_source_df(source: Dict[str, Any], typed=False) -> pd.DataFrame:
     """
     Carga un DataFrame a partir de la configuración de origen (archivo o base de datos).
     Soporta extracción delegada a través del agente local si se especifica use_agent.
     """
     source = SourceModel.model_validate(source).model_dump(exclude_none=True)
+    typed = typed or source.get("read_mode") == "exact"
+    from etl.load_transport import MAX_LOAD_ROWS, LoadValidationError
+    def bounded_frame(frame):
+        if len(frame) > MAX_LOAD_ROWS:
+            raise LoadValidationError("El origen supera el presupuesto de filas para extracción tipada; reduce su alcance.")
+        return frame
+    if typed and source.get("type") == "database":
+        import asyncio
+        from etl.load_transport import decode_dataset, LoadValidationError
+        if source.get("use_agent"):
+            from services.agent_manager import agent_manager
+            agent_id = source["agent_id"]
+            generation = agent_manager.connection_id(agent_id)
+            caps = await agent_manager.send_command_and_wait(agent_id, "get_capabilities", {}, expected_connection=generation)
+            data = caps.get("data")
+            if caps.get("status") != "success" or not isinstance(data, dict) or type(data.get("typed_extract_version")) is not int or data["typed_extract_version"] != 1:
+                raise LoadValidationError("Actualiza el agente y usa HTTPS/WSS para extracción tipada.")
+            payload = {k: v for k, v in source.items() if k not in {"type", "use_agent", "agent_id"}}
+            response = await agent_manager.send_command_and_wait(agent_id, "get_typed_table", payload, timeout=120, expected_connection=generation)
+            if response.get("status") != "success":
+                raise LoadValidationError("No se pudo completar la extracción tipada del agente.")
+            return decode_dataset(response.get("data", {}).get("dataset"))
+        from etl.typed_source import read_typed_table
+        return await asyncio.to_thread(read_typed_table, source, source["table_name"])
     if source.get("use_agent"):
         agent_id = source.get("agent_id")
         if not agent_id:
@@ -54,12 +78,16 @@ async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
         suffix = os.path.splitext(filepath)[1].lower()
         if suffix == '.csv':
             extractor = CSVExtractor(filepath)
+            if typed:
+                frame = extractor.read_csv(dtype="object", keep_default_na=False, na_values=[""], nrows=MAX_LOAD_ROWS + 1)
+                return bounded_frame(frame.where(pd.notna(frame), None))
             return extractor.read_csv()
         elif suffix in ['.xlsx', '.xls']:
             extractor = XLSXExtractor(filepath)
             sheet_names = extractor.get_sheet_names()
             sheet_name = source.get("sheet_name") or (sheet_names[0] if sheet_names else None)
-            return extractor.read_sheet(sheet_name=sheet_name)
+            frame = extractor.read_sheet(sheet_name=sheet_name, **({"dtype": "object", "keep_default_na": False, "na_values": [""], "nrows": MAX_LOAD_ROWS + 1} if typed else {}))
+            return bounded_frame(frame) if typed else frame
         else:
             raise ValueError(f"Formato de archivo '{suffix}' no soportado para transformación.")
             
@@ -90,386 +118,22 @@ async def load_source_df(source: Dict[str, Any]) -> pd.DataFrame:
     elif source_type == "date_dimension":
         start_year = source["start_year"]
         end_year = source["end_year"]
+        if typed:
+            from datetime import date
+            if (date(end_year, 12, 31) - date(start_year, 1, 1)).days + 1 > MAX_LOAD_ROWS:
+                raise LoadValidationError("El calendario supera el presupuesto de filas para extracción tipada.")
         from etl import DateTime
         date_dim = DateTime(start_year, end_year)
         return date_dim.df
     else:
         raise ValueError(f"Tipo de origen '{source_type}' no soportado.")
 
-async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any]]) -> pd.DataFrame:
-    """
-    Aplica una lista ordenada de pasos de transformación sobre el DataFrame dado.
-    """
-    working_df = df.copy()
-    
-    for step in steps:
-        step_type = step.get("type")
-        params = step.get("params", {})
-        
-        if step_type == "rename_columns":
-            columns = params.get("columns")
-            if not isinstance(columns, dict):
-                raise ValueError("rename_columns requiere un parámetro 'columns' de tipo diccionario.")
-            working_df = HeaderOperations.rename_columns(working_df, columns, show=0)
-            
-        elif step_type == "convert_types":
-            columns = params.get("columns")
-            dtype = params.get("dtype")
-            if not columns or not dtype:
-                raise ValueError("convert_types requiere parámetros 'columns' y 'dtype'.")
-            working_df = ConvertOperations.convert_column_type(working_df, columns, dtype, show=0)
-            
-        elif step_type == "fill_nulls":
-            column = params.get("column")
-            value = params.get("value")
-            if column is None or value is None:
-                raise ValueError("fill_nulls requiere parámetros 'column' y 'value'.")
-            working_df = ConvertOperations.fill_nulls(working_df, column, value, show=0)
-            
-        elif step_type == "select_columns":
-            columns = params.get("columns")
-            if not isinstance(columns, list):
-                raise ValueError("select_columns requiere una lista 'columns'.")
-            working_df = DataSelect.select_columns(working_df, *columns, show=0)
-            
-        elif step_type == "remove_columns":
-            columns_to_drop = params.get("columns")
-            if not columns_to_drop:
-                raise ValueError("remove_columns requiere parámetro 'columns' (string o lista).")
-            working_df = BasicsTransformOperations.remove_columns(working_df, columns_to_drop, show=0)
-            
-        elif step_type in ["left_join", "right_join", "inner_join", "outer_join"]:
-            right_source = params.get("right_source")
-            on = params.get("on")
-            if not right_source or not on:
-                raise ValueError(f"{step_type} requiere parámetros 'right_source' y 'on'.")
-            
-            df2 = await load_source_df(right_source)
-            
-            # Convertir 'on' a tupla para pandas si son claves diferentes (ej. [clave1, clave2])
-            if isinstance(on, list) and len(on) == 2 and all(isinstance(x, str) for x in on):
-                # Two shared columns mean a composite key; otherwise use left/right names.
-                if not all(key in working_df.columns and key in df2.columns for key in on):
-                    on = tuple(on)
-            
-            how_map = {
-                "left_join": "left",
-                "right_join": "right",
-                "inner_join": "inner",
-                "outer_join": "outer"
-            }
-            how = how_map[step_type]
-            
-            if isinstance(on, tuple):
-                working_df = pd.merge(working_df, df2, how=how, left_on=on[0], right_on=on[1])
-            else:
-                if step_type == "left_join":
-                    working_df = TransformOperations.left_join(working_df, df2, on, show=0)
-                elif step_type == "right_join":
-                    working_df = TransformOperations.right_join(working_df, df2, on, show=0)
-                elif step_type == "inner_join":
-                    working_df = TransformOperations.inner_join(working_df, df2, on, show=0)
-                elif step_type == "outer_join":
-                    working_df = TransformOperations.outer_join(working_df, df2, on, show=0)
-            
-        elif step_type == "group_by":
-            by = params.get("by")
-            column = params.get("column")
-            if not by or not column:
-                raise ValueError("group_by requiere parámetros 'by' y 'column'.")
-            working_df = TransformOperations.group_by_mean(working_df, by, column, show=0)
-            
-        elif step_type == "filter_value":
-            column = params.get("column")
-            value = params.get("value")
-            operator = params.get("operator", "eq")
-            if not column or value is None:
-                raise ValueError("filter_value requiere parámetros 'column' y 'value'.")
-            working_df = DataExpresion.filter_by_value(working_df, column, value, operator, show=0)
-            
-        elif step_type == "split_column":
-            column = params.get("column")
-            delimiter = params.get("delimiter")
-            new_columns = params.get("new_columns")
-            if not column or not delimiter:
-                raise ValueError("split_column requiere parámetros 'column' y 'delimiter'.")
-            working_df = ConvertOperations.split_string_column(working_df, column, delimiter, new_columns, show=0)
-            
-        elif step_type == "union":
-            secondary_source = params.get("secondary_source")
-            if not secondary_source:
-                raise ValueError("La operación de unión requiere un parámetro 'secondary_source'.")
-            df2 = await load_source_df(secondary_source)
-            working_df = TransformOperations.union_all([working_df, df2], show=0)
-            
-        elif step_type == "add_new_column":
-            new_column_name = params.get("new_column_name")
-            expression = params.get("expression")
-            if not new_column_name or not expression:
-                raise ValueError("add_new_column requiere parámetros 'new_column_name' y 'expression'.")
-            try:
-                code = compile(expression, "<string>", "eval")
-                def safe_evaluator(row):
-                    allowed_globals = {
-                        "__builtins__": {
-                            "abs": abs, "round": round, "str": str, "int": int,
-                            "float": float, "len": len, "bool": bool
-                        }
-                    }
-                    return eval(code, allowed_globals, row.to_dict())
-            except Exception as compile_err:
-                raise ValueError(f"Fórmula inválida: {str(compile_err)}")
-            working_df = BasicsTransformOperations.add_new_column(working_df, new_column_name, safe_evaluator, show=0)
-
-        elif step_type == "transform_column":
-            column = params.get("column")
-            expression = params.get("expression")
-            if not column or not expression:
-                raise ValueError("transform_column requiere parámetros 'column' y 'expression'.")
-            try:
-                code = compile(expression, "<string>", "eval")
-                def safe_evaluator(x):
-                    allowed_globals = {
-                        "__builtins__": {
-                            "abs": abs, "round": round, "str": str, "int": int,
-                            "float": float, "len": len, "bool": bool
-                        }
-                    }
-                    return eval(code, allowed_globals, {"x": x})
-            except Exception as compile_err:
-                raise ValueError(f"Fórmula de celda inválida: {str(compile_err)}")
-            working_df = BasicsTransformOperations.transform_column(working_df, column, safe_evaluator, show=0)
-
-        elif step_type == "filter_by_condition":
-            expression = params.get("expression")
-            if not expression:
-                raise ValueError("filter_by_condition requiere el parámetro 'expression'.")
-            try:
-                code = compile(expression, "<string>", "eval")
-                def safe_evaluator(row):
-                    allowed_globals = {
-                        "__builtins__": {
-                            "abs": abs, "round": round, "str": str, "int": int,
-                            "float": float, "len": len, "bool": bool
-                        }
-                    }
-                    return bool(eval(code, allowed_globals, row.to_dict()))
-            except Exception as compile_err:
-                raise ValueError(f"Fórmula de filtro inválida: {str(compile_err)}")
-            working_df = BasicsTransformOperations.filter_by_condition(working_df, safe_evaluator, show=0)
-
-        elif step_type == "normalize_delimited_column":
-            columna = params.get("column")
-            delimitador = params.get("delimiter", ",")
-            mantener_original = params.get("keep_original", True)
-            if not columna:
-                raise ValueError("normalize_delimited_column requiere el parámetro 'column'.")
-            working_df = BasicsTransformOperations.normalize_delimited_column(
-                working_df, columna, delimitador, mantener_original, show=0
-            )
-
-        elif step_type == "sort_columns":
-            columns = params.get("columns")
-            ascending = params.get("ascending", True)
-            if not columns:
-                raise ValueError("sort_columns requiere el parámetro 'columns'.")
-            working_df = BasicsTransformOperations.sort_columns(working_df, columns, ascending)
-
-        elif step_type == "convert_column_to_list":
-            columna = params.get("column")
-            delimitador = params.get("delimiter", ";")
-            nueva_columna = params.get("new_column") or None
-            if not columna:
-                raise ValueError("convert_column_to_list requiere el parámetro 'column'.")
-            working_df = BasicsTransformOperations.convert_column_to_list(
-                working_df, columna, delimitador=delimitador, nueva_columna=nueva_columna, show=0
-            )
-
-        elif step_type == "explode_column_list":
-            columna_lista = params.get("column")
-            if not columna_lista:
-                raise ValueError("explode_column_list requiere el parámetro 'column'.")
-            working_df = BasicsTransformOperations.explode_column_list(
-                working_df, columna_lista, mantener_original=True, show=0
-            )
-
-        elif step_type == "clean_numeric_columns":
-            columns = params.get("columns")
-            if not columns:
-                raise ValueError("clean_numeric_columns requiere el parámetro 'columns'.")
-            working_df = ConvertOperations.clean_numeric_columns(working_df, columns, show=0)
-
-        elif step_type == "clean_date_format":
-            column = params.get("column")
-            format_output = params.get("format_output", "%Y-%m-%d")
-            if not column:
-                raise ValueError("clean_date_format requiere el parámetro 'column'.")
-            working_df = ConvertOperations.clean_date_format(working_df, column, format_output, show=0)
-
-        elif step_type == "convert_to_ordered_category":
-            column = params.get("column")
-            categories = params.get("categories")
-            ordered = params.get("ordered", True)
-            if not column or not categories:
-                raise ValueError("convert_to_ordered_category requiere parámetros 'column' y 'categories'.")
-            working_df = ConvertOperations.convert_to_ordered_category(working_df, column, categories, ordered, show=0)
-
-        elif step_type == "boolean_to_binary":
-            columns = params.get("columns")
-            if not columns:
-                raise ValueError("boolean_to_binary requiere el parámetro 'columns'.")
-            working_df = ConvertOperations.boolean_to_binary(working_df, columns, show=0)
-
-        elif step_type == "sort_by":
-            columns = params.get("columns")
-            ascending = params.get("ascending", True)
-            if not columns:
-                raise ValueError("sort_by requiere el parámetro 'columns'.")
-            working_df = ConvertOperations.sort_by(working_df, columns, ascending, show=0)
-
-        elif step_type == "search_in_column":
-            column = params.get("column")
-            pattern = params.get("pattern")
-            complement = params.get("complement", False)
-            case_sensitive = params.get("case_sensitive", False)
-            if not column or not pattern:
-                raise ValueError("search_in_column requiere parámetros 'column' y 'pattern'.")
-            working_df = DataExpresion.search_in_column(
-                working_df, field=column, pattern=pattern, complement=complement, case_sensitive=case_sensitive, show=0
-            )
-
-        elif step_type == "search_in_table":
-            pattern = params.get("pattern")
-            complement = params.get("complement", False)
-            case_sensitive = params.get("case_sensitive", False)
-            if not pattern:
-                raise ValueError("search_in_table requiere el parámetro 'pattern'.")
-            working_df = DataExpresion.search_in_table(
-                working_df, pattern=pattern, complement=complement, case_sensitive=case_sensitive, show=0
-            )
-
-        elif step_type == "split_column_into_rows":
-            column = params.get("column")
-            delimiter = params.get("delimiter")
-            new_column_name = params.get("new_column_name") or None
-            drop_original = params.get("drop_original", False)
-            if not column or not delimiter:
-                raise ValueError("split_column_into_rows requiere parámetros 'column' y 'delimiter'.")
-            working_df = DataExpresion.split_column_into_rows(
-                working_df, field=column, delimiter=delimiter, new_column_name=new_column_name, drop_original=drop_original, show=0
-            )
-
-        elif step_type == "drop_duplicates":
-            subset = params.get("subset") or None
-            working_df = TransformOperations.drop_duplicates(working_df, subset=subset, show=0)
-
-        elif step_type == "replace_values":
-            column = params.get("column")
-            old_value = params.get("old_value")
-            new_value = params.get("new_value")
-            if not column or old_value is None or new_value is None:
-                raise ValueError("replace_values requiere parámetros 'column', 'old_value' y 'new_value'.")
-            working_df = TransformOperations.replace_values(working_df, column, old_value, new_value, show=0)
-
-        elif step_type == "group_by_sum":
-            by = params.get("by")
-            column = params.get("column")
-            if not by or not column:
-                raise ValueError("group_by_sum requiere parámetros 'by' y 'column'.")
-            working_df = TransformOperations.group_by_sum(working_df, by, column, show=0)
-
-        elif step_type == "group_by_count":
-            by = params.get("by")
-            if not by:
-                raise ValueError("group_by_count requiere el parámetro 'by'.")
-            working_df = TransformOperations.group_by_count(working_df, by, show=0)
-
-        elif step_type == "group_by_shift":
-            by = params.get("by")
-            column = params.get("column")
-            new_column_name = params.get("new_column_name")
-            periods = params.get("periods", 1)
-            if not by or not column or not new_column_name:
-                raise ValueError("group_by_shift requiere parámetros 'by', 'column' y 'new_column_name'.")
-            working_df = TransformOperations.group_by_shift(working_df, by, column, new_column_name, periods, show=0)
-
-        elif step_type == "filter_by_list_length":
-            column = params.get("column")
-            length = params.get("length")
-            keep_in = params.get("keep_in", True)
-            if not column or length is None:
-                raise ValueError("filter_by_list_length requiere parámetros 'column' y 'length'.")
-            lengths = length if isinstance(length, (list, tuple)) else [length]
-            if not lengths or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in lengths):
-                raise ValueError("length debe ser un entero o lista de enteros no negativos.")
-            working_df = TransformOperations.filter_by_list_length(working_df, column, longitud=length, keep_in=keep_in, show=0)
-
-        elif step_type == "replace_all_headers":
-            new_headers = params.get("new_headers")
-            if not new_headers:
-                raise ValueError("replace_all_headers requiere el parámetro 'new_headers'.")
-            if not isinstance(new_headers, list) or not all(isinstance(item, str) for item in new_headers):
-                raise ValueError("new_headers debe ser una lista de nombres de columnas.")
-            if len(set(new_headers)) != len(new_headers):
-                raise ValueError("new_headers no admite nombres duplicados.")
-            working_df = HeaderOperations.replace_all_headers(working_df, new_headers, show=0)
-
-        elif step_type == "prefix_header":
-            prefix = params.get("prefix")
-            if not prefix:
-                raise ValueError("prefix_header requiere el parámetro 'prefix'.")
-            working_df = HeaderOperations.prefix_header(working_df, prefix, show=0)
-
-        elif step_type == "suffix_header":
-            suffix = params.get("suffix")
-            if not suffix:
-                raise ValueError("suffix_header requiere el parámetro 'suffix'.")
-            working_df = HeaderOperations.suffix_header(working_df, suffix, show=0)
-
-        elif step_type == "add_sequential_index":
-            column_name = params.get("column_name", "index")
-            start = params.get("start", 1)
-            if column_name in working_df.columns:
-                raise ValueError("column_name ya existe; el índice no debe sobrescribir datos.")
-            working_df = HeaderOperations.add_sequential_index(working_df, column_name, start, show=0)
-
-        elif step_type == "filter_in_range":
-            column = params.get("column")
-            min_value = params.get("min_value")
-            max_value = params.get("max_value")
-            complement = params.get("complement", False)
-            if not column or min_value is None or max_value is None:
-                raise ValueError("filter_in_range requiere parámetros 'column', 'min_value' y 'max_value'.")
-            working_df = DataSelect.filter_in_range(
-                working_df, field=column, minv=float(min_value), maxv=float(max_value), complement=complement, show=0
-            )
-
-        elif step_type == "filter_in_list":
-            column = params.get("column")
-            values = params.get("values")
-            complement = params.get("complement", False)
-            if not column or not values:
-                raise ValueError("filter_in_list requiere parámetros 'column' y 'values'.")
-            working_df = DataSelect.filter_in_list(working_df, field=column, values=values, complement=complement, show=0)
-
-        elif step_type == "filter_is_null":
-            column = params.get("column")
-            complement = params.get("complement", False)
-            if not column:
-                raise ValueError("filter_is_null requiere el parámetro 'column'.")
-            working_df = DataSelect.filter_is_null(working_df, field=column, complement=complement, show=0)
-
-        elif step_type == "select_not_none":
-            column = params.get("column")
-            complement = params.get("complement", False)
-            if not column:
-                raise ValueError("select_not_none requiere el parámetro 'column'.")
-            working_df = DataSelect.select_not_none(working_df, field=column, complement=complement, show=0)
-
-        else:
-            raise ValueError(f"Operación de transformación '{step_type}' no soportada en el pipeline.")
-            
-    return working_df
+async def apply_transformation_steps(df: pd.DataFrame, steps: List[Dict[str, Any]], typed=False) -> pd.DataFrame:
+    from etl.recipe import apply_transformation_steps as apply_core_recipe
+    async def source_loader(source):
+        return await load_source_df(source, typed=True) if typed else await load_source_df(source)
+    from etl.load_transport import MAX_LOAD_ROWS
+    return await apply_core_recipe(df, steps, source_loader, max_rows=MAX_LOAD_ROWS if typed else None)
 
 async def process_transform_preview(source: Dict[str, Any], steps: List[Dict[str, Any]], limit: int = 5) -> Dict[str, Any]:
     """
@@ -479,7 +143,8 @@ async def process_transform_preview(source: Dict[str, Any], steps: List[Dict[str
     df = await load_source_df(source)
     
     # 2. Aplicar transformaciones
-    df_transformed = await apply_transformation_steps(df, steps)
+    exact = source.get("read_mode") == "exact" or any(step.get("params", {}).get(key, {}).get("read_mode") == "exact" for step in steps for key in ("right_source", "secondary_source") if isinstance(step.get("params", {}).get(key), dict))
+    df_transformed = await apply_transformation_steps(df, steps, typed=True) if exact else await apply_transformation_steps(df, steps)
     
     # 3. Obtener metadatos resultantes
     total_rows = len(df_transformed)

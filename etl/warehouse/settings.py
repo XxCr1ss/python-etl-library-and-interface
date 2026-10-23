@@ -24,7 +24,7 @@ def effective_limits(advertised=None):
     result = {k: min(v, (advertised or LIMITS).get(k, v)) for k, v in LIMITS.items()}
     result["export_bytes"] = min(result["export_bytes"], max(1, (result["message_bytes"] - 4096) * 3 // 4))
     return result
-ACTIONS = ["warehouse_" + operation for operation in ("catalog", "query", "detail", "export")]
+ACTIONS = ["warehouse_" + operation for operation in ("catalog", "query", "detail", "export", "analyze", "report")]
 
 
 class WarehouseError(ValueError):

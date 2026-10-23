@@ -7,7 +7,7 @@ import type { ExecutionRecord, LoadResponse } from "@/types/etl";
 export default function LoadReport({ report, record, onReset }: { report: LoadResponse; record: ExecutionRecord; onReset: () => void }) {
   const columns = Array.from(new Set(report.preview_data.flatMap(row => Object.keys(row))));
   return <section className="rounded-xl border border-line bg-surface p-5 space-y-5">
-    <h2 className="text-xl font-bold text-success">¡Pipeline de Carga Completado!</h2>
+    <h2 className="text-xl font-bold text-success">{record.if_exists === "schema_only" ? "Estructura verificada y preparada" : "¡Pipeline de Carga Completado!"}</h2>
     <p>{report.message}</p>
     <dl className="grid gap-4 sm:grid-cols-2">
       <div><dt className="text-content-muted">Tabla enviada</dt><dd className="font-mono break-all">{record.table_name}</dd></div>
@@ -18,6 +18,8 @@ export default function LoadReport({ report, record, onReset }: { report: LoadRe
       <div><dt className="text-content-muted">Fin local</dt><dd>{record.finishedAt ? new Date(record.finishedAt).toLocaleString() : "No registrado"}</dd></div>
     </dl>
     <p className="text-sm text-content-muted">En append, el total incluye filas anteriores. La muestra puede incluir datos de cargas previas.</p>
+    {report.previous_rows !== undefined && <p className="text-sm">Antes de esta carga: {report.previous_rows} filas. Resultado enviado: {report.submitted_rows} filas. Acciones: {report.schema_actions?.join(", ")}.</p>}
+    {report.checks?.map((check, i) => <p key={i} className={check.failures ? "text-warning" : "text-success"}>{check.column} · {check.kind}: {check.failures} incumplimientos · {check.severity}.</p>)}
     <div role="region" tabIndex={0} aria-label="Muestra de la tabla destino" className="max-h-80 overflow-auto rounded-lg border border-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus">
       <table className="w-full text-sm"><caption className="p-3 text-left font-semibold">Muestra de la tabla destino</caption>
         <thead className="sticky top-0 bg-surface-muted"><tr>{columns.map(column => <th scope="col" className="p-3 text-left" key={column}>{column}</th>)}</tr></thead>

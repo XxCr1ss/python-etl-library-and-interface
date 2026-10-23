@@ -11,11 +11,11 @@ export interface SavedConnectionReference { connection_id: string; connection_ve
 export type TargetConnectionDto = ManualConnectionDto | (SavedConnectionReference & Partial<Record<Exclude<keyof ManualConnectionDto, "connection_id" | "connection_version">, never>>);
 export type SourceConnectionDto = TargetConnectionDto;
 export type SourceDto =
-  | { type: "file"; filepath: string; sheet_name?: string | null }
-  | ({ type: "database"; table_name: string } & SourceConnectionDto)
+  | { type: "file"; filepath: string; sheet_name?: string | null; read_mode?: "inferred" | "exact" }
+  | ({ type: "database"; table_name: string; read_mode?: "inferred" | "exact" } & SourceConnectionDto)
   | { type: "date_dimension"; start_year: number; end_year: number };
 export type RowCount = { kind: "sample" | "dataset" | "destination_total"; value: number };
-type SourceMetadata = { filename?: string; unique_filename?: string; count?: RowCount };
+type SourceMetadata = { filename?: string; unique_filename?: string; count?: RowCount; read_mode?: "inferred" | "exact" };
 export type SourceDescriptor = (
   | Extract<SourceDto, { type: "file" | "date_dimension" }>
   | (Omit<ManualConnectionDto, "password"> & { type: "database"; table_name: string; credentialRef: string; savedConnection?: SavedConnectionReference })
@@ -75,10 +75,13 @@ export interface DatabaseMetadata { status: "success"; message: string; tables: 
 export interface PreviewResponse extends ExtractionPreview { columns: string[]; dtypes: Record<string, string> }
 export interface MessageResponse { status: "success"; message: string }
 export interface LoadConfigDto {
-  table_name: string; table_type: "dimension" | "fact"; if_exists?: "replace" | "append" | "fail";
+  table_name: string; table_type: "dimension" | "fact"; if_exists?: "replace" | "append" | "fail" | "reload" | "schema_only";
   foreign_keys?: Record<string, [string, string]>;
+  schema_spec?: LoadSchemaSpec;
 }
-export interface LoadResponse extends ExtractionPreview { message: string; table_name: string; table_type: "dimension" | "fact"; execution_id?: string; monitoring_pending?: boolean }
+export interface LoadColumnSpec { name: string; type: "integer" | "decimal" | "float" | "boolean" | "string" | "date" | "datetime"; nullable: boolean; precision?: number; scale?: number; timezone?: boolean; unit?: string | null }
+export interface LoadSchemaSpec { version: 1; grain: string; allow_add_constraints?: boolean; columns: LoadColumnSpec[]; primary_key: string[]; unique_keys: string[][]; indexes: string[][]; foreign_keys: { columns: string[]; target_table: string; target_columns: string[] }[]; checks: { column: string; kind: "not_null" | "unique" | "range" | "sum"; minimum?: string | null; maximum?: string | null; severity: "error" | "warning" }[] }
+export interface LoadResponse extends ExtractionPreview { message: string; table_name: string; table_type: "dimension" | "fact"; execution_id?: string; monitoring_pending?: boolean; previous_rows?: number; submitted_rows?: number; preview_only?: boolean; schema_actions?: string[]; checks?: { column: string; kind: string; severity: string; failures: number }[] }
 export interface ExecutionRecord {
   reportVersion?: number;
   if_exists?: LoadConfigDto["if_exists"];

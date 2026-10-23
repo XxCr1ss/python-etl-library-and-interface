@@ -11,7 +11,7 @@ from .models import FieldRef
 
 
 def invalid(message, code="invalid_query"):
-    raise WarehouseError(code, message)
+    raise WarehouseError(code, message, 413 if code == "result_limit_exceeded" else 422)
 
 
 def parse_value(value, kind):
@@ -72,14 +72,20 @@ class Compiler:
             invalid("La tabla base ya no está disponible; actualiza el catálogo.", "catalog_changed")
         self.base_info = catalog.info[selection.base_table_id]
         self.relations = {"base": self.base}
+        relation_ids = {"base": selection.base_table_id}
+        relation_paths = {"base": {selection.base_table_id}}
         self.source = self.base
         for index, join in enumerate(selection.joins):
+            parent = self.relations.get(join.source_relation)
+            parent_id = relation_ids.get(join.source_relation)
+            if parent is None or join.target_table_id in relation_paths[join.source_relation]:
+                invalid("La ruta requiere relaciones anteriores y no admite ciclos.", "unsupported_relationship")
             target = catalog.tables.get(join.target_table_id)
             if target is None or join.target_table_id == selection.base_table_id:
                 invalid("No se admite esta tabla o autounión.", "unsupported_relationship")
             if join.via.kind == "foreign_key":
                 rel = next((r for r in catalog.relationships if r["id"] == join.via.relationship_id and
-                            r["source_table_id"] == selection.base_table_id and r["target_table_id"] == join.target_table_id and r["selectable"]), None)
+                            r["source_table_id"] == parent_id and r["target_table_id"] == join.target_table_id and r["selectable"]), None)
                 if rel is None:
                     invalid("La relación no tiene una clave única verificable.", "unsupported_relationship")
                 pairs = [(p["source_column"], p["target_column"]) for p in rel["column_pairs"]]
@@ -91,12 +97,14 @@ class Compiler:
                 invalid("El destino de la relación debe tener una PK/UNIQUE completa.", "unsupported_relationship")
             alias = target.alias("dimension_" + str(index))
             for a, b in pairs:
-                if a not in self.base.c or b not in alias.c or family(self.base.c[a].type) != family(alias.c[b].type) or family(alias.c[b].type) == "unsupported":
+                if a not in parent.c or b not in alias.c or family(parent.c[a].type) != family(alias.c[b].type) or family(alias.c[b].type) == "unsupported":
                     invalid("Las columnas de la relación no existen o no tienen tipos compatibles.", "unsupported_relationship")
-                if getattr(self.base.c[a].type, "collation", None) != getattr(alias.c[b].type, "collation", None):
+                if getattr(parent.c[a].type, "collation", None) != getattr(alias.c[b].type, "collation", None):
                     invalid("La relación tiene collations incompatibles.", "unsupported_relationship")
-            self.source = self.source.join(alias, and_(*[self.base.c[a] == alias.c[b] for a, b in pairs]), isouter=join.type == "LEFT")
+            self.source = self.source.join(alias, and_(*[parent.c[a] == alias.c[b] for a, b in pairs]), isouter=join.type == "LEFT")
             self.relations[join.id] = alias
+            relation_ids[join.id] = join.target_table_id
+            relation_paths[join.id] = relation_paths[join.source_relation] | {join.target_table_id}
         self.conditions = [self.filter(f) for f in selection.filters]
 
     def field(self, ref):

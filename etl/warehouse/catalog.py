@@ -34,6 +34,7 @@ def operations(kind):
 
 class Catalog:
     def __init__(self, connection, limits=None):
+        self.dialect = connection.dialect.name
         self.limits = limits or LIMITS
         inspector = inspect(connection)
         self.schema = inspector.default_schema_name or ""
@@ -98,4 +99,4 @@ class Catalog:
     def public(self):
         return {"status": "success", "schema": self.schema, "tables": list(self.info.values()),
                 "relationships": self.relationships, "warnings": self.warnings,
-                "capabilities": {"protocol_version": 1, "supported_operations": capabilities()["actions"], "effective_limits": self.limits}}
+                "capabilities": {"protocol_version": 1, "supported_operations": [a for a in capabilities()["actions"] if self.dialect in {"postgresql", "sqlite"} or a not in {"warehouse_analyze", "warehouse_report"}], "effective_limits": self.limits}}

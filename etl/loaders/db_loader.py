@@ -54,7 +54,7 @@ class DB_Loader:
         # Driver exceptions may embed SQL bind parameters (including whole rows).
         return "Operación de base de datos fallida; revisa la configuración y el destino."
 
-    def load_dimension(self, dfs, table_names, if_exists="replace", index=False, engine=None):
+    def load_dimension(self, dfs, table_names, if_exists="replace", index=False, engine=None, dtype=None):
         """
         Carga una o varias tablas de dimensión en la base de datos.
         
@@ -99,7 +99,7 @@ class DB_Loader:
                 
             # Carga cada dimensión en la base de datos
             for df, table_name in zip(dfs, table_names):
-                df.to_sql(name=table_name, con=eng, if_exists=if_exists, index=index)
+                df.to_sql(name=table_name, con=eng, if_exists=if_exists, index=index, dtype=dtype)
                 print(f"✅ Dimensión '{table_name}' cargada exitosamente en la base de datos '{db_backend} (modo: {if_exists}).")
                 
         except Exception as e:
@@ -146,7 +146,8 @@ class DB_Loader:
             # Limitar columnas de texto a 4000 caracteres si el motor es Oracle
             if db_backend == "oracle":
                 for col in df.select_dtypes(include=['object']).columns:
-                    df[col] = df[col].astype(str).str.slice(0, 4000)
+                            if df[col].dropna().map(lambda v: len(str(v)) > 4000).any():
+                                raise LoadValidationError("Oracle requiere texto de hasta 4000 caracteres; no se truncará silenciosamente.")
                 if dtype is None:
                     dtype = {col: sqlch.types.VARCHAR(4000) 
                             for col in df.select_dtypes(include=['object']).columns}
@@ -162,8 +163,7 @@ class DB_Loader:
                 with eng.connect() as conn:
                     for fk_col, (dim_table, dim_pk) in foreign_keys_map.items():
                         # Convierte claves foráneas a string para comparación consistente
-                        df[fk_col] = df[fk_col].astype(str)
-                        unique_values = df[fk_col].unique()
+                        unique_values = df[fk_col].dropna().astype(str).unique()
                         
                         if len(unique_values) > 0:
                             if db_backend not in {"postgresql", "oracle", "mysql"}:
