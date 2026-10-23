@@ -14,7 +14,8 @@ export function AnalysisBuilder({ spec, catalog, busy, onChange, onRun }: { spec
   const populationFields = spec.population ? fieldsFor(catalog, spec.population.selection) : [];
   const pattern = spec.pairs ? "pairs" : spec.histogram ? "histogram" : "aggregate";
   const outputs = spec.pairs ? ["item_a", "item_b", "frequency", "support", "baskets"] : spec.histogram ? ["interval", "frequency"] : [...spec.dimensions, ...spec.measures, ...spec.formulas].map(m => m.id);
-  return <fieldset disabled={busy} className="space-y-5">
+  // Long output IDs in nested summaries must wrap without widening the fieldsets.
+  return <fieldset disabled={busy} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
     <Input label="Zona horaria del análisis" value={spec.timezone || ""} hint="Zona IANA, por ejemplo America/Bogota. Vacío conserva la zona de la sesión de base de datos." onChange={e => onChange({ ...spec, timezone: e.target.value || null })} />
     <div className="grid gap-4 sm:grid-cols-2"><Input label="Título del análisis" value={spec.title} onChange={e => onChange({ ...spec, title: e.target.value })} /><Input label="Qué representa una fila" value={spec.grain} placeholder="Una fila por evento, persona, línea…" onChange={e => onChange({ ...spec, grain: e.target.value })} /></div>
     <Select label="Patrón de análisis" value={pattern} onChange={e => {
