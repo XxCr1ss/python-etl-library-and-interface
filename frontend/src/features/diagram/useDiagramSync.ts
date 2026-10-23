@@ -13,7 +13,7 @@ export function useDiagramSync() {
     try { raw = window.location.hash ? decodeURIComponent(window.location.hash.slice(1)) : sessionStorage.getItem(KEY); } catch { /* Storage is optional. */ }
     let binding = null;
     try { binding = parseBinding(JSON.parse(raw || "null")); } catch { /* Invalid URL is an empty state. */ }
-    if (!binding) { setState(s => ({ ...s, error: "Abre este diagrama desde una conexión comprobada en Extracción." })); return; }
+    if (!binding) { setState(s => ({ ...s, error: "Abre este diagrama desde una conexión comprobada en la pestaña ETL." })); return; }
     try { sessionStorage.setItem(KEY, JSON.stringify(binding)); history.replaceState(null, "", window.location.pathname); } catch { setStorageWarning(true); }
     let active = true;
     const connection = new DiagramClient(binding, next => { if (active) setState(next); });
@@ -21,8 +21,10 @@ export function useDiagramSync() {
     // pagehide also fires on F5. Keep the owner's lease for the next handshake;
     // an actually closed tab is reclaimed by the owner's presence timeout.
     const exit = () => connection.close();
+    const resume = () => { if (!document.hidden) connection.probe(); };
     window.addEventListener("pagehide", exit);
-    return () => { active = false; window.removeEventListener("pagehide", exit); connection.close(); };
+    document.addEventListener("visibilitychange", resume);
+    return () => { active = false; window.removeEventListener("pagehide", exit); document.removeEventListener("visibilitychange", resume); connection.close(); };
   }, []);
   return { client, storageWarning, ...state };
 }

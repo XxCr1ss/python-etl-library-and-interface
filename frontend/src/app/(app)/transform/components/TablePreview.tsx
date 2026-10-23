@@ -27,7 +27,7 @@ export default function TablePreview({ columns, dtypes, previewData, loading, er
     {stale && hasResult && <p role="status" className="text-sm text-warning">Datos desactualizados. La carga se habilitará tras validar la revisión actual.</p>}
     {loading && !hasResult && <LoadingSkeleton label="Calculando vista previa…"><div className="space-y-2">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-10" />)}</div></LoadingSkeleton>}
     {loading && hasResult && <p role="status" className="text-sm text-content-muted">Actualizando vista previa…</p>}
-    {hasResult && columns.length > 0 && <div role="region" tabIndex={0} aria-label="Tabla de muestra transformada" className="max-h-[32rem] max-w-full overflow-auto rounded-xl border border-line bg-surface">
+    {hasResult && columns.length > 0 && <div role="region" tabIndex={0} aria-label="Tabla de muestra transformada" className="max-h-[max(24rem,calc(100dvh-24rem))] max-w-full overflow-auto rounded-xl border border-line bg-surface">
       <Table><TableCaption>{previewData.length} filas de muestra de {totalRows ?? "total desconocido"} transformadas · {columns.length} columnas</TableCaption>
         <TableHead className="sticky top-0 z-10"><TableRow>{columns.map(column => <TableHeader key={column} className="min-w-[9rem] align-top">
           <span className="block break-words">{column}</span><Badge tone={dtypeTone(dtypes[column] ?? "")} title={`Tipo de ${column}: ${dtypes[column] ?? "desconocido"}`}>{dtypes[column] ?? "desconocido"}</Badge>

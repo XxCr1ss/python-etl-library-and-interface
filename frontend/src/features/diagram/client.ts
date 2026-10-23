@@ -12,7 +12,7 @@ export class DiagramClient {
   private closed = false;
   private timer: ReturnType<typeof setInterval>;
   private selectionTimer?: ReturnType<typeof setTimeout>;
-  private selectionRequest?: { id: string; tableId: string; revision: number };
+  private selectionRequest?: { id: string; tableId: string; revision: number; generation: number };
   state: ClientState = { owner: null, connected: false, invalid: false, error: "Vinculando con la pestaña ETL…", selection: null };
   constructor(private binding: Binding, private changed: (state: ClientState) => void, channel = (name: string) => new BroadcastChannel(name)) {
     this.channel = channel(channelName(binding));
@@ -35,7 +35,7 @@ export class DiagramClient {
       this.lastSeen = Date.now(); this.update({ owner, connected: true, error: "" }); return;
     }
     if (message.type === "CONTEXT_INVALIDATED") {
-      this.update({ invalid: true, connected: false, error: "La conexión cambió. Vuelve a abrir el diagrama desde Extracción." });
+      this.update({ invalid: true, connected: false, error: "La conexión cambió. Vuelve a abrir el diagrama desde la pestaña ETL." });
       for (const p of Array.from(this.pending.values())) { p.cleanup(); p.reject(new Error(this.state.error)); }
       this.pending.clear(); return;
     }
@@ -54,7 +54,7 @@ export class DiagramClient {
     else pending.resolve(message.data.value);
   }
   private request(type: "SCHEMA_REQUEST" | "PREVIEW_REQUEST", data?: unknown, signal?: AbortSignal): Promise<unknown> {
-    if (!this.state.connected || this.state.invalid) return Promise.reject(new Error("Vincula de nuevo el diagrama desde la pestaña ETL."));
+    if (!this.state.connected || this.state.invalid || this.state.owner?.suspended) return Promise.reject(new Error(this.state.owner?.reason || "Vincula de nuevo el diagrama desde la pestaña ETL."));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const cancel = () => { this.send("CANCEL_REQUEST", id); this.pending.delete(id); cleanup(); reject(new Error("Solicitud cancelada.")); };
@@ -69,13 +69,13 @@ export class DiagramClient {
   async preview(tableId: string, signal?: AbortSignal) { return tableSample(await this.request("PREVIEW_REQUEST", { tableId }, signal)); }
   useTable(tableId: string) {
     if (!this.state.connected || this.state.owner?.route !== "/transform" || !this.state.owner.available || this.selectionRequest) return;
-    this.selectionRequest = { id: crypto.randomUUID(), tableId, revision: this.state.owner.revision };
+    this.selectionRequest = { id: crypto.randomUUID(), tableId, revision: this.state.owner.revision, generation: this.state.owner.generation ?? 0 };
     this.reconcile();
   }
   reconcile() {
     const request = this.selectionRequest;
     if (!request || !this.state.connected) return;
-    this.send("USE_TABLE_REQUEST", request.id, { tableId: request.tableId, revision: request.revision });
+    this.send("USE_TABLE_REQUEST", request.id, { tableId: request.tableId, revision: request.revision, generation: request.generation });
     this.update({ selection: { status: "sending", message: "Solicitando selección en la pestaña ETL…" } });
     clearTimeout(this.selectionTimer);
     this.selectionTimer = setTimeout(() => this.update({ selection: { status: "uncertain", message: "Resultado sin confirmar. Consulta el estado antes de enviar otra selección." } }), REQUEST_TIMEOUT);
@@ -88,4 +88,5 @@ export class DiagramClient {
     for (const p of Array.from(this.pending.values())) { p.cleanup(); p.reject(new Error("Diagrama cerrado.")); }
     this.pending.clear(); this.channel.close();
   }
+  probe() { if (!this.closed && !this.state.invalid) this.send(this.state.owner ? "STATE_PROBE" : "DIAGRAM_READY"); }
 }

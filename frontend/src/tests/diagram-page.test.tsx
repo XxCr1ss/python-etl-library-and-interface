@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import DiagramPage from "@/features/diagram/DiagramPage";
-import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { DiagramOwner } from "@/features/diagram/coordinator";
 import type { SchemaGraph } from "@/types/diagram";
 import { TestChannel } from "./diagram-channel";
@@ -25,7 +24,7 @@ beforeEach(() => {
     http.post(API_URL + "/extract/database/preview", () => HttpResponse.json(sampleFixture)));
 });
 afterEach(() => { owner.invalidate(); TestChannel.clear(); history.replaceState(null, "", "/"); });
-const mount = () => render(<ThemeProvider><DiagramPage /></ThemeProvider>);
+const mount = () => render(<DiagramPage />);
 describe("diagram page with a real tab bridge", () => {
   it("loads, inspects a table, caches it and keeps a binding for reload without credentials", async () => {
     const user = userEvent.setup(), preview = vi.fn();
@@ -95,7 +94,29 @@ describe("diagram page with a real tab bridge", () => {
     await user.click(screen.getByRole("button", { name: "Reintentar muestra" })); await screen.findByRole("cell", { name: "0" });
     await user.click(screen.getByRole("button", { name: "Actualizar esquema" }));
     await screen.findByRole("button", { name: "Seleccionar orders" });
-    expect(screen.queryByRole("cell", { name: "0" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("cell", { name: "0" })).toBeVisible();
     fireEvent(window, new Event("pagehide"));
+  });
+  it("recupera el mismo diagrama y vuelve a consultar su tabla al revalidar la conexión", async () => {
+    let value = 1, calls = 0;
+    server.use(http.post(API_URL + "/extract/database/preview", () => {
+      calls++; return HttpResponse.json({ ...sampleFixture, preview_data: [{ id: value, customer_id: null }] });
+    }));
+    const user = userEvent.setup(); mount(); await screen.findByRole("button", { name: "Seleccionar orders" });
+    await user.click(screen.getByRole("button", { name: "Seleccionar orders" })); await screen.findByRole("cell", { name: "1" });
+    act(() => owner.suspend(diagramConnection, "Verificando conexión…"));
+    await waitFor(() => expect(screen.queryByRole("cell", { name: "1" })).not.toBeInTheDocument());
+    expect(screen.queryByText("La tabla no contiene filas de muestra.")).not.toBeInTheDocument();
+    value = 2; act(() => owner.refresh(diagramConnection));
+    expect(await screen.findByRole("cell", { name: "2" })).toBeVisible();
+    expect(calls).toBe(2);
+  });
+  it("retira la selección si la tabla desaparece al actualizar el esquema", async () => {
+    const user = userEvent.setup(); mount(); await screen.findByRole("button", { name: "Seleccionar orders" });
+    await user.click(screen.getByRole("button", { name: "Seleccionar orders" })); await screen.findByRole("cell", { name: "0" });
+    server.use(http.post(API_URL + "/extract/database/schema-graph", () => HttpResponse.json({ ...graphFixture, nodes: [], edges: [] })));
+    act(() => owner.refresh(diagramConnection));
+    expect(await screen.findByText(/La tabla seleccionada ya no está disponible/)).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Muestra de datos" })).not.toBeInTheDocument();
   });
 });

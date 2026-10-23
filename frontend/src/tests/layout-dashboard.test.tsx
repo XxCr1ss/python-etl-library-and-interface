@@ -164,6 +164,20 @@ function Credentials() {
   return <button onClick={() => recoverCredentials({ primary: "synthetic-only" })}>Recuperar secreto de prueba</button>;
 }
 describe("shell actions, routing and keyboard", () => {
+  it("oculta y restaura la navegación de escritorio sin desmontar la sesión ni el contenido", async () => {
+    const user = userEvent.setup(); save({ source: date });
+    function Content() { const [value, setValue] = useState(0); return <button onClick={() => setValue(value + 1)}>Trabajo conservado: {value}</button>; }
+    render(<AppLayout><Content /></AppLayout>);
+    await user.click(screen.getByRole("button", { name: "Trabajo conservado: 0" }));
+    await user.click(screen.getByRole("button", { name: "Ocultar navegación" }));
+    expect(screen.queryByRole("navigation", { name: "Navegación principal" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trabajo conservado: 1" })).toBeVisible();
+    const restore = screen.getByRole("button", { name: "Mostrar navegación" });
+    expect(restore).toHaveAttribute("aria-expanded", "false");
+    restore.focus(); await user.keyboard("{Enter}");
+    expect(screen.getByRole("navigation", { name: "Navegación principal" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Trabajo conservado: 1" })).toBeVisible();
+  });
   it("sidebar route and step route use independent aria-current and blocked links have no href", () => {
     resetNavigation("/load"); render(<AppLayout><p>Ruta directa</p></AppLayout>);
     for (const name of ["Navegación principal", "Etapas del pipeline"]) {

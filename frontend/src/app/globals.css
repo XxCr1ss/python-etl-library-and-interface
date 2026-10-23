@@ -39,43 +39,6 @@
   --ui-dtype-unknown: #475569;
 }
 
-.dark {
-    --background: #0f172a; /* Slate 900 */
-    --foreground: #f8fafc; /* Slate 50 */
-    --sidebar-bg: #1e293b; /* Slate 800 */
-    --sidebar-border: #334155; /* Slate 700 */
-    --primary: #3b82f6; /* Blue 500 */
-    --primary-hover: #60a5fa; /* Blue 400 */
-    --accent: #1e293b; /* Slate 800 */
-    --ui-surface: #0f172a;
-    --ui-surface-muted: #1e293b;
-    --ui-content: #f8fafc;
-    --ui-content-muted: #cbd5e1;
-    --ui-line: #94a3b8;
-    --ui-focus: #93c5fd;
-    --ui-action: #93c5fd;
-    --ui-action-hover: #bfdbfe;
-    --ui-on-action: #172554;
-    --ui-success: #86efac;
-    --ui-success-surface: #052e16;
-    --ui-warning: #fcd34d;
-    --ui-warning-surface: #451a03;
-    --ui-danger: #fda4af;
-    --ui-danger-surface: #4c0519;
-    --ui-danger-solid: #fda4af;
-    --ui-on-danger: #4c0519;
-    --ui-skeleton: #475569;
-    --ui-pipeline-pending: #cbd5e1;
-    --ui-pipeline-active: #93c5fd;
-    --ui-pipeline-complete: #86efac;
-    --ui-pipeline-blocked: #fda4af;
-    --ui-dtype-numeric: #93c5fd;
-    --ui-dtype-text: #d8b4fe;
-    --ui-dtype-date: #fcd34d;
-    --ui-dtype-boolean: #5eead4;
-    --ui-dtype-unknown: #cbd5e1;
-}
-
 body {
   color: var(--foreground);
   background: var(--background);
@@ -83,7 +46,6 @@ body {
 }
 
 :root { color-scheme: light; }
-.dark { color-scheme: dark; }
 
 a:focus-visible, select:focus-visible {
   outline: 2px solid var(--ui-focus);

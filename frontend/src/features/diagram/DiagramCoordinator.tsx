@@ -7,8 +7,10 @@ import { getAgentStatus } from "@/services/extractApi";
 import type { SourceConnectionDto } from "@/types/etl";
 import { DiagramOwner, type Selection } from "./coordinator";
 import { sourceName } from "@/types/etlLabels";
+import { connectionFromSource, sameConnection } from "./connectionIdentity";
 
-const Context = createContext<{ open: (connection: SourceConnectionDto) => string; invalidate: () => void; setEditorOpen: (value: boolean) => void } | null>(null);
+const Context = createContext<{ open: (connection: SourceConnectionDto) => string; invalidate: (connection?: SourceConnectionDto) => void;
+  refresh: (connection: SourceConnectionDto) => void; suspend: (connection: SourceConnectionDto, reason: string) => void; setEditorOpen: (value: boolean) => void } | null>(null);
 export const useDiagramCoordinator = () => useContext(Context);
 export function DiagramCoordinator({ children }: { children: ReactNode }) {
   const session = usePipelineSession(), route = usePathname();
@@ -25,12 +27,8 @@ export function DiagramCoordinator({ children }: { children: ReactNode }) {
       stamp: JSON.stringify([pathname, state.revision, state.targetVersion, state.loadVersion, state.credentialVersion, state.execution?.status, editorOpen.current]),
       sourceMatches: (connection, table) => {
         const source = state.source;
-        if (connection.connection_id) return source?.type === "database" && source.table_name === table &&
-          source.savedConnection?.connection_id === connection.connection_id && source.savedConnection.connection_version === connection.connection_version &&
-          source.savedConnection.runtime_agent_id === connection.runtime_agent_id;
-        return source?.type === "database" && source.table_name === table &&
-          (["db_type", "host", "port", "database", "user", "service_name", "use_agent", "agent_id"] as const).every(k => (source[k] ?? null) === (connection[k] ?? null)) &&
-          s.credentials.has(source.credentialRef) && s.credentials.get(source.credentialRef) === connection.password;
+        const active = source && connectionFromSource(source, s.credentials);
+        return source?.type === "database" && source.table_name === table && !!active && sameConnection(active, connection);
       } };
   }, (connection, table) => current.current.session.confirmSource(connection.connection_id
     ? { type: "database", ...connection.display, savedConnection: { connection_id: connection.connection_id, connection_version: connection.connection_version,
@@ -44,21 +42,28 @@ export function DiagramCoordinator({ children }: { children: ReactNode }) {
   useEffect(() => {
     const abort = new AbortController();
     let checking = false;
-    const timer = setInterval(() => {
-      if (owner.expire()) setOpeningWarning("El diagrama no confirmó su apertura. Revisa el bloqueo de nuevas pestañas del navegador y vuelve a abrirlo desde Extracción.");
+    const check = () => {
+      if (document.hidden || abort.signal.aborted) return;
+      if (owner.expire()) setOpeningWarning("El diagrama no confirmó su apertura. Revisa el bloqueo de nuevas pestañas y vuelve a abrirlo desde la pestaña ETL.");
+      owner.publish();
       if (checking) return;
       const agents = Array.from(new Set(owner.connections().filter(c => c.use_agent || (c.connection_id && c.display?.use_agent))
         .map(c => c.connection_id ? c.runtime_agent_id : c.agent_id).filter((id): id is string => !!id)));
       checking = true;
-      void Promise.all(agents.map(id => getAgentStatus(id, abort.signal))).then(states => {
-        if (!abort.signal.aborted && states.some(s => !s.connected)) owner.invalidate();
-      }).catch(() => { if (!abort.signal.aborted) owner.invalidate(); }).finally(() => { checking = false; });
-    }, 5000);
+      void Promise.all(agents.map(async id => {
+        try { const state = await getAgentStatus(id, abort.signal); if (!abort.signal.aborted) owner.agentStatus(id, state.connected); }
+        catch { if (!abort.signal.aborted) owner.agentStatus(id, false); }
+      })).finally(() => { checking = false; });
+    };
+    const timer = setInterval(check, 5000);
     const exit = () => owner.invalidate();
     window.addEventListener("pagehide", exit);
-    return () => { clearInterval(timer); abort.abort(); window.removeEventListener("pagehide", exit); owner.invalidate(); };
+    window.addEventListener("etl:session-reset", exit);
+    document.addEventListener("visibilitychange", check);
+    return () => { clearInterval(timer); abort.abort(); window.removeEventListener("pagehide", exit); window.removeEventListener("etl:session-reset", exit); document.removeEventListener("visibilitychange", check); owner.invalidate(); };
   }, [owner]);
-  const bridge = useMemo(() => ({ open: (connection: SourceConnectionDto) => { setOpeningWarning(""); return owner.open(connection); }, invalidate: () => owner.invalidate(),
+  const bridge = useMemo(() => ({ open: (connection: SourceConnectionDto) => { setOpeningWarning(""); return owner.open(connection); }, invalidate: (connection?: SourceConnectionDto) => owner.invalidate(connection),
+    refresh: (connection: SourceConnectionDto) => owner.refresh(connection), suspend: (connection: SourceConnectionDto, reason: string) => owner.suspend(connection, reason),
     setEditorOpen: (value: boolean) => { editorOpen.current = value; owner.publish(); } }), [owner]);
   return <Context.Provider value={bridge}>
     {children}

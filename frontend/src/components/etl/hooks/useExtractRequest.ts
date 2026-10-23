@@ -26,25 +26,29 @@ export function useExtractRequest<T>(active: boolean) {
     cancel();
     setState({ status: error ? "error" : "idle", revision: revision.current, requestId: requestId.current, result: null, error });
   }, [cancel]);
+  const pause = useCallback((error: string | null = null) => {
+    cancel();
+    setState(previous => ({ ...previous, status: previous.result ? "success" : error ? "error" : "idle", error }));
+  }, [cancel]);
   useEffect(() => {
     if (!active) invalidate();
     return cancel;
   }, [active, invalidate, cancel]);
-  const run = useCallback(async (operation: (signal: AbortSignal) => Promise<T>) => {
+  const run = useCallback(async (operation: (signal: AbortSignal) => Promise<T>, retainResult = false) => {
     if (!enabled.current || controller.current) return;
     const abort = new AbortController(); controller.current = abort;
     const capturedRevision = revision.current;
     const id = ++requestId.current;
     const current = () => enabled.current && !abort.signal.aborted && capturedRevision === revision.current && id === requestId.current;
-    setState({ status: "pending", revision: capturedRevision, requestId: id, result: null, error: null });
+    setState(previous => ({ status: "pending", revision: capturedRevision, requestId: id, result: retainResult ? previous.result : null, error: null }));
     try {
       const result = await operation(abort.signal);
-      if (current()) setState({ status: "success", revision: capturedRevision, requestId: id, result, error: null });
+      if (current()) { setState({ status: "success", revision: capturedRevision, requestId: id, result, error: null }); return result; }
     } catch (error) {
-      if (current()) setState({ status: "error", revision: capturedRevision, requestId: id, result: null, error: error instanceof Error ? error.message : "No se pudo consultar el origen." });
+      if (current()) setState(previous => ({ status: "error", revision: capturedRevision, requestId: id, result: retainResult ? previous.result : null, error: error instanceof Error ? error.message : "No se pudo consultar el origen." }));
     } finally {
       if (controller.current === abort) controller.current = null;
     }
   }, []);
-  return { ...state, invalidate, run };
+  return { ...state, invalidate, pause, run };
 }

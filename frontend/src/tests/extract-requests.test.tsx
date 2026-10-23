@@ -13,7 +13,7 @@ describe("revisiones de extracción", () => {
     let finish!: (value: string) => void;
     const operation = vi.fn(() => new Promise<string>(resolve => { finish = resolve; }));
     const { result } = renderHook(() => useExtractRequest<string>(true));
-    let old!: Promise<void>;
+    let old!: Promise<string | undefined>;
     act(() => { old = result.current.run(operation); void result.current.run(operation); });
     expect(operation).toHaveBeenCalledOnce();
     act(() => result.current.invalidate());
@@ -24,7 +24,7 @@ describe("revisiones de extracción", () => {
   it("desactivar y desmontar aborta e impide que una respuesta tardía habilite resultado", async () => {
     let finish!: (value: string) => void; let signal!: AbortSignal;
     const view = renderHook(({ active }) => useExtractRequest<string>(active), { initialProps: { active: true } });
-    let pending!: Promise<void>;
+    let pending!: Promise<string | undefined>;
     act(() => { pending = view.result.current.run(s => { signal = s; return new Promise(resolve => { finish = resolve; }); }); });
     view.rerender({ active: false }); expect(signal.aborted).toBe(true);
     await act(async () => { finish("vieja"); await pending; });

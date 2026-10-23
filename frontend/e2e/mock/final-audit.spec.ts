@@ -10,7 +10,7 @@ const wide = {
 
 for (const theme of ["light", "dark"] as const) {
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {
-    test(`auditoría ${theme} ${viewport.width}: semántica, contraste, tabla 10×50, modal, foco y movimiento`, async ({ page, mockApi }, testInfo) => {
+    test(`auditoría claro (sistema ${theme}) ${viewport.width}: semántica, contraste, tabla 10×50, modal, foco y movimiento`, async ({ page, mockApi }, testInfo) => {
       test.setTimeout(90_000);
       await page.setViewportSize(viewport);
       await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
@@ -38,7 +38,7 @@ for (const theme of ["light", "dark"] as const) {
       await testInfo.attach("transform-semantic", { body: await page.getByRole("main").ariaSnapshot(), contentType: "text/plain" });
       await page.evaluate(() => window.scrollTo(0, 0));
       await testInfo.attach("transform", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
-      if (process.env.ETL_E2E_VISUAL === "1") await expect(page).toHaveScreenshot(`transform-${theme}-${viewport.width}.png`, { fullPage: true, maxDiffPixelRatio: 0.002 });
+      if (process.env.ETL_E2E_VISUAL === "1") await expect(page).toHaveScreenshot(`transform-light-${viewport.width}.png`, { fullPage: true, maxDiffPixelRatio: 0.002 });
       const trigger = page.getByRole("button", { name: "Agregar Transformación" });
       await trigger.focus(); await page.keyboard.press("Enter");
       const dialog = page.getByRole("dialog");
@@ -55,7 +55,7 @@ for (const theme of ["light", "dark"] as const) {
       });
       expect(durations.every(d => d.split(",").every(v => parseFloat(v) <= 0.00001))).toBe(true);
       await testInfo.attach("editor", { body: await page.screenshot(), contentType: "image/png" });
-      if (process.env.ETL_E2E_VISUAL === "1") await expect(page).toHaveScreenshot(`editor-${theme}-${viewport.width}.png`, { maxDiffPixelRatio: 0.002 });
+      if (process.env.ETL_E2E_VISUAL === "1") await expect(page).toHaveScreenshot(`editor-light-${viewport.width}.png`, { maxDiffPixelRatio: 0.002 });
       await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
       // 720×450 reproduces the CSS reflow area of a 1440×900 display at 200%.
       // This assertion does not certify every native browser zoom implementation.

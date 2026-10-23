@@ -54,6 +54,7 @@ function useSessionCore() {
   const editable = useCallback(() => current.current.hydrationStatus !== "hydrating" && !current.current.recoveryRequired && current.current.execution?.status !== "running", []);
   useEffect(() => {
     const previous = previousAgent.current;
+    if (targetAgent.status === "checking") return;
     previousAgent.current = targetAgent;
     if (current.current.target?.use_agent && previous.status === "connected" &&
       (targetAgent.status !== "connected" || previous.connectionId !== targetAgent.connectionId)) {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const css = readFileSync(path.resolve(process.cwd(), "src/app/globals.css"), "utf8");
-const [light, dark] = css.split(".dark {");
+
 function luminance(hex: string) {
   const channels = hex.match(/[a-f\d]{2}/gi)!.map((channel) => {
     const s = parseInt(channel, 16) / 255;
@@ -11,8 +11,8 @@ function luminance(hex: string) {
   });
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
-describe.each([["claro", light], ["oscuro", dark]])("contraste de tokens: %s", (_, block) => {
-  const colors = Object.fromEntries(Array.from(block.matchAll(/--ui-([\w-]+):\s*(#[\da-f]{6})/gi), (match) => [match[1], match[2]]));
+describe("contraste de tokens claros", () => {
+  const colors = Object.fromEntries(Array.from(css.matchAll(/--ui-([\w-]+):\s*(#[\da-f]{6})/gi), (match) => [match[1], match[2]]));
   function contrast(foreground: string, background: string) {
     const a = luminance(colors[foreground]);
     const b = luminance(colors[background]);

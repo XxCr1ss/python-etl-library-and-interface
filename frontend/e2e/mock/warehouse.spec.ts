@@ -39,8 +39,9 @@ test("independent analytics, global KPIs, drill-down, export and responsive keyb
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Descargar CSV" }).click();
   expect((await download).suggestedFilename()).toBe("reporte_bodega.csv");
-  for (const theme of ["light", "dark"]) {
-    await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), theme === "dark");
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await expect(page.locator("html")).not.toHaveClass(/dark/);
     for (const width of [375, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

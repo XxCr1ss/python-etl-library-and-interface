@@ -15,6 +15,11 @@ function mount(patch = {}) {
   return { ...view, props, onUse, onClose, onRetry };
 }
 describe("lower table panel", () => {
+  it("no presenta una muestra pendiente como una tabla vacía", () => {
+    mount({ sample: null });
+    expect(screen.getByRole("status")).toHaveTextContent("La muestra está pendiente de consulta.");
+    expect(screen.queryByText("La tabla no contiene filas de muestra.")).not.toBeInTheDocument();
+  });
   it("shows bounded data including zero/null and collapses without discarding it", async () => {
     const user = userEvent.setup(); const { onUse, onClose } = mount();
     expect(screen.getByRole("cell", { name: "0" })).toBeVisible();

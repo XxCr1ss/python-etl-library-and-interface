@@ -1,6 +1,6 @@
 # Primitivas UI
 
-Importar componentes desde `@/components/ui` o el archivo concreto. Props y refs de controles nativos se conservan. `cn()` combina `clsx` y `tailwind-merge` existentes. Tokens `surface`, `content`, `line`, `focus`, `action`, `success`, `warning`, `danger`, `pipeline` y `dtype` están definidos en CSS/Tailwind; siguen `prefers-color-scheme` sin selector de tema nuevo.
+Importar componentes desde `@/components/ui` o el archivo concreto. Props y refs de controles nativos se conservan. `cn()` combina `clsx` y `tailwind-merge` existentes. Tokens `surface`, `content`, `line`, `focus`, `action`, `success`, `warning`, `danger`, `pipeline` y `dtype` están definidos en CSS/Tailwind; usan exclusivamente el tema claro, independientemente de `prefers-color-scheme`.
 
 ```tsx
 <Button onClick={save} isLoading={saving}>Guardar</Button>

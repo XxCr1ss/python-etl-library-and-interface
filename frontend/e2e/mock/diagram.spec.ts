@@ -4,14 +4,14 @@ import { graphFixture, sampleFixture } from "../../src/tests/fixtures/diagram";
 import type { SchemaGraph } from "../../src/types/diagram";
 import operations from "../../src/tests/fixtures/operations-catalog.json";
 
-async function mock(context: BrowserContext, graph = graphFixture) {
+async function mock(context: BrowserContext, graph = graphFixture, agentConnected = false) {
   const previews: { table_name: string; limit?: number }[] = [];
   await context.route("**/api/v1/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname.replace("/api/v1", "");
     const body = request.method() === "POST" ? request.postDataJSON() : {};
     let data: unknown;
     if (path === "/health") data = { status: "ok", message: "OK" };
-    else if (path.startsWith("/extract/agent/status/")) data = { agent_id: path.split("/").at(-1), connected: false };
+    else if (path.startsWith("/extract/agent/status/")) data = { agent_id: path.split("/").at(-1), connected: agentConnected, connection_id: agentConnected ? "same-agent" : null };
     else if (path === "/extract/database") data = { status: "success", message: "OK", tables: graph.nodes.filter(n => n.selectable).map(n => n.table_name), schema_preview: Object.fromEntries(graph.nodes.map(n => [n.table_name, n.columns.map(c => c.name)])) };
     else if (path === "/extract/database/schema-graph") data = graph;
     else if (path === "/extract/database/preview") {
@@ -27,15 +27,80 @@ async function mock(context: BrowserContext, graph = graphFixture) {
   });
   return previews;
 }
-async function connect(page: Page) {
+async function connect(page: Page, agent = false) {
   await page.goto("/extract");
   await page.getByRole("tab", { name: "Base de Datos Relacional" }).click();
   await page.getByLabel("Base de datos", { exact: true }).fill("synthetic");
   await page.getByLabel("Usuario", { exact: true }).fill("test");
   await page.getByRole("button", { name: "Usar contraseña vacía explícitamente" }).click();
+  if (agent) { await page.getByLabel("Usar agente local híbrido").check(); await expect(page.getByText("Agente conectado", { exact: true })).toBeVisible(); }
   await page.getByRole("button", { name: "Conectar y listar tablas" }).click();
   await expect(page.getByRole("link", { name: "Abrir diagrama E-R en otra pestaña" })).toBeVisible();
 }
+
+for (const agent of [false, true]) test(`preserves extraction and an open diagram across focus, reconnect and transformation (${agent ? "agent" : "direct"})`, async ({ page, context }) => {
+  const previews = await mock(context, graphFixture, agent);
+  await connect(page, agent);
+  await page.getByLabel("Tabla de origen", { exact: true }).selectOption("customers");
+  await expect(page.getByRole("button", { name: "Continuar a Transformación" })).toBeEnabled();
+  const diagram = await openDiagram(page, context);
+  await diagram.getByLabel("Buscar tabla", { exact: true }).selectOption("child");
+  await expect(diagram.getByRole("region", { name: "Muestra de datos", exact: true })).toContainText("customer_id");
+  for (let i = 0; i < 5; i++) {
+    await diagram.bringToFront(); await page.bringToFront();
+    // Also dispatch in headless Chromium, which can keep both pages visible.
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByLabel("Tabla de origen", { exact: true })).toHaveValue("customers");
+    await expect(page.getByRole("region", { name: "Muestra del origen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continuar a Transformación" })).toBeEnabled();
+  }
+  const before = previews.filter(p => p.table_name === "orders").length;
+  await page.getByRole("button", { name: "Conectar y listar tablas" }).click();
+  await expect(page.getByLabel("Tabla de origen", { exact: true })).toBeEnabled();
+  await expect.poll(() => previews.filter(p => p.table_name === "orders").length).toBeGreaterThan(before);
+  await expect(diagram.getByRole("region", { name: "Muestra de datos", exact: true })).toContainText("customer_id");
+  await expect(diagram.getByText("La tabla no contiene filas de muestra.")).toHaveCount(0);
+  await page.getByRole("button", { name: "Continuar a Transformación" }).click();
+  await expect(page).toHaveURL(/\/transform$/);
+  await expect(page.getByRole("link", { name: "Abrir diagrama E-R en otra pestaña" })).toHaveAttribute("aria-disabled", "false");
+  await diagram.getByRole("button", { name: "Usar como origen en Transformación" }).click();
+  await page.getByRole("button", { name: "Confirmar tabla" }).click();
+  await expect(page.getByRole("heading", { name: "synthetic.orders", exact: true })).toBeVisible();
+  const another = await openDiagram(page, context);
+  await expect(another.getByLabel("Buscar tabla", { exact: true })).toBeVisible();
+  await page.getByRole("navigation", { name: "Navegación principal" }).getByRole("link", { name: "Extracción", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Base de Datos Relacional" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Tabla de origen", { exact: true })).toHaveValue("customers");
+});
+
+test("transformation aligns with the pipeline and grows when desktop navigation is hidden", async ({ page, context }, testInfo) => {
+  await mock(context); await connect(page);
+  await page.getByLabel("Tabla de origen", { exact: true }).selectOption("customers");
+  await page.getByRole("button", { name: "Continuar a Transformación" }).click();
+  for (const width of [1440, 1920]) {
+    await page.setViewportSize({ width, height: 1080 });
+    const stages = page.getByRole("navigation", { name: "Etapas del pipeline" });
+    const title = page.getByText("Paso 2 · Transformación", { exact: true });
+    const next = page.getByRole("link", { name: "Continuar a la Carga" });
+    const verify = async () => {
+      const box = (await stages.boundingBox())!, left = (await title.boundingBox())!, right = (await next.boundingBox())!;
+      expect(Math.abs(box.x - left.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(box.x + box.width - right.x - right.width)).toBeLessThanOrEqual(2);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      return box.width;
+    };
+    const before = await verify();
+    await page.screenshot({ path: testInfo.outputPath(`transform-expanded-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "Ocultar navegación" }).click();
+    expect(await verify() - before).toBe(256);
+    await expect(page.getByRole("navigation", { name: "Navegación principal" })).toBeHidden();
+    await expect(page.getByRole("heading", { name: "synthetic.customers", exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`transform-collapsed-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "Mostrar navegación" }).focus(); await page.keyboard.press("Enter");
+    await expect(page.getByRole("navigation", { name: "Navegación principal" })).toBeVisible();
+    expect(await verify()).toBe(before);
+  }
+});
 async function openDiagram(page: Page, context: BrowserContext) {
   const next = context.waitForEvent("page");
   await page.getByRole("link", { name: "Abrir diagrama E-R en otra pestaña" }).click();
@@ -104,17 +169,23 @@ function mediumGraph(): SchemaGraph {
   }
   return graph;
 }
-test("medium graph remains readable and accessible in both themes", async ({ page, context }, testInfo) => {
+test("medium graph stays light and accessible with either system theme", async ({ page, context }, testInfo) => {
+  await context.addInitScript(() => localStorage.setItem("etl_theme_preference", "dark"));
   await mock(context, mediumGraph()); await connect(page); const diagram = await openDiagram(page, context);
   await expect(diagram.locator(".react-flow__node-table")).toHaveCount(20);
   await expect(diagram.locator(".react-flow__edge")).toHaveCount(30);
   for (const dark of [false, true]) {
-    await diagram.getByLabel("Tema", { exact: true }).selectOption(dark ? "dark" : "light");
-    await expect(diagram.locator("html")).toHaveClass(dark ? /dark/ : /^(?!.*dark)/);
+    await diagram.emulateMedia({ colorScheme: dark ? "dark" : "light" });
+    await page.emulateMedia({ colorScheme: dark ? "dark" : "light" });
+    await expect(diagram.getByLabel("Tema", { exact: true })).toHaveCount(0);
+    await expect(diagram.locator("html")).not.toHaveClass(/dark/);
+    await expect(diagram.locator(".react-flow")).toHaveClass(/light/);
+    expect(await diagram.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light");
     const violations = (await new AxeBuilder({ page: diagram }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations;
     expect(violations).toEqual([]);
-    await diagram.screenshot({ path: testInfo.outputPath("diagram-" + (dark ? "dark" : "light") + ".png") });
-    if (process.env.ETL_E2E_VISUAL === "1") await expect(diagram).toHaveScreenshot("diagram-" + (dark ? "dark" : "light") + "-1440.png", { maxDiffPixelRatio: 0.002 });
+    await diagram.screenshot({ path: testInfo.outputPath("diagram-system-" + (dark ? "dark" : "light") + ".png") });
+    if (process.env.ETL_E2E_VISUAL === "1") await expect(diagram).toHaveScreenshot("diagram-light-1440.png", { maxDiffPixelRatio: 0.002 });
   }
   await diagram.getByLabel("Buscar tabla", { exact: true }).selectOption("table19");
   await expect(diagram.getByRole("region", { name: "Muestra de datos", exact: true })).toBeVisible();

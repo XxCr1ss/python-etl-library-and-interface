@@ -18,4 +18,4 @@ npm run test:e2e:mock -- manual.spec.ts
 npm run build
 ```
 
-Las pruebas E2E usan respuestas sintéticas, comprueban navegación y conservación de credenciales en memoria sin ejecutar cargas, y verifican accesibilidad con axe en ambos temas a 375, 768, 1024 y 1440 px. También revisan ampliación de texto al 200 %; no sustituyen todas las configuraciones de zoom o tecnologías de asistencia.
+Las pruebas E2E usan respuestas sintéticas, comprueban navegación y conservación de credenciales en memoria sin ejecutar cargas, y verifican accesibilidad con axe en tema claro, también ante una preferencia heredada oscura a 375, 768, 1024 y 1440 px. También revisan ampliación de texto al 200 %; no sustituyen todas las configuraciones de zoom o tecnologías de asistencia.

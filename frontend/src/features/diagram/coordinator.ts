@@ -2,10 +2,11 @@ import type { SchemaGraph } from "@/types/diagram";
 import type { SourceConnectionDto } from "@/types/etl";
 import { getSchemaGraph, getTableSample } from "@/services/diagramApi";
 import { channelName, envelope, parseMessage, PRESENCE_TTL, type Binding, type OwnerState, type WireMessage } from "./protocol";
+import { sameConnection } from "./connectionIdentity";
 
 export interface OwnerContext extends Omit<OwnerState, "stateVersion"> { stamp: string; sourceMatches: (connection: SourceConnectionDto, table: string) => boolean }
 export interface Selection { pairingId: string; requestId: string; table: string; revision: number; stamp: string }
-interface Link { binding: Binding; channel: BroadcastChannel; connection: SourceConnectionDto; instance: string; seen: number; graph?: SchemaGraph; requests: Map<string, AbortController>; results: Map<string, unknown> }
+interface Link { binding: Binding; channel: BroadcastChannel; connection: SourceConnectionDto; instance: string; seen: number; generation: number; suspended: string; graph?: SchemaGraph; requests: Map<string, AbortController>; results: Map<string, unknown> }
 export class DiagramOwner {
   private links = new Map<string, Link>();
   private ownerTabId = crypto.randomUUID();
@@ -17,7 +18,7 @@ export class DiagramOwner {
   open(connection: SourceConnectionDto) {
     const binding: Binding = { pairingId: crypto.randomUUID(), ownerTabId: this.ownerTabId, connectionVersion: ++this.version };
     const channel = this.channel(channelName(binding));
-    const link: Link = { binding, channel, connection: { ...connection }, instance: "", seen: Date.now(), requests: new Map(), results: new Map() };
+    const link: Link = { binding, channel, connection: { ...connection }, instance: "", seen: Date.now(), generation: 0, suspended: "", requests: new Map(), results: new Map() };
     this.links.set(binding.pairingId, link);
     channel.onmessage = event => { void this.receive(link, event.data); };
     return "/extract/diagram#" + encodeURIComponent(JSON.stringify(binding));
@@ -27,7 +28,9 @@ export class DiagramOwner {
   }
   private state(link: Link) {
     const context = this.context();
-    this.send(link, "OWNER_STATE", undefined, { route: context.route, revision: context.revision, available: context.available && !this.pending, reason: this.pending ? "Hay una selección pendiente de confirmación en la pestaña ETL." : context.reason, stateVersion: ++this.stateVersion });
+    this.send(link, "OWNER_STATE", undefined, { route: context.route, revision: context.revision, available: context.available && !this.pending && !link.suspended,
+      reason: link.suspended || (this.pending ? "Hay una selección pendiente de confirmación en la pestaña ETL." : context.reason),
+      generation: link.generation, suspended: !!link.suspended, stateVersion: ++this.stateVersion });
   }
   publish() {
     if (this.pending && this.context().stamp !== this.pending.stamp) this.finish(this.pending, "cancelled", "La sesión cambió. Vuelve a seleccionar la tabla.");
@@ -36,6 +39,7 @@ export class DiagramOwner {
   private result(link: Link, id: string, data: unknown) { link.results.set(id, data); this.send(link, "USE_TABLE_RESULT", id, data); }
   private reason(link: Link, revision: number) {
     const c = this.context();
+    if (link.suspended) return link.suspended;
     if (c.route !== "/transform") return "Abre Transformación en la pestaña ETL para usar esta tabla.";
     if (!c.available) return c.reason;
     if (c.revision !== revision) return "La sesión cambió. Actualiza el estado y vuelve a seleccionar.";
@@ -63,9 +67,9 @@ export class DiagramOwner {
     if (message.type === "CANCEL_REQUEST") { link.requests.get(id)?.abort(); link.requests.delete(id); return; }
     if (message.type === "USE_TABLE_REQUEST") {
       if (link.results.has(id)) { this.send(link, "USE_TABLE_RESULT", id, link.results.get(id)); return; }
-      const data = message.data as { tableId: string; revision: number };
+      const data = message.data as { tableId: string; revision: number; generation?: number };
       const table = link.graph?.nodes.find(n => n.id === data.tableId && n.selectable);
-      const error = this.reason(link, data.revision);
+      const error = data.generation !== undefined && data.generation !== link.generation ? "El esquema cambió. Vuelve a seleccionar la tabla." : this.reason(link, data.revision);
       if (!table || error || this.pending) { this.result(link, id, { status: "rejected", message: error || "Tabla no disponible o selección pendiente." }); return; }
       if (this.context().sourceMatches(link.connection, table.table_name)) { this.result(link, id, { status: "applied", message: "Esta tabla ya es el origen activo.", revision: data.revision }); return; }
       this.pending = { pairingId: link.binding.pairingId, requestId: id, table: table.table_name, revision: data.revision, stamp: this.context().stamp };
@@ -75,17 +79,19 @@ export class DiagramOwner {
     if (!["SCHEMA_REQUEST", "PREVIEW_REQUEST"].includes(message.type) || link.requests.has(id)) return;
     const abort = new AbortController(); link.requests.set(id, abort);
     const type = message.type === "SCHEMA_REQUEST" ? "SCHEMA_RESULT" : "PREVIEW_RESULT";
+    const generation = link.generation;
     try {
+      if (link.suspended) throw new Error(link.suspended);
       let data: unknown;
       if (message.type === "SCHEMA_REQUEST") {
         data = await getSchemaGraph(link.connection, abort.signal);
-        if (!abort.signal.aborted) link.graph = data as SchemaGraph;
+        if (!abort.signal.aborted && generation === link.generation) link.graph = data as SchemaGraph;
       } else {
         const table = link.graph?.nodes.find(n => n.id === (message.data as { tableId: string }).tableId && n.selectable);
         if (!table) throw new Error("La tabla no está disponible en el esquema actual.");
         data = await getTableSample(link.connection, table.table_name, abort.signal);
       }
-      if (!abort.signal.aborted && this.links.has(link.binding.pairingId)) this.send(link, type, id, { value: data });
+      if (!abort.signal.aborted && generation === link.generation && this.links.has(link.binding.pairingId)) this.send(link, type, id, { value: data });
     } catch (error) {
       if (!abort.signal.aborted) this.send(link, type, id, { error: error instanceof Error ? error.message : "No se pudo consultar la base de datos." });
     } finally { if (link.requests.get(id) === abort) link.requests.delete(id); }
@@ -115,15 +121,37 @@ export class DiagramOwner {
     link.requests.clear(); link.results.clear(); link.channel.close();
     this.links.delete(link.binding.pairingId);
   }
-  invalidate() {
-    for (const link of Array.from(this.links.values())) {
-      this.send(link, "CONTEXT_INVALIDATED", undefined, { error: "La conexión cambió. Vuelve a abrir el diagrama desde Extracción." });
+  refresh(connection: SourceConnectionDto) {
+    for (const link of Array.from(this.links.values()).filter(l => sameConnection(l.connection, connection))) {
+      if (this.pending?.pairingId === link.binding.pairingId) this.finish(this.pending, "cancelled", "El esquema cambió. Vuelve a seleccionar la tabla.");
+      for (const abort of Array.from(link.requests.values())) abort.abort();
+      link.requests.clear(); link.graph = undefined; link.generation++; link.suspended = ""; this.state(link);
+    }
+  }
+  suspend(connection: SourceConnectionDto, reason: string) {
+    for (const link of Array.from(this.links.values()).filter(l => sameConnection(l.connection, connection))) {
+      if (link.suspended === reason) continue;
+      link.suspended = reason;
+      if (this.pending?.pairingId === link.binding.pairingId) this.finish(this.pending, "cancelled", reason);
+      this.state(link);
+    }
+  }
+  agentStatus(agentId: string, available: boolean) {
+    for (const connection of this.connections().filter(c => (c.connection_id ? c.runtime_agent_id : c.use_agent ? c.agent_id : null) === agentId)) {
+      if (!available) this.suspend(connection, "El agente no está disponible. Comprueba su conexión; el diagrama se recuperará al volver.");
+      else if (Array.from(this.links.values()).some(l => sameConnection(l.connection, connection) && l.suspended.startsWith("El agente"))) this.refresh(connection);
+    }
+  }
+  invalidate(connection?: SourceConnectionDto) {
+    for (const link of Array.from(this.links.values()).filter(l => !connection || sameConnection(l.connection, connection))) {
+      this.send(link, "CONTEXT_INVALIDATED", undefined, { error: "La conexión cambió. Vuelve a abrir el diagrama desde la pestaña ETL." });
       this.close(link);
     }
   }
   expire() {
     let unopened = 0;
-    for (const link of Array.from(this.links.values())) if (Date.now() - link.seen > PRESENCE_TTL * (link.instance ? 6 : 1)) {
+    // Background tabs can be throttled for minutes. Keep established leases for a day.
+    for (const link of Array.from(this.links.values())) if (Date.now() - link.seen > (link.instance ? 86400000 : PRESENCE_TTL)) {
       if (!link.instance) unopened++;
       this.close(link);
     }

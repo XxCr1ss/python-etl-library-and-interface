@@ -4,7 +4,6 @@ import { Background, BaseEdge, Controls, ReactFlow, ReactFlowProvider, useNodesS
 import "@xyflow/react/dist/style.css";
 import "./diagram.css";
 import { Button } from "@/components/ui";
-import { useTheme } from "@/components/layout/ThemeProvider";
 import type { SchemaGraph } from "@/types/diagram";
 import { diagramLayout, CARD_WIDTH } from "./layout";
 import { TableNode, columnHandle, type TableFlowNode } from "./TableNode";
@@ -15,7 +14,6 @@ function SelfReference({ sourceX: x, sourceY: y, targetX: tx, targetY: ty, marke
 }
 const edgeTypes = { selfReference: SelfReference };
 function Canvas({ graph, selected, onSelect }: { graph: SchemaGraph; selected: string | null; onSelect: (id: string) => void }) {
-  const { preference } = useTheme();
   const flow = useReactFlow<TableFlowNode>();
   const initial = useMemo(() => diagramLayout(graph).map(node => ({ ...node, type: "table" as const, dragHandle: ".table-drag-handle", width: CARD_WIDTH, data: { table: graph.nodes.find(n => n.id === node.id)!, active: false, onSelect } })), [graph, onSelect]);
   const [nodes, setNodes, onNodesChange] = useNodesState<TableFlowNode>(initial);
@@ -47,7 +45,7 @@ function Canvas({ graph, selected, onSelect }: { graph: SchemaGraph; selected: s
       <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange}
         onInit={instance => { const first = initial[0]; if (first) void instance.setViewport({ x: 40 - first.position.x, y: 40 - first.position.y, zoom: 1 }); }}
         onNodeClick={(_, node) => onSelect(node.id)} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null}
-        colorMode={preference} minZoom={0.1} maxZoom={2} defaultViewport={{ x: 20, y: 20, zoom: 1 }}
+        colorMode="light" minZoom={0.1} maxZoom={2} defaultViewport={{ x: 20, y: 20, zoom: 1 }}
         ariaLabelConfig={{ "controls.zoomIn.ariaLabel": "Acercar", "controls.zoomOut.ariaLabel": "Alejar", "controls.fitView.ariaLabel": "Ajustar vista", "controls.interactive.ariaLabel": "Alternar movimiento de tablas" }}>
         <Background gap={24} /><Controls showInteractive={false} />
       </ReactFlow>
