@@ -21,7 +21,7 @@ function record(v: unknown): ExecutionRecord {
   check(v.durationMs === undefined || (typeof v.durationMs === "number" && Number.isFinite(v.durationMs) && v.durationMs >= 0));
   check(v.total_rows === undefined || (Number.isInteger(v.total_rows) && Number(v.total_rows) >= 0));
   check(v.sourceLabel === undefined || typeof v.sourceLabel === "string");
-  check(v.if_exists === undefined || ["replace", "append", "fail"].includes(String(v.if_exists)));
+  check(v.if_exists === undefined || ["replace", "append", "fail", "reload", "schema_only"].includes(String(v.if_exists)));
   return { id: v.id, revision: Number(v.revision), startedAt: v.startedAt, status: v.status as ExecutionRecord["status"], table_name: v.table_name, table_type: v.table_type as ExecutionRecord["table_type"],
     ...(v.if_exists !== undefined ? { if_exists: v.if_exists as ExecutionRecord["if_exists"] } : {}),
     ...(v.sourceLabel !== undefined ? { sourceLabel: v.sourceLabel as string } : {}),

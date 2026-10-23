@@ -26,6 +26,7 @@ export type PipelineAction =
   | { type: "hydrate"; state: PipelineState }
   | { type: "warning"; message: string }
   | { type: "source"; source: SourceDescriptor }
+  | { type: "exactReads" }
   | { type: "addStep"; step: TransformStep }
   | { type: "editStep"; step: TransformStep }
   | { type: "removeStep"; id: string }
@@ -56,6 +57,12 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
   // Execution owns its snapshot even if navigation unmounts the originating page.
   if (state.execution?.status === "running" && !["executionFinish", "warning", "previewSuccess", "previewError", "targetTransportInvalidated"].includes(action.type)) return state;
   switch (action.type) {
+    case "exactReads": {
+      const exact = (s: SourceDescriptor): SourceDescriptor => s.type === "date_dimension" ? s : { ...s, read_mode: "exact" };
+      const source = state.source ? exact(state.source) : null;
+      const recipe = state.recipe.map(step => ({ ...step, params: { ...step.params, ...("right_source" in step.params ? { right_source: exact(step.params.right_source) } : {}), ...("secondary_source" in step.params ? { secondary_source: exact(step.params.secondary_source) } : {}) } })) as TransformStep[];
+      return JSON.stringify([source, recipe]) === JSON.stringify([state.source, state.recipe]) ? state : { ...invalidate(state), source, recipe };
+    }
     case "source": return { ...invalidate(state), source: action.source, recipe: [], loadConfig: emptyLoadConfig(), foreignKeys: [], targetCheckedVersion: null, hydrationStatus: "ready" };
     case "addStep": return { ...invalidate(state), recipe: [...state.recipe, action.step] };
     case "editStep": return { ...invalidate(state), recipe: state.recipe.map(s => s.id === action.step.id ? action.step : s) };

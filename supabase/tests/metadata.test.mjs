@@ -101,3 +101,21 @@ test('claim is idempotent, forbids another owner reference, preserves history on
   assert.equal((await db.query('select count(*)::int as n from private.connection_secrets')).rows[0].n, 0);
   assert.equal((await db.query('select source_connection_id from public.pipeline_executions')).rows[0].source_connection_id, null);
 });
+
+
+test('monitoring accepts explicit reload and schema-only modes without granting write access to users', async () => {
+  const { randomUUID } = await import('node:crypto');
+  for (const mode of ['reload', 'schema_only']) {
+    const requestId = randomUUID();
+    const entry = await role('service_role', null, async () => (await db.query(
+      'select public.etl_claim_execution($1,$2,$3,$4::jsonb) as value',
+      [A, requestId, 'a'.repeat(64), { table_name: 'synthetic_modes', table_type: 'fact', if_exists: mode, source_type: 'file', target_type: 'postgresql' }]
+    )).rows[0].value);
+    assert.equal(entry.claimed, true);
+    const record = (await role('authenticated', A, () => db.query(
+      'select if_exists from public.pipeline_executions where request_id=$1', [requestId]))).rows[0];
+    assert.equal(record.if_exists, mode);
+    await assert.rejects(role('authenticated', B, () => db.query(
+      "update public.pipeline_executions set status='success' where request_id=$1", [requestId])), /permission denied/);
+  }
+});

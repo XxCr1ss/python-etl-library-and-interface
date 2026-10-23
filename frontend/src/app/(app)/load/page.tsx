@@ -11,9 +11,11 @@ import LoadSettings from "./components/LoadSettings";
 import ExecutionPanel from "./components/ExecutionPanel";
 import LoadReport from "./components/LoadReport";
 import SourceSchemaSummary from "./components/SourceSchemaSummary";
+import { useOptionalJobs } from "@/features/jobs/JobSessionProvider";
 
 export default function LoadPage() {
   const load = useLoadPipeline(); const connection = useTargetConnection();
+  const jobs = useOptionalJobs();
   const { session } = load;
   const { state, canTransform, isReadyForLoad } = session;
   const { source, recipe, preview, loadConfig, execution, report } = state;
@@ -41,7 +43,7 @@ export default function LoadPage() {
         {execution && <Button variant="outline" onClick={() => downloadLoadSummary(execution)}>Descargar resumen JSON</Button>}
       </section>}
       <div className="grid items-start gap-6 lg:grid-cols-3">
-        <fieldset disabled={running} className="min-w-0 space-y-6 lg:col-span-2">
+        <fieldset disabled={running || jobs?.busy} className="min-w-0 space-y-6 lg:col-span-2">
           <TargetConfigForm connection={connection} />
           <LoadSettings config={loadConfig} onChange={session.setLoadConfig} availableColumns={preview.data?.columns || []}
             rows={state.foreignKeys} onRowsChange={rows => session.dispatch({ type: "foreignKeys", rows })} />
@@ -49,15 +51,15 @@ export default function LoadPage() {
         <div className="min-w-0 space-y-6">
           <SourceSchemaSummary data={preview.data} current={isReadyForLoad} />
           {load.unknown && <label className="flex gap-2 text-sm"><input type="checkbox" checked={load.reviewedUnknown} disabled={running} onChange={e => load.setReviewedUnknown(e.target.checked)} />He revisado la tabla destino antes de repetir esta carga.</label>}
-          <ExecutionPanel canExecute={session.canExecuteLoad && (!load.unknown || load.reviewedUnknown)} recipeLength={recipe.length} execution={execution} onExecute={() => void load.begin()} />
+          <ExecutionPanel canExecute={!jobs?.busy && session.canExecuteLoad && (!load.unknown || load.reviewedUnknown)} recipeLength={recipe.length} execution={execution} onExecute={() => void load.begin()} />
           {load.error && <p role="alert" className="text-danger">{load.error}</p>}
         </div>
       </div>
     </>}
-    <Modal open={!!load.approval} onClose={load.cancel} title="Confirmar reemplazo de tabla" footer={<>
+    <Modal open={!!load.approval} onClose={load.cancel} title={state.loadConfig.if_exists === "reload" ? "Confirmar recarga de datos" : "Confirmar reemplazo de tabla"} footer={<>
       <Button variant="outline" onClick={load.cancel}>Cancelar</Button><Button variant="destructive" onClick={() => void load.confirm()}>Confirmar reemplazo</Button>
     </>}>
-      <p>Se reemplazará la tabla <strong>{load.approval?.config.table_name}</strong> en <strong className="break-all">{state.target?.database} · {state.target?.host}{state.target?.port ? `:${state.target.port}` : ""} · {state.target?.db_type}{state.target?.service_name ? ` · ${state.target.service_name}` : ""}</strong>.</p>
+      <p>{state.loadConfig.if_exists === "reload" ? "Se recargarán los datos conservando la estructura de" : "Se reemplazará la tabla"} <strong>{load.approval?.config.table_name}</strong> en <strong className="break-all">{state.target?.database} · {state.target?.host}{state.target?.port ? `:${state.target.port}` : ""} · {state.target?.db_type}{state.target?.service_name ? ` · ${state.target.service_name}` : ""}</strong>.</p>
       <p>Se eliminarán los datos existentes de esta tabla.</p>
       {preview.data?.total_rows === 0 && <p className="mt-3 font-bold text-danger">El resultado contiene 0 filas. Confirmar puede vaciar la tabla destino.</p>}
     </Modal>

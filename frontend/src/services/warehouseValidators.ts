@@ -9,7 +9,7 @@ const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => 
 const positive = (v: unknown) => Number.isSafeInteger(v) && Number(v) > 0;
 const nonnegative = (v: unknown) => Number.isSafeInteger(v) && Number(v) >= 0;
 function warnings(v: unknown) { check(Array.isArray(v) && v.every(w => object(w) && typeof w.code === "string" && typeof w.message === "string" && (w.table_id === undefined || w.table_id === null || typeof w.table_id === "string"))); }
-function count(v: unknown) { check(object(v) && v.logical_type === "integer" && ((v.encoding === "native" && nonnegative(v.value)) || (v.encoding === "integer_string" && typeof v.value === "string" && /^\d+$/.test(v.value)))); }
+export function count(v: unknown) { check(object(v) && v.logical_type === "integer" && ((v.encoding === "native" && nonnegative(v.value)) || (v.encoding === "integer_string" && typeof v.value === "string" && /^\d+$/.test(v.value)))); }
 function typedValue(value: unknown, kind: string, encoding: string) {
   check(scalar(value));
   if (value === null) return;
@@ -45,7 +45,7 @@ export function warehouseCatalog(v: unknown): Catalog {
   return v as unknown as Catalog;
 }
 
-function result(v: unknown): Result {
+export function result(v: unknown): Result {
   check(object(v) && v.status === "success" && Array.isArray(v.columns) && v.columns.length > 0 && Array.isArray(v.data) && object(v.meta));
   warnings(v.warnings);
   const ids = new Set<string>();

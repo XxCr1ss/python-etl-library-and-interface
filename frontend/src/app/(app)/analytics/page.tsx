@@ -9,6 +9,7 @@ import { AggregateDataTable } from "./components/AggregateDataTable";
 import { KpiSummaryCards } from "./components/KpiSummaryCards";
 import { DetailDataGrid } from "./components/DetailDataGrid";
 import { ReportExportBar } from "./components/ReportExportBar";
+import { AdvancedAnalysisPanel } from "./components/AdvancedAnalysisPanel";
 
 const Chart = dynamic(() => import("./components/AnalyticsChartViewer"), { ssr: false, loading: () => <Skeleton className="h-80" /> });
 export default function AnalyticsPage() {
@@ -27,6 +28,7 @@ export default function AnalyticsPage() {
     {w.catalog?.warnings.map((warning, i) => <Alert key={i} tone="warning" title="Aviso del catálogo">{warning.message}</Alert>)}
     {w.catalog && !w.catalog.tables.length && <EmptyState title="El esquema no contiene tablas" description="Comprueba la base, el esquema predeterminado y los permisos del usuario. Actualiza el catálogo para volver a consultar." action={<Button variant="outline" disabled={!!w.busy} onClick={() => void w.connect()}>Volver a leer catálogo</Button>} />}
     <QueryBuilderPanel />
+    <AdvancedAnalysisPanel />
     {w.result && w.applied && <>
       {w.dirty && <Alert tone="warning" title="Resultados de la consulta anterior">Aplica o descarta los cambios del constructor para abrir detalle o exportar.</Alert>}
       <KpiSummaryCards result={w.result} />

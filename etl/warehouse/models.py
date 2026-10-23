@@ -82,6 +82,7 @@ class ManualKey(Model):
 
 class Join(Model):
     id: OutputId
+    source_relation: OutputId = "base"
     target_table_id: Name
     type: Literal["LEFT", "INNER"] = "LEFT"
     via: Annotated[ForeignKey | ManualKey, Field(discriminator="kind")]

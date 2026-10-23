@@ -23,6 +23,7 @@ from etl.json_utils import clean_value
 from etl.warehouse.settings import capabilities as warehouse_capabilities, WarehouseError
 from etl.warehouse.execution import execute as execute_warehouse
 from etl.load_execution import persist_and_verify, test_connection
+from etl.typed_source import read_typed_table
 from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, MAX_LOAD_ROWS,
                                 LoadValidationError, decode_dataset, serialize_command, strict_json)
 
@@ -36,7 +37,9 @@ def warehouse_transport_allowed(server_url):
 
 def load_capabilities(allow_load=False, allow_warehouse=True):
     return {"load_protocol_version": LOAD_PROTOCOL_VERSION, "load_enabled": allow_load,
-            "actions": ["test_target_connection", "execute_load"] if allow_load else [],
+            "load_schema_version": 1 if allow_warehouse else None,
+            "typed_extract_version": 1 if allow_warehouse else None,
+            "actions": ["test_target_connection", "execute_load", "preview_load"] if allow_load else [],
             "max_load_message_bytes": MAX_LOAD_MESSAGE_BYTES, "max_load_rows": MAX_LOAD_ROWS,
             "warehouse": warehouse_capabilities() if allow_warehouse else None,
             "warehouse_unavailable": None if allow_warehouse else "insecure_transport"}
@@ -217,8 +220,12 @@ async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False, p
                         result_data = await asyncio.to_thread(execute_warehouse, action.removeprefix("warehouse_"), payload["request"], payload["limits"])
                     elif action == "test_target_connection":
                         result_data = await handle_test_target_connection(payload, allow_load)
-                    elif action == "execute_load":
+                    elif action in {"execute_load", "preview_load"}:
                         serialize_command(data)
+                        if action == "preview_load":
+                            payload = {**payload, "load_config": {**payload.get("load_config", {}), "preview_only": True}}
+                        if payload.get("load_config", {}).get("schema_spec") and not allow_warehouse:
+                            raise LoadValidationError("El esquema explícito requiere transporte HTTPS/WSS o loopback.")
                         result_data = await handle_execute_load(payload, allow_load)
                     elif action == "get_metadata":
                         result_data = await handle_get_metadata(payload)
@@ -228,6 +235,12 @@ async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False, p
                         result_data = await handle_get_preview(payload)
                     elif action == "get_table":
                         result_data = await handle_get_table(payload)
+                    elif action == "get_typed_table":
+                        if not allow_warehouse:
+                            raise LoadValidationError("El transporte remoto requiere HTTPS/WSS para extracción tipada.")
+                        from etl.load_transport import encode_dataset
+                        frame = await asyncio.to_thread(read_typed_table, payload, payload.get("table_name"))
+                        result_data = {"dataset": encode_dataset(frame)}
                     else:
                         raise ValueError(f"Acción '{action}' no soportada por el agente local.")
                         
@@ -249,7 +262,7 @@ async def agent_loop(server_url: str, agent_id: str, allow_load: bool = False, p
                                 pass
                         else:
                             err_msg = e.object.decode("latin-1", errors="replace")
-                    if action in {"execute_load", "test_target_connection"}:
+                    if action in {"execute_load", "preview_load", "test_target_connection", "get_typed_table"}:
                         err_msg = str(e) if isinstance(e, LoadValidationError) else "No se pudo completar la carga local; revisa el destino antes de repetir."
                     sanitized_msg = public_error(err_msg, payload)
                     print(f"❌ Error al procesar comando: {sanitized_msg}")

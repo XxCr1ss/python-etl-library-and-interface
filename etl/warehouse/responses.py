@@ -58,6 +58,32 @@ class QueryResponse(Result):
     filtered_rows: Count
 
 
+from .analysis_models import AnalysisSpec
+
+
+class MeasureCounts(Model):
+    metric_id: str
+    observed: Count
+    valid: Count
+    excluded: Count
+
+
+class AnalysisResponse(Result):
+    summary_kpis: list[Kpi]
+    filtered_rows: Count
+    definition: AnalysisSpec
+    execution_id: str
+    units: dict[str, str]
+    measure_counts: list[MeasureCounts]
+
+
+class ReportResponse(Model):
+    status: Literal["success"]
+    version: Literal[1]
+    results: list[AnalysisResponse] = Field(min_length=1, max_length=8)
+    execution_id: str
+
+
 class Pagination(Model):
     mode: Literal["page", "sample"]
     page: int = Field(ge=1)
@@ -130,4 +156,5 @@ class ExportResponse(Model):
 
 RESPONSES = {name: TypeAdapter(model) for name, model in {
     "catalog": CatalogResponse, "query": QueryResponse, "detail": DetailResponse, "export": ExportResponse,
+    "analyze": AnalysisResponse, "report": ReportResponse,
 }.items()}

@@ -11,11 +11,13 @@ from pydantic import TypeAdapter, ValidationError
 from .catalog import Catalog
 from .compiler import Compiler
 from .models import CatalogRequest, QueryRequest, DetailRequest, ExportRequest
+from .analysis_models import AnalysisRequest, ReportRequest
 from .serialization import bounded, count_value, encode_rows, json_bytes
 from .settings import LIMITS, WarehouseError, effective_limits
 
 REQUESTS = {"catalog": TypeAdapter(CatalogRequest), "query": TypeAdapter(QueryRequest),
-            "detail": TypeAdapter(DetailRequest), "export": TypeAdapter(ExportRequest)}
+            "detail": TypeAdapter(DetailRequest), "export": TypeAdapter(ExportRequest),
+            "analyze": TypeAdapter(AnalysisRequest), "report": TypeAdapter(ReportRequest)}
 _slots = threading.BoundedSemaphore(4)
 
 
@@ -153,6 +155,33 @@ def detail(connection, catalog, req, budget, limits, meta, exporting=False):
 
 
 def validate_limits(req, operation, limits):
+    analyses = [req.analysis] if operation == "analyze" else req.analyses if operation == "report" else []
+    for analysis in analyses:
+        dimensions = analysis.dimensions + (analysis.population.dimensions if analysis.population else [])
+        filter_groups = [m.filters for m in analysis.measures] + [r.filters for d in dimensions for r in d.categories]
+        if any(len(group) > limits["filters"] for group in filter_groups):
+            raise WarehouseError("invalid_query", "Una condición de indicador supera los límites efectivos.")
+        for group in filter_groups:
+            for f in group:
+                values = getattr(f, "values", [getattr(f, "value", None)])
+                if f.op == "IN" and len(values) > limits["in_values"] or any(isinstance(v, str) and len(v) > limits["text_length"] for v in values):
+                    raise WarehouseError("invalid_query", "Una condición de indicador supera los límites efectivos.")
+        selections = [analysis.selection, *[c.selection for c in analysis.cohorts]]
+        if analysis.population:
+            selections.append(analysis.population.selection)
+        if len(analysis.dimensions) > limits["dimensions"] or len(analysis.measures) > limits["metrics"] or len(analysis.formulas) > limits["metrics"] or analysis.limit > limits["groups"]:
+            raise WarehouseError("invalid_query", "El análisis supera los límites efectivos del ejecutor.")
+        for selection in selections:
+            if len(selection.joins) > limits["joins"] or len(selection.filters) > limits["filters"]:
+                raise WarehouseError("invalid_query", "La selección supera los límites efectivos del ejecutor.")
+            filters = [*selection.filters]
+            if selection is analysis.selection:
+                filters += [f for m in analysis.measures for f in m.filters]
+                filters += [f for d in analysis.dimensions for r in d.categories for f in r.filters]
+            for f in filters:
+                values = getattr(f, "values", [getattr(f, "value", None)])
+                if f.op == "IN" and len(values) > limits["in_values"] or any(isinstance(v, str) and len(v) > limits["text_length"] for v in values):
+                    raise WarehouseError("invalid_query", "Los filtros superan los límites efectivos del ejecutor.")
     query = getattr(req, "query", None)
     selection = query or getattr(req, "selection", None)
     if selection:
@@ -197,6 +226,16 @@ def execute(operation, payload, limits=None, engine_factory=None):
             meta = {**context, "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(), "execution_time_ms": 0}
             if operation == "catalog":
                 result = catalog.public()
+            elif operation in {"analyze", "report"}:
+                from .analysis import run_analysis
+                if operation == "analyze":
+                    result = run_analysis(connection, catalog, req.analysis, budget, limits, meta)
+                else:
+                    from uuid import uuid4
+                    result = {"status": "success", "version": 1, "execution_id": str(uuid4()), "results": []}
+                    for analysis in req.analyses:
+                        result["results"].append(run_analysis(connection, catalog, analysis, budget, limits, meta))
+                        bounded(result, limits["message_bytes"] - 2048)
             elif operation == "query" or (operation == "export" and req.mode == "aggregate"):
                 result = analytics(connection, catalog, req, budget, limits, meta)
             else:

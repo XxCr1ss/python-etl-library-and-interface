@@ -7,6 +7,8 @@ import { targetDto } from "@/services/etlSerializers";
 import { ApiError, publicMessage } from "@/services/apiClient";
 import { detailWarehouse, exportWarehouse, getWarehouseCatalog, queryWarehouse, saveWarehouseReport } from "@/services/warehouseApi";
 import type { Catalog, Connection, DetailRequest, DetailResult, Drilldown, ExportSpec, Projection, QueryResult, WarehouseQuery } from "@/types/warehouse";
+import type { AnalysisResult, AnalysisSpec } from "@/types/analysis";
+import { analyzeWarehouse, reportWarehouse } from "@/services/analysisApi";
 
 const initialConnection: Omit<Connection, "password"> = { db_type: "postgresql", host: "localhost", port: 5432, database: "", user: "", use_agent: false, agent_id: "" };
 export const blankQuery = (base_table_id: string): WarehouseQuery => ({ base_table_id, joins: [], filters: [], metrics: [], dimensions: [], order_by: [], limit: 20 });
@@ -28,6 +30,9 @@ function useWarehouseCore() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [analysisDraft, setAnalysisDraft] = useState<AnalysisSpec | null>(null);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [analysisApplied, setAnalysisApplied] = useState<AnalysisSpec[]>([]);
   const sequence = useRef(0), controller = useRef<AbortController | null>(null), inFlight = useRef(false);
   const agentId = connection.agent_id || pipeline.agentId;
   const agent = useAgentStatus(!!connection.use_agent, agentId);
@@ -41,6 +46,7 @@ function useWarehouseCore() {
   const invalidate = useCallback(() => {
     cancel(); setCatalog(null); setDraft(null); setApplied(null); setResult(null);
     setDetail(null); setDetailRequest(null); setDetailColumns([]); setError(null); setNotice(null);
+    setAnalysisDraft(null); setAnalysisResults([]); setAnalysisApplied([]);
   }, [cancel]);
   const disconnect = useCallback(() => {
     invalidate(); credentials.clear(); setPasswordProvided(false); setCopied(false); setConnection(initialConnection);
@@ -134,7 +140,16 @@ function useWarehouseCore() {
     }
     return run("Preparando reporte…", signal => exportWarehouse(dto(), spec, signal), blob => { saveWarehouseReport(blob, format); setNotice("Reporte descargado con datos consultados de nuevo en la bodega."); });
   }
+  function consultAnalysis(analysis: AnalysisSpec) {
+    const captured = structuredClone(analysis);
+    return run("Calculando análisis…", signal => analyzeWarehouse(dto(), captured, signal), value => { setAnalysisResults([value]); setAnalysisApplied([captured]); });
+  }
+  function consultAnalyses(analyses: AnalysisSpec[]) {
+    const captured = structuredClone(analyses);
+    return run("Calculando paneles en una operación de lectura…", signal => reportWarehouse(dto(), captured, signal), value => { setAnalysisResults(value.results); setAnalysisApplied(captured); });
+  }
   return { connection, passwordProvided, copied, catalog, draft, applied, result, detail, detailRequest, detailColumns,
+    analysisDraft, analysisResults, analysisApplied, setAnalysisDraft, consultAnalysis, consultAnalyses,
     busy, error, notice, dirty, agent, agentId, hasConnection: passwordProvided || !!catalog,
     canCopy: !!pipeline.state.target && pipeline.credentials.has(pipeline.state.target.credentialRef),
     updateConnection, disconnect, connect, copyTarget, changeDraft, consult, loadDetail, changeDetailColumns, exportReport, cancel,

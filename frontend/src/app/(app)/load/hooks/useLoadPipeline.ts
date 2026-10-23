@@ -26,7 +26,7 @@ export function useLoadPipeline() {
     if (unknown && !reviewedUnknown) { setError("Confirma que revisaste la tabla destino antes de repetir."); return; }
     const snapshot: LoadApproval = { revision: state.revision, targetVersion: state.targetVersion, loadVersion: state.loadVersion,
       previewRequestId: state.preview.requestId, config: state.loadConfig, reviewedUnknown };
-    if (state.loadConfig.if_exists === "replace" && !confirmed) { setApproval(snapshot); return; }
+    if (["replace", "reload"].includes(state.loadConfig.if_exists || "") && !confirmed) { setApproval(snapshot); return; }
     submitting.current = true; setApproval(null);
     try { await session.runLoad(confirmed || snapshot); setReviewedUnknown(false); }
     catch (e) { setError(e instanceof Error ? e.message : "No se pudo iniciar la carga."); }

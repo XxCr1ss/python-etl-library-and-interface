@@ -3,6 +3,7 @@ import { Input, Select } from "@/components/ui";
 import type { LoadConfigDto } from "@/types/etl";
 import { simpleIdentifier, type ForeignKeyRow } from "@/state/loadValidation";
 import ForeignKeyEditor from "./ForeignKeyEditor";
+import { LoadSchemaEditor } from "./LoadSchemaEditor";
 
 export default function LoadSettings({ config, onChange, availableColumns, rows, onRowsChange }: {
   config: LoadConfigDto; onChange: (config: LoadConfigDto) => void; availableColumns: string[];
@@ -16,13 +17,16 @@ export default function LoadSettings({ config, onChange, availableColumns, rows,
       onChange={e => onChange({ ...config, table_name: e.target.value })} required />
     <Select label="Tipo de tabla" value={config.table_type} onChange={e => {
       const table_type = e.target.value === "fact" ? "fact" : "dimension";
-      onChange({ table_name: config.table_name, table_type, if_exists: table_type === "dimension" ? "replace" : "append" });
+      onChange({ ...config, table_type, if_exists: table_type === "dimension" ? "replace" : "append" });
     }}><option value="dimension">Dimensión</option><option value="fact">Hechos</option></Select>
     <p className="text-sm text-content-muted">Cambiar el tipo aplica su modo predeterminado: dimensión reemplaza; hechos agrega.</p>
-    <Select label="Modo de carga" value={config.if_exists || ""} onChange={e => onChange({ ...config, if_exists: e.target.value === "append" ? "append" : "replace" })}>
+    <Select label="Modo de carga" value={config.if_exists || ""} onChange={e => onChange({ ...config, if_exists: e.target.value as LoadConfigDto["if_exists"] })}>
       <option value="" disabled>Selecciona un modo</option><option value="replace">Reemplazar (replace)</option><option value="append">Agregar (append)</option>
+      <option value="fail">Crear solo si no existe (fail)</option><option value="reload" disabled={!config.schema_spec}>Recargar conservando estructura</option>
+      <option value="schema_only" disabled={!config.schema_spec}>Preparar estructura sin cargar filas</option>
     </Select>
     <p className="text-sm text-content-muted">Replace reemplaza la tabla y sus datos. Append agrega filas y puede duplicarlas si repites la carga.</p>
     {config.table_type === "fact" && <ForeignKeyEditor rows={rows} columns={availableColumns} onChange={onRowsChange} />}
+    <LoadSchemaEditor config={config} columns={availableColumns} onChange={onChange} />
   </section>;
 }

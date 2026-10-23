@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from etl.error_utils import public_error
 from api.routes import extract, transform, load, warehouse
+from api.routes import jobs
 from services.agent_manager import agent_manager
 from services.auth_service import optional_user
 from api.routes import connections, monitoring, agents
@@ -103,6 +104,7 @@ app.include_router(extract.router, prefix="/api/v1/extract", tags=["Extracción"
 app.include_router(transform.router, prefix="/api/v1/transform", tags=["Transformación"], dependencies=[Depends(optional_user)])
 app.include_router(load.router, prefix="/api/v1/load", tags=["Carga"], dependencies=[Depends(optional_user)])
 app.include_router(warehouse.router, prefix="/api/v1/warehouse", tags=["Bodega de datos"], dependencies=[Depends(optional_user)])
+app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Trabajos ETL"], dependencies=[Depends(optional_user)])
 
 app.include_router(connections.router, prefix="/api/v1/connections", tags=["Conexiones"])
 app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoreo"])

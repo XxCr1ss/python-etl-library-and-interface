@@ -2,6 +2,7 @@ import { object } from "@/services/apiClient";
 import { json, requireContract as check, strings } from "@/services/responseValidators";
 import { CredentialStore, newId } from "@/state/credentialStore";
 import type { LoadConfigDto, SourceDescriptor, StepType, TargetDescriptor, TransformStep } from "./etl";
+import { parseLoadSchema } from "./loadSchemaValidation";
 
 // The rules double as an allowlist. '?' denotes optional fields, never a missing required field.
 export const stepSchemas = {
@@ -63,7 +64,9 @@ export function parseTarget(v: unknown, store: CredentialStore, legacy = false):
 }
 export function parseSource(v: unknown, store: CredentialStore, legacy = false): SourceDescriptor {
   check(object(v));
-  const meta: { filename?: string; unique_filename?: string; count?: SourceDescriptor["count"] } = {};
+  const meta: { filename?: string; unique_filename?: string; count?: SourceDescriptor["count"]; read_mode?: "inferred" | "exact" } = {};
+  check(v.read_mode === undefined || ["inferred", "exact"].includes(String(v.read_mode)));
+  if (v.read_mode !== undefined) meta.read_mode = v.read_mode as "inferred" | "exact";
   for (const key of ["filename", "unique_filename"] as const) if (typeof v[key] === "string") meta[key] = v[key];
   if (legacy && Number.isInteger(v.total_rows) && Number(v.total_rows) >= 0) meta.count = { kind: v.type === "database" ? "sample" : "dataset", value: Number(v.total_rows) };
   else if (v.count !== undefined) { check(object(v.count) && ["sample", "dataset"].includes(String(v.count.kind)) && Number.isInteger(v.count.value) && Number(v.count.value) >= 0); meta.count = v.count as SourceDescriptor["count"]; }
@@ -121,9 +124,10 @@ export function parseStep(v: unknown, store: CredentialStore, legacy = false): T
   return { id, type: v.type, params } as TransformStep;
 }
 export function parseLoadConfig(v: unknown): LoadConfigDto {
-  check(object(v) && typeof v.table_name === "string" && ["dimension", "fact"].includes(String(v.table_type)) && (v.if_exists === undefined || ["replace", "append", "fail"].includes(String(v.if_exists))));
+  check(object(v) && typeof v.table_name === "string" && ["dimension", "fact"].includes(String(v.table_type)) && (v.if_exists === undefined || ["replace", "append", "fail", "reload", "schema_only"].includes(String(v.if_exists))));
   if (v.foreign_keys !== undefined) check(object(v.foreign_keys) && Object.values(v.foreign_keys).every(x => strings(x) && x.length === 2));
   return { table_name: v.table_name, table_type: v.table_type as LoadConfigDto["table_type"],
+    ...(v.schema_spec !== undefined ? { schema_spec: parseLoadSchema(v.schema_spec) } : {}),
     ...(v.if_exists !== undefined ? { if_exists: v.if_exists as LoadConfigDto["if_exists"] } : {}),
     ...(object(v.foreign_keys) ? { foreign_keys: Object.fromEntries(Object.entries(v.foreign_keys).map(([k, pair]) => [k, [...pair as string[]]])) as Record<string, [string, string]> } : {}) };
 }

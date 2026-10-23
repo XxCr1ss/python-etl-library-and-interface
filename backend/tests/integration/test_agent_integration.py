@@ -73,10 +73,10 @@ def live_backend_server(tmp_path: Path):
         ],
         cwd=str(ROOT),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
+        # No reader consumed the pipe. On Windows a longer integration flow can
+        # fill it and block the server while it logs an otherwise valid response.
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     try:
         _wait_for_health(base_url)

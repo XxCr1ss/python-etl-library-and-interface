@@ -16,6 +16,7 @@ export type WarehouseFilter = { field: FieldRef } & (
 );
 export interface WarehouseJoin {
   id: string; target_table_id: string; type: "LEFT" | "INNER";
+  source_relation?: string;
   via: { kind: "foreign_key"; relationship_id: string } | { kind: "manual"; pairs: { base_column: string; target_column: string }[] };
 }
 export interface Selection { base_table_id: string; joins: WarehouseJoin[]; filters: WarehouseFilter[] }
