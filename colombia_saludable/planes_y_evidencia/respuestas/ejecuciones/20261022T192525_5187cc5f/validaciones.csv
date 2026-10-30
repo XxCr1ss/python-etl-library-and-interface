@@ -1,0 +1,39 @@
+﻿control,ok
+esperas_validas_y_excluidas_concilian,True
+p02_aportes_familia_no_multiplicados,True
+p02_aportes_empresa_concilian,True
+p04_pares_no_ordenados_y_soporte,True
+p05_denominador_no_supera_eventos,True
+p07_meses_concilian_atenciones,True
+p07_dias_concilian_solicitudes,True
+p13_cobertura_concilia_eventos,True
+p14_retiros_concilian,True
+p01_validos_y_excluidos,True
+p03_segmentos_concilian_tarifas,True
+p03_frecuencia_no_supera_recetas,True
+p06_temporadas_concilian,True
+perfil_No proviene de otra EPS_escolaridad,True
+perfil_No proviene de otra EPS_estrato,True
+perfil_No proviene de otra EPS_grupo_etario,True
+perfil_No proviene de otra EPS_sexo,True
+perfil_No proviene de otra EPS_tipo_cotizante,True
+perfil_Proviene de otra EPS_escolaridad,True
+perfil_Proviene de otra EPS_estrato,True
+perfil_Proviene de otra EPS_grupo_etario,True
+perfil_Proviene de otra EPS_sexo,True
+perfil_Proviene de otra EPS_tipo_cotizante,True
+perfil_Cambio informado_estrato,True
+perfil_Cambio informado_grupo_etario,True
+perfil_Cambio informado_sexo,True
+perfil_Cambio informado_tipo_cotizante,True
+perfil_Destino desconocido_estrato,True
+perfil_Destino desconocido_grupo_etario,True
+perfil_Destino desconocido_sexo,True
+perfil_Destino desconocido_tipo_cotizante,True
+14_preguntas_cubiertas,True
+bodega_sin_cambios,True
+global_eventos,True
+global_recetas,True
+global_aportes,True
+global_tarifas,True
+global_esperas_negativas,True

@@ -1,0 +1,108 @@
+﻿tabla,columna,tipo,nulos,distintos_no_nulos,vacios_trim,minimo,maximo
+beneficiario,tipo_identificacion,character varying,0,2,0,,
+beneficiario,id_beneficiario,character varying,0,3316,0,,
+beneficiario,parentesco,character varying,0,11,0,,
+beneficiario,nombre,character varying,0,3316,0,,
+beneficiario,fecha_nacimiento,date,0,3084,0,1904-01-08,2000-12-26
+beneficiario,sexo,character varying,0,2,0,,
+beneficiario,estado_civil,character varying,0,5,0,,
+beneficiario,tipo_discapacidad,character varying,0,4,0,,
+citas_generales,codigo_cita,character varying,0,3013,0,,
+citas_generales,id_usuario,character varying,0,504,0,,
+citas_generales,id_medico,character varying,0,140,0,,
+citas_generales,fecha_solicitud,date,0,895,0,2006-01-09,2008-11-09
+citas_generales,hora_solicitud,time without time zone,0,650,0,08:00:00,18:59:00
+citas_generales,fecha_atencion,date,0,653,0,2006-01-12,2008-11-14
+citas_generales,hora_atencion,time without time zone,0,2,0,08:00:00,08:20:00
+citas_generales,diagnostico,character varying,0,31,0,,
+cotizante,cedula,character varying,0,1100,0,,
+cotizante,nombre,character varying,0,1100,0,,
+cotizante,tipo_cotizante,character varying,0,3,0,,
+cotizante,direccion,character varying,0,912,0,,
+cotizante,estado_civil,character varying,0,5,0,,
+cotizante,sexo,character varying,0,2,0,,
+cotizante,fecha_nacimiento,date,0,1080,0,1918-04-24,1990-12-23
+cotizante,nivel_escolaridad,character varying,0,4,0,,
+cotizante,estracto,character varying,0,5,0,,
+cotizante,proviene_otra_eps,character varying,0,2,0,,
+cotizante,salario_base,integer,0,25,0,226000,6226000
+cotizante,fecha_afiliacion,date,0,482,0,2006-01-01,2007-11-25
+cotizante,tipo_discapacidad,character varying,0,4,0,,
+cotizante,id_ips,character varying,0,60,0,,
+cotizante_beneficiario,cotizante,character varying,0,948,0,,
+cotizante_beneficiario,beneficiario,character varying,0,3316,0,,
+drogueria,id_drogueria,character varying,0,35,0,,
+drogueria,nombre,character varying,0,34,0,,
+drogueria,direccion,character varying,0,35,0,,
+drogueria,telefono,character varying,0,35,0,,
+drogueria,ciudad,character varying,0,7,0,,
+empresa,nit,character varying,0,21,0,,
+empresa,nombre,character varying,0,21,0,,
+empresa,total_empleados,integer,0,12,0,15,90
+empresa,direccion,character varying,0,21,0,,
+empresa,actividad_economica,character varying,0,10,0,,
+empresa,ciudad,character varying,0,7,0,,
+empresa_cotizante,empresa,character varying,0,21,0,,
+empresa_cotizante,cotizante,character varying,0,925,0,,
+formulas_medicas,codigo_formula,character varying,0,7484,0,,
+formulas_medicas,id_medico,character varying,0,527,0,,
+formulas_medicas,id_usuario,character varying,0,504,0,,
+formulas_medicas,fecha,date,0,999,0,2006-01-12,2008-11-27
+formulas_medicas,medicamentos_recetados,character varying,0,1014,0,,
+hospitalizaciones,codigo_hospitalizacion,character varying,0,893,0,,
+hospitalizaciones,id_usuario,character varying,0,389,0,,
+hospitalizaciones,id_medico,character varying,0,126,0,,
+hospitalizaciones,fecha_solicitud,date,0,555,0,2006-01-17,2008-11-08
+hospitalizaciones,hora_solicitud,time without time zone,0,39,0,00:00:00,21:00:00
+hospitalizaciones,fecha_atencion,date,0,555,0,2006-01-17,2008-11-08
+hospitalizaciones,hora_atencion,time without time zone,0,133,0,00:20:00,21:42:00
+hospitalizaciones,duracion_hospitalizacion,integer,0,5,0,1,10
+hospitalizaciones,diagnostico,character varying,0,2,0,,
+ips,id_ips,character varying,0,86,0,,
+ips,tipo_ips,character varying,0,6,0,,
+ips,nombre,character varying,0,83,0,,
+ips,direccion,character varying,0,86,0,,
+ips,nivel,character varying,0,6,59,,
+ips,municipio,character varying,0,23,0,,
+ips,departamento,character varying,0,7,0,,
+ips_drogueria,id_ips,character varying,0,46,0,,
+ips_drogueria,id_drogueria,character varying,0,35,0,,
+medico,cedula,character varying,0,720,0,,
+medico,nombre,character varying,0,720,0,,
+medico,especialidad,character varying,0,27,0,,
+medico,subespecialidad,character varying,0,12,627,,
+medico,licencia,character varying,0,720,0,,
+medico,direccion_consultorio,character varying,0,26,696,,
+medico,id_ips,character varying,0,60,0,,
+pagos,id_transaccion,character varying,0,22938,0,,
+pagos,fecha_pago,date,0,305,0,2006-02-01,2008-11-03
+pagos,id_usuario,character varying,0,1100,0,,
+pagos,valor_pagado,integer,0,322,0,25990,1497975
+preexistencias,id_usuario,character varying,0,4416,0,,
+preexistencias,familiar,character varying,0,6,0,,
+preexistencias,enfermedad,character varying,0,6,0,,
+remisiones,codigo_remision,character varying,0,16742,0,,
+remisiones,id_usuario,character varying,0,504,0,,
+remisiones,servicio_pos,character varying,0,65,0,,
+remisiones,id_medico,character varying,0,646,0,,
+remisiones,id_medico_remite,character varying,0,467,0,,
+remisiones,fecha_remision,date,0,1000,0,2006-01-13,2008-11-09
+remisiones,hora_remision,time without time zone,0,67,0,00:00:00,21:00:00
+remisiones,fecha_atencion,date,0,1025,0,2006-01-17,2008-12-09
+remisiones,hora_atencion,time without time zone,0,19,0,00:00:00,21:00:00
+remisiones,diagnostico,character varying,0,66,0,,
+retiros,id_retiro,character varying,0,89,0,,
+retiros,fecha_retiro,date,0,76,0,2006-03-10,2008-11-18
+retiros,id_usuario,character varying,0,89,0,,
+retiros,cambio_a_eps,character varying,0,5,41,,
+servicios_pos,id_servicio_pos,character varying,0,67,0,,
+servicios_pos,descripcion,character varying,0,67,0,,
+servicios_pos,costo,integer,0,57,0,12200,15000000
+urgencias,codigo_urgencia,character varying,0,559,0,,
+urgencias,id_usuario,character varying,0,286,0,,
+urgencias,id_medico,character varying,0,91,0,,
+urgencias,fecha_solicitud,date,0,384,0,2006-01-17,2008-11-08
+urgencias,hora_solicitud,time without time zone,0,4,0,00:00:00,19:02:00
+urgencias,fecha_atencion,date,0,384,0,2006-01-17,2008-11-08
+urgencias,hora_atencion,time without time zone,0,53,0,00:20:00,19:46:00
+urgencias,diagnostico,character varying,0,10,0,,

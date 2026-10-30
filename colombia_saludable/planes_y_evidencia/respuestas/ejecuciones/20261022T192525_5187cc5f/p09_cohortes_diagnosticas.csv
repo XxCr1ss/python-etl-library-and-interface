@@ -1,0 +1,5 @@
+﻿grupo,pacientes_cohorte,eventos_cohorte,remisiones_tarifadas,pacientes_con_tarifa,tarifa_cohorte,tarifa_por_paciente_con_tarifa,eventos_diagnostico,eventos_dx_tarifados,tarifa_eventos_diagnostico
+deficiencia_renal,157,6730,5337,157,1646031759.00,10484278.72,1267,1104,53211700.00
+vih_sida,53,3986,3628,53,1426872551.00,26922123.60,212,159,5533200.00
+cancer,48,2868,2350,48,844985972.00,17603874.42,326,326,16111814.00
+diabetes,57,2387,2076,57,301473596.00,5289010.46,167,110,1342000.00

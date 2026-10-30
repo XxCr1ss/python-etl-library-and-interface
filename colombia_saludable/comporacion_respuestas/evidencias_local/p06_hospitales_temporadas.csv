@@ -1,0 +1,76 @@
+﻿hospital,temporada,eventos,pacientes
+Hospital Isaías Duarte Cancio,ordinario,1823,371
+Hospital San Juan de Dios,ordinario,1089,241
+Hospital San Cristóbal,ordinario,1058,286
+Hospital Universitario del Valle Evaristo García,ordinario,1015,273
+Hospital Infantil Clínica Noel,ordinario,943,269
+Hospital La Buena Esperanza de Yumbo ,ordinario,716,201
+Hospital San Francisco de Asis,ordinario,603,211
+Hospital General de Medellin Luz Castro de Gutierrez ,ordinario,586,229
+Hospital Chapinero,ordinario,443,177
+Hospital Suba,ordinario,434,170
+Hospital Erasmo Meoz,ordinario,430,187
+Hospital Bocagrande,ordinario,405,161
+Hospital Pablo Tobon Uribe,ordinario,383,155
+Hospital San Juan,ordinario,377,145
+Hospital Marco Fidel Suarez,ordinario,360,191
+Hospital La Maria,ordinario,350,158
+Hospital San Francisco Javier,ordinario,339,168
+Hospital Manuel Uribe Angel,ordinario,329,182
+Hospital Regional Duitama,ordinario,312,143
+Hospital Pio X,ordinario,310,158
+Hospital Niño Jesús,ordinario,305,163
+Hospital San Antonio de Soata,ordinario,295,141
+Hospital Luis Carlos Galan Sarmiento,ordinario,289,164
+Hospital San Blas,ordinario,288,157
+Hospital San Rafael de Itagui,ordinario,156,109
+Hospital Isaías Duarte Cancio,semana_santa,40,33
+Hospital Isaías Duarte Cancio,navidad,38,29
+Hospital Universitario del Valle Evaristo García,navidad,38,26
+Hospital San Cristóbal,navidad,34,29
+Hospital Infantil Clínica Noel,navidad,31,26
+Hospital San Juan de Dios,semana_santa,27,24
+Hospital San Cristóbal,semana_santa,25,24
+Hospital Infantil Clínica Noel,semana_santa,24,20
+Hospital San Juan de Dios,navidad,23,21
+Hospital Universitario del Valle Evaristo García,semana_santa,22,17
+Hospital Niño Jesús,navidad,17,13
+Hospital La Buena Esperanza de Yumbo ,semana_santa,16,14
+Hospital Chapinero,semana_santa,15,13
+Hospital Chapinero,navidad,15,12
+Hospital Pablo Tobon Uribe,navidad,15,14
+Hospital Erasmo Meoz,navidad,14,12
+Hospital Pio X,navidad,14,11
+Hospital San Francisco de Asis,navidad,14,14
+Hospital San Juan,navidad,14,13
+Hospital General de Medellin Luz Castro de Gutierrez ,navidad,13,12
+Hospital Pablo Tobon Uribe,semana_santa,13,10
+Hospital La Buena Esperanza de Yumbo ,navidad,12,10
+Hospital La Maria,navidad,12,12
+Hospital Suba,semana_santa,11,9
+Hospital Bocagrande,navidad,10,9
+Hospital General de Medellin Luz Castro de Gutierrez ,semana_santa,10,10
+Hospital San Francisco Javier,semana_santa,10,9
+Hospital Suba,navidad,10,8
+Hospital Erasmo Meoz,semana_santa,9,8
+Hospital La Maria,semana_santa,9,9
+Hospital Marco Fidel Suarez,semana_santa,9,9
+Hospital San Francisco de Asis,semana_santa,9,9
+Hospital Luis Carlos Galan Sarmiento,semana_santa,8,8
+Hospital Marco Fidel Suarez,navidad,8,6
+Hospital Niño Jesús,semana_santa,8,8
+Hospital Pio X,semana_santa,8,8
+Hospital Bocagrande,semana_santa,7,7
+Hospital Regional Duitama,semana_santa,7,5
+Hospital San Juan,semana_santa,7,7
+Hospital Manuel Uribe Angel,navidad,6,6
+Hospital San Blas,navidad,6,6
+Hospital Luis Carlos Galan Sarmiento,navidad,5,5
+Hospital Manuel Uribe Angel,semana_santa,5,5
+Hospital Regional Duitama,navidad,5,5
+Hospital San Antonio de Soata,semana_santa,5,5
+Hospital San Francisco Javier,navidad,5,5
+Hospital San Blas,semana_santa,4,4
+Hospital San Rafael de Itagui,navidad,4,4
+Hospital San Rafael de Itagui,semana_santa,3,3
+Hospital San Antonio de Soata,navidad,2,2

@@ -1,0 +1,4 @@
+﻿dato,uso,disponible
+Precio vigente o valor facturado,Valorar cada medicamento de la receta,False
+Cantidad y unidad,Calcular importe de cada línea,False
+Correspondencia de catálogo,Identificar fármaco y presentación,False

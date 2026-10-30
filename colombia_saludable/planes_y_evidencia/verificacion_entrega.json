@@ -1,0 +1,36 @@
+{
+  "estado": "aprobado",
+  "fecha_bogota": "2026-10-30T15:12:17.708573-05:00",
+  "destino": "colombia_saludable_dw_core_v2",
+  "run_carga": "20261030T150852_0357772f",
+  "run_respuestas": "20261030T151016_4353e5d1",
+  "tablas_bodega": 17,
+  "filas_bodega": 79767,
+  "referencias_validadas": 42,
+  "controles_carga_independientes": 13,
+  "controles_respuestas": 38,
+  "controles_respuestas_independientes": 19,
+  "pruebas_parametros": 2,
+  "preguntas": 14,
+  "csv_exportados": 47,
+  "figuras": 27,
+  "recarga_bloqueada_sin_cambios": true,
+  "origen_sin_cambios": true,
+  "core_sin_cambios": true,
+  "cuadernos": [
+    {
+      "cuaderno": "etl_core.ipynb",
+      "celdas_ejecutadas": 18,
+      "sin_errores": true,
+      "documentacion_y_comentarios_conservados": true
+    },
+    {
+      "cuaderno": "answers.ipynb",
+      "celdas_ejecutadas": 18,
+      "sin_errores": true,
+      "documentacion_y_comentarios_conservados": true
+    }
+  ],
+  "respaldo_anterior": "../historial_ejecuciones/20261030T150841/",
+  "resumen_respuestas": "respuestas/ejecuciones/20261030T151016_4353e5d1/resumen_respuestas.md"
+}

@@ -1,0 +1,11 @@
+{
+  "celdas_codigo_ejecutadas": 10,
+  "etl_core_valido": true,
+  "answers_valido": true,
+  "csv_verificados": 20,
+  "catalogos_sin_cambios": true,
+  "tablas_bodega_final": 0,
+  "credencial_ausente_en_artefactos_texto": true,
+  "enlaces_markdown_locales_validos": true,
+  "fecha_ejecucion_diagnostico": "2026-10-22T18:40:00.320406-05:00"
+}

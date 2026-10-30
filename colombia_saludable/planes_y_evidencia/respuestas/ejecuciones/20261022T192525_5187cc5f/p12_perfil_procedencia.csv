@@ -1,0 +1,37 @@
+﻿procedencia,atributo,categoria,cotizantes,grupo_pct
+No proviene de otra EPS,escolaridad,universitaria,143,26.43
+No proviene de otra EPS,escolaridad,técnico,142,26.25
+No proviene de otra EPS,escolaridad,desconocido,133,24.58
+No proviene de otra EPS,escolaridad,postgrado,123,22.74
+Proviene de otra EPS,escolaridad,postgrado,147,26.3
+Proviene de otra EPS,escolaridad,desconocido,143,25.58
+Proviene de otra EPS,escolaridad,técnico,137,24.51
+Proviene de otra EPS,escolaridad,universitaria,132,23.61
+No proviene de otra EPS,estrato,3,117,21.63
+No proviene de otra EPS,estrato,5,113,20.89
+No proviene de otra EPS,estrato,4,112,20.7
+No proviene de otra EPS,estrato,2,100,18.48
+No proviene de otra EPS,estrato,1,99,18.3
+Proviene de otra EPS,estrato,2,121,21.65
+Proviene de otra EPS,estrato,3,114,20.39
+Proviene de otra EPS,estrato,4,112,20.04
+Proviene de otra EPS,estrato,1,111,19.86
+Proviene de otra EPS,estrato,5,101,18.07
+No proviene de otra EPS,grupo_etario,65+,160,29.57
+No proviene de otra EPS,grupo_etario,45-64,157,29.02
+No proviene de otra EPS,grupo_etario,25-44,147,27.17
+No proviene de otra EPS,grupo_etario,15-24,77,14.23
+Proviene de otra EPS,grupo_etario,45-64,186,33.27
+Proviene de otra EPS,grupo_etario,25-44,163,29.16
+Proviene de otra EPS,grupo_etario,65+,144,25.76
+Proviene de otra EPS,grupo_etario,15-24,66,11.81
+No proviene de otra EPS,sexo,m,277,51.2
+No proviene de otra EPS,sexo,f,264,48.8
+Proviene de otra EPS,sexo,m,286,51.16
+Proviene de otra EPS,sexo,f,273,48.84
+No proviene de otra EPS,tipo_cotizante,empleado,374,69.13
+No proviene de otra EPS,tipo_cotizante,jubilado,148,27.36
+No proviene de otra EPS,tipo_cotizante,independiente,19,3.51
+Proviene de otra EPS,tipo_cotizante,empleado,391,69.95
+Proviene de otra EPS,tipo_cotizante,jubilado,146,26.12
+Proviene de otra EPS,tipo_cotizante,independiente,22,3.94

@@ -1,0 +1,8 @@
+{
+  "FECHA_INICIO": "2008-01-01",
+  "FECHA_FIN": "2008-11-30",
+  "SEXOS": ["f"],
+  "DEPARTAMENTOS": ["valle del cauca"],
+  "GRUPOS_EDAD": ["45-64"],
+  "TOP_N": 5
+}

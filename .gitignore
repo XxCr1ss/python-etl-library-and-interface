@@ -59,8 +59,8 @@ comparativa-ui/
 # Planes de refactorización y desarrollo
 Informe/
 
-# colombia_saludable
-colombia_saludable/
+# Ignorar credenciales locales de colombia_saludable
+colombia_saludable/.env
 
 # Agente hibrido
 agente_hibrido/

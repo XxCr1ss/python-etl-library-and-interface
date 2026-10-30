@@ -1,0 +1,573 @@
+{
+  "claves_logicas": {
+    "dim_fecha": [
+      "fecha_id"
+    ],
+    "dim_empresa": [
+      "empresa_id"
+    ],
+    "dim_ips": [
+      "ips_id"
+    ],
+    "dim_medico": [
+      "medico_id"
+    ],
+    "dim_familia": [
+      "familia_id"
+    ],
+    "dim_paciente": [
+      "paciente_id"
+    ],
+    "dim_servicio": [
+      "servicio_id"
+    ],
+    "dim_medicamento": [
+      "medicamento_id"
+    ],
+    "dim_diagnostico": [
+      "diagnostico_id"
+    ],
+    "dim_drogueria": [
+      "drogueria_id"
+    ],
+    "fact_atencion": [
+      "atencion_id"
+    ],
+    "fact_pago": [
+      "id_transaccion"
+    ],
+    "fact_formula": [
+      "codigo_formula"
+    ],
+    "fact_retiro": [
+      "id_retiro"
+    ],
+    "fact_antecedente_familiar": [
+      "antecedente_id"
+    ],
+    "puente_ips_drogueria": [
+      "ips_id",
+      "drogueria_id"
+    ],
+    "puente_formula_medicamento": [
+      "codigo_formula",
+      "medicamento_id"
+    ]
+  },
+  "referencias": [
+    {
+      "tabla": "dim_medico",
+      "columna": "ips_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "dim_familia",
+      "columna": "paciente_titular_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "dim_paciente",
+      "columna": "familia_id",
+      "destino": "dim_familia",
+      "clave_destino": "familia_id",
+      "opcional": false
+    },
+    {
+      "tabla": "dim_paciente",
+      "columna": "paciente_titular_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "dim_paciente",
+      "columna": "empresa_id",
+      "destino": "dim_empresa",
+      "clave_destino": "empresa_id",
+      "opcional": true
+    },
+    {
+      "tabla": "dim_paciente",
+      "columna": "ips_afiliacion_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "puente_ips_drogueria",
+      "columna": "ips_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "puente_ips_drogueria",
+      "columna": "drogueria_id",
+      "destino": "dim_drogueria",
+      "clave_destino": "drogueria_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "medico_id",
+      "destino": "dim_medico",
+      "clave_destino": "medico_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "medico_remitente_id",
+      "destino": "dim_medico",
+      "clave_destino": "medico_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "ips_medico_asociado_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "servicio_id",
+      "destino": "dim_servicio",
+      "clave_destino": "servicio_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "diagnostico_id",
+      "destino": "dim_diagnostico",
+      "clave_destino": "diagnostico_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "fecha_solicitud_id",
+      "destino": "dim_fecha",
+      "clave_destino": "fecha_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "fecha_atencion_id",
+      "destino": "dim_fecha",
+      "clave_destino": "fecha_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_pago",
+      "columna": "fecha_pago_id",
+      "destino": "dim_fecha",
+      "clave_destino": "fecha_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "fecha_formula_id",
+      "destino": "dim_fecha",
+      "clave_destino": "fecha_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "medico_id",
+      "destino": "dim_medico",
+      "clave_destino": "medico_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "ips_medico_asociado_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_retiro",
+      "columna": "fecha_retiro_id",
+      "destino": "dim_fecha",
+      "clave_destino": "fecha_id",
+      "opcional": false
+    },
+    {
+      "tabla": "puente_formula_medicamento",
+      "columna": "codigo_formula",
+      "destino": "fact_formula",
+      "clave_destino": "codigo_formula",
+      "opcional": false
+    },
+    {
+      "tabla": "puente_formula_medicamento",
+      "columna": "medicamento_id",
+      "destino": "dim_medicamento",
+      "clave_destino": "medicamento_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "paciente_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "familia_id",
+      "destino": "dim_familia",
+      "clave_destino": "familia_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "empresa_id",
+      "destino": "dim_empresa",
+      "clave_destino": "empresa_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_atencion",
+      "columna": "ips_afiliacion_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_pago",
+      "columna": "paciente_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_pago",
+      "columna": "familia_id",
+      "destino": "dim_familia",
+      "clave_destino": "familia_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_pago",
+      "columna": "empresa_id",
+      "destino": "dim_empresa",
+      "clave_destino": "empresa_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_pago",
+      "columna": "ips_afiliacion_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "paciente_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "familia_id",
+      "destino": "dim_familia",
+      "clave_destino": "familia_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "empresa_id",
+      "destino": "dim_empresa",
+      "clave_destino": "empresa_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_formula",
+      "columna": "ips_afiliacion_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_retiro",
+      "columna": "paciente_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_retiro",
+      "columna": "familia_id",
+      "destino": "dim_familia",
+      "clave_destino": "familia_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_retiro",
+      "columna": "empresa_id",
+      "destino": "dim_empresa",
+      "clave_destino": "empresa_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_retiro",
+      "columna": "ips_afiliacion_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_antecedente_familiar",
+      "columna": "paciente_id",
+      "destino": "dim_paciente",
+      "clave_destino": "paciente_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_antecedente_familiar",
+      "columna": "familia_id",
+      "destino": "dim_familia",
+      "clave_destino": "familia_id",
+      "opcional": false
+    },
+    {
+      "tabla": "fact_antecedente_familiar",
+      "columna": "empresa_id",
+      "destino": "dim_empresa",
+      "clave_destino": "empresa_id",
+      "opcional": true
+    },
+    {
+      "tabla": "fact_antecedente_familiar",
+      "columna": "ips_afiliacion_id",
+      "destino": "dim_ips",
+      "clave_destino": "ips_id",
+      "opcional": false
+    }
+  ],
+  "restricciones_fisicas": false,
+  "tablas": {
+    "dim_fecha": [
+      "fecha",
+      "anio",
+      "mes",
+      "dia",
+      "semana_anio",
+      "dia_semana",
+      "nombre_dia",
+      "nombre_mes",
+      "trimestre",
+      "es_fin_de_semana",
+      "es_festivo",
+      "nombre_festivo",
+      "fecha_id",
+      "temporada_convencional"
+    ],
+    "dim_empresa": [
+      "empresa_id",
+      "nombre",
+      "actividad_economica_original",
+      "ciudad_original",
+      "total_empleados",
+      "ciudad",
+      "actividad_economica"
+    ],
+    "dim_ips": [
+      "ips_id",
+      "nombre",
+      "tipo_ips_original",
+      "nivel_original",
+      "municipio_original",
+      "departamento_original",
+      "tipo_ips",
+      "nivel",
+      "municipio",
+      "departamento"
+    ],
+    "dim_medico": [
+      "medico_id",
+      "especialidad_original",
+      "subespecialidad_original",
+      "ips_id",
+      "especialidad",
+      "subespecialidad",
+      "ips_sin_vigencia_historica"
+    ],
+    "dim_familia": [
+      "familia_id",
+      "paciente_titular_id",
+      "numero_beneficiarios",
+      "numero_miembros"
+    ],
+    "dim_paciente": [
+      "paciente_id",
+      "usuario_origen",
+      "tipo_registro",
+      "tipo_documento_original",
+      "parentesco_original",
+      "sexo_original",
+      "fecha_nacimiento",
+      "estado_civil_original",
+      "tipo_discapacidad_original",
+      "familia_id",
+      "paciente_titular_id",
+      "empresa_id",
+      "ips_afiliacion_id",
+      "estrato_original",
+      "estrato_propio",
+      "estrato_familiar",
+      "tipo_cotizante_original",
+      "tipo_cotizante_propio",
+      "tipo_cotizante_titular",
+      "escolaridad_original",
+      "escolaridad_propia",
+      "proviene_otra_eps_original",
+      "proviene_otra_eps_propio",
+      "salario_base_propio",
+      "fecha_afiliacion_propia",
+      "fecha_afiliacion_titular",
+      "perfil_familiar_heredado",
+      "sexo",
+      "estado_civil",
+      "tipo_discapacidad",
+      "atribucion_familiar_sin_historia"
+    ],
+    "dim_servicio": [
+      "servicio_id",
+      "descripcion_original",
+      "tarifa_catalogo",
+      "descripcion",
+      "tipo_servicio",
+      "moneda_informada",
+      "precio_sin_vigencia_historica"
+    ],
+    "dim_medicamento": [
+      "medicamento_id",
+      "nombre",
+      "precio",
+      "sin_catalogo",
+      "cantidad_informada"
+    ],
+    "dim_diagnostico": [
+      "diagnostico_id",
+      "diagnostico_normalizado",
+      "grupo_textual",
+      "clase_texto",
+      "validado_clinicamente"
+    ],
+    "dim_drogueria": [
+      "drogueria_id",
+      "nombre",
+      "ciudad_original",
+      "ciudad"
+    ],
+    "puente_ips_drogueria": [
+      "ips_id",
+      "drogueria_id"
+    ],
+    "fact_atencion": [
+      "codigo_origen",
+      "usuario_origen",
+      "medico_id",
+      "fecha_atencion",
+      "hora_atencion",
+      "diagnostico_original",
+      "fecha_solicitud",
+      "hora_solicitud",
+      "servicio_id",
+      "medico_remitente_id",
+      "duracion_hospitalizacion",
+      "tabla_origen",
+      "tipo_atencion",
+      "atencion_id",
+      "paciente_id",
+      "familia_id",
+      "empresa_id",
+      "ips_afiliacion_id",
+      "ips_medico_asociado_id",
+      "tarifa_servicio_catalogo",
+      "tipo_servicio",
+      "diagnostico_id",
+      "fecha_solicitud_id",
+      "fecha_atencion_id",
+      "timestamp_solicitud_local",
+      "timestamp_atencion_local",
+      "espera_minutos_cruda",
+      "espera_incompleta",
+      "espera_negativa",
+      "espera_valida_min",
+      "edad_solicitud",
+      "edad_al_evento",
+      "grupo_etario_solicitud",
+      "grupo_etario_atencion",
+      "tarifa_informada",
+      "duracion_unidad_informada",
+      "ips_medico_sin_vigencia_historica"
+    ],
+    "fact_pago": [
+      "id_transaccion",
+      "fecha_pago",
+      "usuario_origen",
+      "valor_aporte",
+      "paciente_id",
+      "familia_id",
+      "empresa_id",
+      "ips_afiliacion_id",
+      "fecha_pago_id"
+    ],
+    "fact_formula": [
+      "codigo_formula",
+      "medico_id",
+      "usuario_origen",
+      "fecha_formula",
+      "medicamentos_recetados_original",
+      "paciente_id",
+      "familia_id",
+      "empresa_id",
+      "ips_afiliacion_id",
+      "ips_medico_asociado_id",
+      "fecha_formula_id",
+      "edad_al_evento",
+      "grupo_etario"
+    ],
+    "puente_formula_medicamento": [
+      "codigo_formula",
+      "medicamento_id",
+      "presencia_en_receta"
+    ],
+    "fact_retiro": [
+      "id_retiro",
+      "fecha_retiro",
+      "usuario_origen",
+      "eps_destino_original",
+      "paciente_id",
+      "familia_id",
+      "empresa_id",
+      "ips_afiliacion_id",
+      "fecha_afiliacion_propia",
+      "eps_destino",
+      "destino_informado",
+      "fecha_retiro_id",
+      "edad_al_retiro",
+      "dias_afiliacion_al_retiro"
+    ],
+    "fact_antecedente_familiar": [
+      "usuario_origen",
+      "familiar_original",
+      "enfermedad_original",
+      "paciente_id",
+      "familia_id",
+      "empresa_id",
+      "ips_afiliacion_id",
+      "antecedente_id",
+      "familiar",
+      "enfermedad",
+      "es_antecedente_familiar"
+    ]
+  }
+}

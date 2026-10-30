@@ -1,0 +1,5 @@
+﻿tabla,filas,espera_incompleta,espera_negativa,primera_solicitud,ultima_solicitud,primera_atencion,ultima_atencion,minimo_minutos,maximo_minutos,promedio_minutos_no_negativos
+citas_generales,3013,0,0,2006-01-09,2008-11-09,2006-01-12,2008-11-14,782.0,8636.0,3863.779621639562
+urgencias,559,0,0,2006-01-17,2008-11-08,2006-01-17,2008-11-08,20.0,45.0,32.82289803220036
+hospitalizaciones,893,0,0,2006-01-17,2008-11-08,2006-01-17,2008-11-08,20.0,45.0,32.41657334826428
+remisiones,16742,0,497,2006-01-13,2008-11-09,2006-01-17,2008-12-09,-120.0,86400.0,17571.079901508157

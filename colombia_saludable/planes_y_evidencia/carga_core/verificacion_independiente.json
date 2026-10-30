@@ -1,0 +1,73 @@
+{
+  "estado": "aprobado",
+  "fecha_bogota": "2026-10-30T15:09:27.469444-05:00",
+  "run_carga": "20261030T150852_0357772f",
+  "controles": [
+    {
+      "control": "conteos_17_tablas",
+      "registros_comparados": 79767,
+      "ok": true
+    },
+    {
+      "control": "pagos_por_transaccion",
+      "registros_comparados": 22938,
+      "ok": true
+    },
+    {
+      "control": "valores_evento_citas_generales",
+      "registros_comparados": 3013,
+      "ok": true
+    },
+    {
+      "control": "valores_evento_urgencias",
+      "registros_comparados": 559,
+      "ok": true
+    },
+    {
+      "control": "valores_evento_hospitalizaciones",
+      "registros_comparados": 893,
+      "ok": true
+    },
+    {
+      "control": "valores_evento_remisiones",
+      "registros_comparados": 16742,
+      "ok": true
+    },
+    {
+      "control": "pares_receta_medicamento",
+      "registros_comparados": 15770,
+      "ok": true
+    },
+    {
+      "control": "perfil_y_atribucion_familiar",
+      "registros_comparados": 4416,
+      "ok": true
+    },
+    {
+      "control": "beneficiarios_sin_atributos_propios_inventados",
+      "registros_comparados": 3316,
+      "ok": true
+    },
+    {
+      "control": "medicamentos_sin_nombre_o_precio_inventado",
+      "registros_comparados": 166,
+      "ok": true
+    },
+    {
+      "control": "retiros_destino_informado",
+      "registros_comparados": 89,
+      "ok": true
+    },
+    {
+      "control": "sesiones_solo_lectura",
+      "registros_comparados": 2,
+      "ok": true
+    },
+    {
+      "control": "core_sin_modificaciones",
+      "registros_comparados": 1,
+      "ok": true
+    }
+  ],
+  "metodo": "SELECT Core READ ONLY; comparación por registro contra SQL del origen, sin exportar personas."
+}

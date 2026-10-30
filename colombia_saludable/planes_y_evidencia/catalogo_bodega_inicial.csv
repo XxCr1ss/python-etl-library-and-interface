@@ -1,0 +1,18 @@
+﻿esquema,tabla,tipo
+public,dim_diagnostico,BASE TABLE
+public,dim_drogueria,BASE TABLE
+public,dim_empresa,BASE TABLE
+public,dim_familia,BASE TABLE
+public,dim_fecha,BASE TABLE
+public,dim_ips,BASE TABLE
+public,dim_medicamento,BASE TABLE
+public,dim_medico,BASE TABLE
+public,dim_paciente,BASE TABLE
+public,dim_servicio,BASE TABLE
+public,fact_antecedente_familiar,BASE TABLE
+public,fact_atencion,BASE TABLE
+public,fact_formula,BASE TABLE
+public,fact_pago,BASE TABLE
+public,fact_retiro,BASE TABLE
+public,puente_formula_medicamento,BASE TABLE
+public,puente_ips_drogueria,BASE TABLE

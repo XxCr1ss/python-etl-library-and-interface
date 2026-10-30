@@ -1,0 +1,19 @@
+﻿esquema,tabla,tipo
+public,beneficiario,BASE TABLE
+public,citas_generales,BASE TABLE
+public,cotizante,BASE TABLE
+public,cotizante_beneficiario,BASE TABLE
+public,drogueria,BASE TABLE
+public,empresa,BASE TABLE
+public,empresa_cotizante,BASE TABLE
+public,formulas_medicas,BASE TABLE
+public,hospitalizaciones,BASE TABLE
+public,ips,BASE TABLE
+public,ips_drogueria,BASE TABLE
+public,medico,BASE TABLE
+public,pagos,BASE TABLE
+public,preexistencias,BASE TABLE
+public,remisiones,BASE TABLE
+public,retiros,BASE TABLE
+public,servicios_pos,BASE TABLE
+public,urgencias,BASE TABLE

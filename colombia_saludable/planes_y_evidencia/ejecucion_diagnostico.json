@@ -1,0 +1,40 @@
+{
+  "inicio_bogota": "2026-10-30T15:09:55.877549-05:00",
+  "fin_bogota": "2026-10-30T15:09:57.912959-05:00",
+  "modo": "diagnostico_solo_lectura_sin_etl",
+  "python": "3.14.0",
+  "paquetes": {
+    "pandas": "3.0.3",
+    "SQLAlchemy": "2.0.50",
+    "psycopg2-binary": "2.9.12",
+    "python-dotenv": "1.2.4",
+    "nbformat": "5.11.1",
+    "nbclient": "0.11.0",
+    "ipykernel": "7.4.0"
+  },
+  "tablas_origen_public": 18,
+  "tablas_bodega_public": 17,
+  "archivos_csv": [
+    "calidad_medicamentos.csv",
+    "catalogo_bodega_final.csv",
+    "catalogo_bodega_inicial.csv",
+    "catalogo_medicamentos_observados.csv",
+    "catalogo_origen.csv",
+    "catalogo_servicios.csv",
+    "cobertura_tarifas.csv",
+    "comprobacion_final.csv",
+    "conexiones.csv",
+    "controles_negocio.csv",
+    "correspondencia_usuarios.csv",
+    "diccionario_origen.csv",
+    "distribucion_diagnosticos.csv",
+    "distribuciones_catalogos.csv",
+    "duplicados.csv",
+    "edades_eventos.csv",
+    "integridad_fk_declaradas.csv",
+    "perfil_columnas.csv",
+    "tiempos_eventos.csv",
+    "volumen_origen.csv"
+  ],
+  "consistencia": "Una transacción REPEATABLE READ por consulta; no hay snapshot global del diagnóstico."
+}

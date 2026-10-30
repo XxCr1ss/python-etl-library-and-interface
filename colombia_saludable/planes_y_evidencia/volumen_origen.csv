@@ -1,0 +1,19 @@
+﻿tabla,filas,columnas,pk,fk_declaradas
+beneficiario,3316,8,id_beneficiario,0
+citas_generales,3013,8,codigo_cita,1
+cotizante,1100,14,cedula,1
+cotizante_beneficiario,3316,2,,2
+drogueria,35,5,id_drogueria,0
+empresa,21,6,nit,0
+empresa_cotizante,925,2,"empresa, cotizante",2
+formulas_medicas,7484,5,codigo_formula,1
+hospitalizaciones,893,9,codigo_hospitalizacion,1
+ips,86,7,id_ips,0
+ips_drogueria,73,2,,2
+medico,720,7,cedula,0
+pagos,22938,4,id_transaccion,1
+preexistencias,4416,3,,0
+remisiones,16742,10,codigo_remision,3
+retiros,89,4,id_retiro,1
+servicios_pos,67,3,id_servicio_pos,0
+urgencias,559,8,codigo_urgencia,1

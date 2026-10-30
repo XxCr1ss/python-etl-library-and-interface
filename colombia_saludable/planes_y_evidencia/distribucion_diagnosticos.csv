@@ -1,0 +1,110 @@
+﻿tabla,diagnostico,filas
+citas_generales,Resfriado común,411
+citas_generales,Hipotensión,256
+citas_generales,Hipertensión,237
+citas_generales,lumbalgia,204
+citas_generales,Inquietud o sensación de tener los nervios de punta,164
+citas_generales,Deficiencia Renal,163
+citas_generales,Evolución satisfactoria,148
+citas_generales,Otosclerosis,115
+citas_generales,Amigdalitis,106
+citas_generales,Absceso,101
+citas_generales,Acné,99
+citas_generales,Eccema atópico ,91
+citas_generales,Dolor y molestia de abdomen,79
+citas_generales,Cataratas,57
+citas_generales,Diabetes,57
+citas_generales,Astigmatismo,56
+citas_generales,Evolución satisfctoria,56
+citas_generales,Arteritis,55
+citas_generales,VIH,53
+citas_generales,Glomerulares,50
+citas_generales,Inflamación laringe,48
+citas_generales,Conjuntivitis alérgica,47
+citas_generales,Miopía,47
+citas_generales,Alergia e inmunología,45
+citas_generales,Úlcera estomacal,44
+citas_generales,Demencia,42
+citas_generales,Hemorroides,42
+citas_generales,Depresión,38
+citas_generales,Migrana,38
+citas_generales,Úlcera péptica,35
+citas_generales,Embarazo,29
+urgencias,Fractura de tobillo,104
+urgencias,Intoxicación Alimentaria,57
+urgencias,Alergia Alimentaria,56
+urgencias,Fractura extremo superior del húmero,54
+urgencias,Fractura de clavícula,52
+urgencias,Perdida de dedo,51
+urgencias,Apendicitis,49
+urgencias,Ataque de Asma,49
+urgencias,Perdida de un Pie,45
+urgencias,Objeto Extraño en el Ojo,42
+hospitalizaciones,Observación,786
+hospitalizaciones,Recuperación Satisfactoria Cirugía,107
+remisiones,Terapia sin novedad,2174
+remisiones,Tensión Arterial Normal,1180
+remisiones,Sin novedad,1154
+remisiones,Deficiencia Renal,1054
+remisiones,ciatica,998
+remisiones,Niveles Normales de Glucosa,893
+remisiones,Evolución satisfactoria,876
+remisiones,Hemodiálisis sin novedad,715
+remisiones,Diálisis sin novedad,693
+remisiones,Quimioterapia sin novedad,542
+remisiones,Control Cirugía,360
+remisiones,Control Deficiencia Renal,350
+remisiones,Control Tratamiento,333
+remisiones,Cancer glótico,278
+remisiones,Reacción normal,278
+remisiones,Número de Celulas Alto,274
+remisiones,Glomerulares,242
+remisiones,Niveles Altos de Glucosa,242
+remisiones,Radioterapia sin novedad,242
+remisiones,Otosclerosis,230
+remisiones,Control Diabetes,218
+remisiones,Conjuntivitis alérgica,196
+remisiones,Demencia,168
+remisiones,Aflicción de ansiedad,164
+remisiones,Arteritis Granulomatosa,163
+remisiones,SIDA,159
+remisiones,Número de Celulas Bajo,117
+remisiones,hipoacusia de trasmisión,115
+remisiones,Cataratas,113
+remisiones,Diabetes,110
+remisiones,Tensión Arterial Baja,109
+remisiones,Sin Mejora,103
+remisiones,Acné,99
+remisiones,Apendicitis,98
+remisiones,Miopía,94
+remisiones,Alergia al Moho ,90
+remisiones,Disminución Tamaño Tumor,90
+remisiones,Eccema atópico ,90
+remisiones,Control Embarazo,87
+remisiones,Tensión Arterial Alta,74
+remisiones,Reacción Normal,64
+remisiones,Fractura de fémur,60
+remisiones,Alergia al Mani,57
+remisiones,Alergia a los Mariscos,56
+remisiones,Astigmatismo,56
+remisiones,Fractura extremo superior del húmero,54
+remisiones,Reduccion del dolor,54
+remisiones,Fractura clavícula,52
+remisiones,Deficiencia Renal Severa,50
+remisiones,Cancer laringe,48
+remisiones,Alergia a los ácaros del polvo,47
+remisiones,Alergia al polen,47
+remisiones,Alergia,45
+remisiones,Drenaje sin novedad,44
+remisiones,Fractura de pilón tibial,44
+remisiones,Úlcera estomacal,44
+remisiones, Objeto Extraño en el Ojo,42
+remisiones,Hemorroides interna,42
+remisiones,Pequeño tumor sin extirpa,42
+remisiones,Depresión,38
+remisiones,Migrana,38
+remisiones,Sin presencia de tumor,37
+remisiones,Recuperación Satisfactoria ,36
+remisiones,Úlcera péptica,35
+remisiones,Embarazo,29
+remisiones,Evolución Satisfactoria,16

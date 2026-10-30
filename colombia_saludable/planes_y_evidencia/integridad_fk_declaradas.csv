@@ -1,0 +1,17 @@
+﻿tabla,columnas,destino,pk_destino,huerfanos
+citas_generales,id_medico,medico,cedula,0
+cotizante,id_ips,ips,id_ips,0
+cotizante_beneficiario,beneficiario,beneficiario,id_beneficiario,0
+cotizante_beneficiario,cotizante,cotizante,cedula,0
+empresa_cotizante,cotizante,cotizante,cedula,0
+empresa_cotizante,empresa,empresa,nit,0
+formulas_medicas,id_medico,medico,cedula,0
+hospitalizaciones,id_medico,medico,cedula,0
+ips_drogueria,id_drogueria,drogueria,id_drogueria,0
+ips_drogueria,id_ips,ips,id_ips,0
+pagos,id_usuario,cotizante,cedula,0
+remisiones,id_medico,medico,cedula,0
+remisiones,id_medico_remite,medico,cedula,0
+remisiones,servicio_pos,servicios_pos,id_servicio_pos,0
+retiros,id_usuario,cotizante,cedula,0
+urgencias,id_medico,medico,cedula,0

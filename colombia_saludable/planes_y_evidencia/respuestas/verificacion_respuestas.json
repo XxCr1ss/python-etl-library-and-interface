@@ -1,0 +1,98 @@
+{
+  "estado": "aprobado",
+  "fecha_bogota": "2026-10-30T15:11:29.450845-05:00",
+  "run_respuestas": "20261030T151016_4353e5d1",
+  "controles": [
+    {
+      "control": "conexion_read_only",
+      "ok": true
+    },
+    {
+      "control": "frecuencias_recetas_vs_counter_independiente",
+      "ok": true
+    },
+    {
+      "control": "pares_recetas_vs_combinations_independiente",
+      "ok": true
+    },
+    {
+      "control": "soportes_de_pares",
+      "ok": true
+    },
+    {
+      "control": "aportes_por_afiliado_sin_multiplicacion",
+      "ok": true
+    },
+    {
+      "control": "denominador_atendidos_distintos",
+      "ok": true
+    },
+    {
+      "control": "media_global_no_promedio_de_medias",
+      "ok": true
+    },
+    {
+      "control": "series_por_rol_de_fecha",
+      "ok": true
+    },
+    {
+      "control": "suma_aportes_exacta",
+      "ok": true
+    },
+    {
+      "control": "estimacion_tarifas_exacta",
+      "ok": true
+    },
+    {
+      "control": "cohorte_deficiencia_renal",
+      "ok": true
+    },
+    {
+      "control": "cohorte_vih_sida",
+      "ok": true
+    },
+    {
+      "control": "cohorte_cancer",
+      "ok": true
+    },
+    {
+      "control": "cohorte_diabetes",
+      "ok": true
+    },
+    {
+      "control": "sin_costo_recetas_inventado",
+      "ok": true
+    },
+    {
+      "control": "retiros_desconocidos_no_son_mora",
+      "ok": true
+    },
+    {
+      "control": "filtros_aplicados_a_subconjunto",
+      "ok": true
+    },
+    {
+      "control": "seleccion_vacia_sin_graficas_ficticias",
+      "ok": true
+    },
+    {
+      "control": "ambas_pruebas_de_parametros_ejecutadas",
+      "ok": true
+    }
+  ],
+  "pruebas_parametros": [
+    {
+      "tipo": "seleccion_filtrada",
+      "run": "20261030T151058_a3d8b89a",
+      "eventos": 465
+    },
+    {
+      "tipo": "seleccion_vacia",
+      "run": "20261030T151110_93d19090",
+      "eventos": 0
+    }
+  ],
+  "solo_bodega": true,
+  "datos_personales_exportados": false,
+  "metodo": "Core READ ONLY; contadores y conjuntos Python independientes de las agregaciones SQL."
+}

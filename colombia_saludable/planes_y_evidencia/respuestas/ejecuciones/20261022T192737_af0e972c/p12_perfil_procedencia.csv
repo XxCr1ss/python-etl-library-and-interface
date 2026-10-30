@@ -1,0 +1,26 @@
+﻿procedencia,atributo,categoria,cotizantes,grupo_pct
+No proviene de otra EPS,escolaridad,postgrado,5,38.46
+No proviene de otra EPS,escolaridad,desconocido,4,30.77
+No proviene de otra EPS,escolaridad,técnico,2,15.38
+No proviene de otra EPS,escolaridad,universitaria,2,15.38
+Proviene de otra EPS,escolaridad,postgrado,6,37.5
+Proviene de otra EPS,escolaridad,desconocido,5,31.25
+Proviene de otra EPS,escolaridad,universitaria,4,25.0
+Proviene de otra EPS,escolaridad,técnico,1,6.25
+No proviene de otra EPS,estrato,3,4,30.77
+No proviene de otra EPS,estrato,4,3,23.08
+No proviene de otra EPS,estrato,1,2,15.38
+No proviene de otra EPS,estrato,2,2,15.38
+No proviene de otra EPS,estrato,5,2,15.38
+Proviene de otra EPS,estrato,2,5,31.25
+Proviene de otra EPS,estrato,4,5,31.25
+Proviene de otra EPS,estrato,1,3,18.75
+Proviene de otra EPS,estrato,3,3,18.75
+No proviene de otra EPS,grupo_etario,45-64,13,100.0
+Proviene de otra EPS,grupo_etario,45-64,16,100.0
+No proviene de otra EPS,sexo,f,13,100.0
+Proviene de otra EPS,sexo,f,16,100.0
+No proviene de otra EPS,tipo_cotizante,empleado,11,84.62
+No proviene de otra EPS,tipo_cotizante,jubilado,2,15.38
+Proviene de otra EPS,tipo_cotizante,empleado,11,68.75
+Proviene de otra EPS,tipo_cotizante,jubilado,5,31.25

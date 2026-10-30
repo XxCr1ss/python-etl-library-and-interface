@@ -1,0 +1,11 @@
+﻿control,valor
+ids_persona_en_ambos_tipos,0
+medico_ips_sin_correspondencia,0
+beneficiarios_con_varios_cotizantes,0
+cotizantes_con_varias_empresas,0
+beneficiarios_sin_familia,0
+cotizantes_sin_empresa,175
+nacimientos_posteriores_afiliacion,0
+pagos_no_positivos,0
+tarifas_negativas,0
+estancias_negativas,0

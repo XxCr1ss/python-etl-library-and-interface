@@ -1,0 +1,78 @@
+﻿tabla,columna,valor,filas
+cotizante,sexo,M,563
+cotizante,sexo,F,537
+beneficiario,sexo,M,1747
+beneficiario,sexo,F,1569
+cotizante,tipo_cotizante,Empleado,765
+cotizante,tipo_cotizante,Jubilado,294
+cotizante,tipo_cotizante,Independiente,41
+cotizante,estracto,3,231
+cotizante,estracto,4,224
+cotizante,estracto,2,221
+cotizante,estracto,5,214
+cotizante,estracto,1,210
+cotizante,proviene_otra_eps,1,559
+cotizante,proviene_otra_eps,0,541
+cotizante,nivel_escolaridad,Técnico,279
+cotizante,nivel_escolaridad,N/A,276
+cotizante,nivel_escolaridad,Universitaria,275
+cotizante,nivel_escolaridad,Postgrado,270
+ips,departamento,Cundinamarca,15
+ips,departamento,Antioquia,14
+ips,departamento,Valle del Cauca,14
+ips,departamento,Choco,12
+ips,departamento,Caqueta,11
+ips,departamento,Cordoba,10
+ips,departamento,Meta,10
+ips,municipio,Bogota,11
+ips,municipio,Cali,11
+ips,municipio,Quibdó,10
+ips,municipio,Medellin,8
+ips,municipio,Florencia,7
+ips,municipio,Villavicencio,7
+ips,municipio,Montería,6
+ips,municipio,Bello,3
+ips,municipio,Envigado,3
+ips,municipio,Facatativá,2
+ips,municipio,Girardot,2
+ips,municipio,Pensilvania,2
+ips,municipio,Puerto Escondido,2
+ips,municipio,Restrepo,2
+ips,municipio,Valparaíso,2
+ips,municipio, Pueblo Nuevo,1
+ips,municipio,Bagadó,1
+ips,municipio,El Dorado,1
+ips,municipio,Jamundí,1
+ips,municipio,Nuquí,1
+ips,municipio,Palmira,1
+ips,municipio,Pueblo Nuevo,1
+ips,municipio,Yumbo,1
+ips,tipo_ips,Hospital,27
+ips,tipo_ips,Consultorio,26
+ips,tipo_ips,Centro de Salud,18
+ips,tipo_ips,Clinica,13
+ips,tipo_ips,clinica ,1
+ips,tipo_ips,Clinica ,1
+ips,nivel,,59
+ips,nivel,2,9
+ips,nivel,1,6
+ips,nivel,3,6
+ips,nivel,4,5
+ips,nivel,2 ,1
+retiros,cambio_a_eps,,41
+retiros,cambio_a_eps,Cafesalud,16
+retiros,cambio_a_eps,Coomeva,13
+retiros,cambio_a_eps,Susalud,10
+retiros,cambio_a_eps,Comfenalco,9
+preexistencias,familiar,Mama,760
+preexistencias,familiar,Tia,747
+preexistencias,familiar,Hermano,740
+preexistencias,familiar,Tio,735
+preexistencias,familiar,Hermana,728
+preexistencias,familiar,Papa,706
+preexistencias,enfermedad,Diabetes,1092
+preexistencias,enfermedad,Hipertensión Arterial,1067
+preexistencias,enfermedad,Demencia,590
+preexistencias,enfermedad,Enfermedad Renal,577
+preexistencias,enfermedad,Enfermedad Cardiaca,553
+preexistencias,enfermedad,Cáncer,537

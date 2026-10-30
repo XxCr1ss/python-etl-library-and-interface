@@ -1,0 +1,135 @@
+{
+  "estado": "exitoso",
+  "inicio_bogota": "2026-10-22T19:28:22.371978-05:00",
+  "fin_bogota": "2026-10-22T19:28:25.175065-05:00",
+  "run_respuestas": "20261022T192822_1974e7d6",
+  "run_carga": "20261022T190155_3b5f5835",
+  "directorio": "ejecuciones/20261022T192822_1974e7d6",
+  "parametros": {
+    "FECHA_INICIO": "2004-01-01",
+    "FECHA_FIN": "2004-12-31",
+    "TIPOS_ATENCION": [],
+    "IPS": [],
+    "DEPARTAMENTOS": [],
+    "SEXOS": [],
+    "GRUPOS_EDAD": [],
+    "TOP_N": 5
+  },
+  "corte_perfiles": "2004-12-31",
+  "preguntas": {
+    "P01": {
+      "estado": "parcial",
+      "interpretacion": "No hay citas o cirugías en esta selección."
+    },
+    "P02": {
+      "estado": "parcial",
+      "interpretacion": "No hay eventos. Se recibieron 0,00 unidades monetarias en aportes de 0 cotizantes y 0 familias. Un aporte del titular se cuenta una sola vez por familia. Las tablas de tarifas familiares son estimaciones de remisiones; no responden costo real ni regional administrativa."
+    },
+    "P03": {
+      "estado": "parcial",
+      "interpretacion": "No hay recetas seleccionadas. Las estimaciones por estrato, tipo de titular y edad incluyen únicamente remisiones tarifadas; no permiten medir el costo real por ocupación."
+    },
+    "P04": {
+      "estado": "disponible_por_codigo",
+      "interpretacion": "No hay pares de medicamentos en las recetas seleccionadas. Las frecuencias individuales están en P03. No se infieren dosis, entrega ni conveniencia clínica."
+    },
+    "P05": {
+      "estado": "disponible_con_denominador_declarado",
+      "interpretacion": "Se observan sin dato eventos por paciente atendido, con 0 eventos y 0 personas distintas. Sobre 4.416 afiliados registrados, incluidos 4.416 sin eventos, la media es 0,00. Son eventos de cuatro tablas, no episodios deduplicados ni utilización por afiliado activo."
+    },
+    "P06": {
+      "estado": "parcial",
+      "interpretacion": "No hay días del calendario en este intervalo. Las tablas permiten comparar actividad de hospitales y profesionales, pero no ocupación real. La unidad de duración hospitalaria no está informada; no se calculan camas-día ni vacaciones."
+    },
+    "P07": {
+      "estado": "parcial",
+      "interpretacion": "No hay actividad en la selección. El final de 2008 tiene cobertura incompleta: la ausencia de registros no demuestra ausencia de demanda o atención. Los conteos de diagnóstico observado son parciales y no permiten afirmar qué mes tuvo más enfermos en toda la población."
+    },
+    "P08": {
+      "estado": "parcial",
+      "interpretacion": "La tarifa media por remisión es sin dato y la suma de tarifas por paciente con remisión es sin dato unidades monetarias. La cobertura de tarifa es sin dato % de los eventos. No se conoce el costo real promedio de todas las atenciones."
+    },
+    "P09": {
+      "estado": "parcial",
+      "interpretacion": "No hay diagnósticos clasificados de estas cohortes. El detalle separa eventos con el diagnóstico y toda la cohorte. No se suman cohortes solapadas ni se interpreta la estimación como costo real de SIDA, cáncer o insuficiencia renal."
+    },
+    "P10": {
+      "estado": "parcial",
+      "interpretacion": "No hay solicitudes seleccionadas. De 0 retiros, 0 no informan destino. Ninguno puede atribuirse a mora con los campos disponibles."
+    },
+    "P11": {
+      "estado": "no_calculable",
+      "interpretacion": "Se observan 0 fórmulas y 0 códigos; 0 códigos tienen precio informado. El costo promedio de recetas es desconocido, no cero. Requiere precios/valores facturados y cantidades."
+    },
+    "P12": {
+      "estado": "parcial",
+      "interpretacion": "No hay cotizantes registrados antes del corte con estos filtros. Las distribuciones comparan sexo, estrato, tipo, escolaridad y edad al corte. No se conoce quién paga tarde: faltan período, obligación y vencimiento."
+    },
+    "P13": {
+      "estado": "parcial",
+      "interpretacion": "No hay diagnósticos clasificados observados. Solo 0 de 0 eventos se clasifican como diagnóstico observado. Las tablas estratificadas describen ese subconjunto, no todas las enfermedades de la población."
+    },
+    "P14": {
+      "estado": "disponible_para_destino_informado",
+      "interpretacion": "No hay retiros en la selección. Las comparaciones son descriptivas. Destino desconocido no significa mora ni ausencia de cambio."
+    }
+  },
+  "consultas": 43,
+  "tablas": [
+    "calidad_seleccion",
+    "p01_esperas",
+    "p01_distribucion_espera",
+    "p02_prestadores",
+    "p02_aportes_afiliado_anonimo",
+    "p02_aportes_familia_anonima",
+    "p02_aportes_empresa",
+    "p02_aportes_municipio",
+    "p02_aportes_departamento",
+    "p02_tarifa_familiar_anonima",
+    "p03_tarifa_estrato_familiar",
+    "p03_tarifa_tipo_cotizante_titular",
+    "p03_tarifa_grupo_etario_atencion",
+    "p03_frecuencia_medicamentos",
+    "p04_coformulacion",
+    "p05_utilizacion_global",
+    "p05_utilizacion_sexo",
+    "p05_utilizacion_grupo_etario_atencion",
+    "p05_utilizacion_tipo_atencion",
+    "p05_utilizacion_registrados",
+    "p06_actividad_temporadas",
+    "p06_hospitales_temporadas",
+    "p06_medicos_anonimos_temporadas",
+    "p06_estancia_unidad_no_informada",
+    "p07_series_mensuales",
+    "p07_demanda_dia_semana",
+    "p07_demanda_mes_dia",
+    "p08_estimacion_tarifa",
+    "p09_cohortes_diagnosticas",
+    "p10_demanda_departamento",
+    "p10_retiros_cobertura",
+    "p10_mora_datos_faltantes",
+    "p11_cobertura_recetas",
+    "p11_requisitos_costo",
+    "p12_tamano_grupos",
+    "p12_perfil_procedencia",
+    "p13_cobertura_clasificacion",
+    "p13_diagnosticos_frecuentes",
+    "p13_por_sexo",
+    "p13_por_grupo_etario_atencion",
+    "p13_por_estrato_familiar",
+    "p14_eps_destino",
+    "p14_perfil_retiros",
+    "p14_resumen_retiros"
+  ],
+  "figuras": {},
+  "controles_aprobados": 15,
+  "bodega_sin_cambios": true,
+  "solo_warehouse": true,
+  "modo_bd": "READ ONLY",
+  "paquetes": {
+    "pandas": "3.0.3",
+    "matplotlib": "3.11.2",
+    "SQLAlchemy": "2.0.50",
+    "nbclient": "0.11.0"
+  }
+}

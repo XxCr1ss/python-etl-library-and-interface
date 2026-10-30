@@ -1,0 +1,11 @@
+{
+  "fecha_bogota": "2026-10-22T19:06:44.309839-05:00",
+  "tabla": "dim_paciente",
+  "columna": "proviene_otra_eps_propio",
+  "filas_corregidas": 3316,
+  "defecto": "El alias boolean del Core convierte None en False.",
+  "solucion": "Parámetro pd.BooleanDtype() en convert_column_type, conservando NULL.",
+  "otros_valores_sin_cambios": true,
+  "modo": "reemplazo_acotado_dimension_creada_en_este_run_via_Core",
+  "core_modificado": false
+}

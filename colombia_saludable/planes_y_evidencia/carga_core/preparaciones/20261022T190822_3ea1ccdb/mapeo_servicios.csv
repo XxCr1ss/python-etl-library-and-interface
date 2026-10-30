@@ -1,0 +1,68 @@
+﻿servicio_id,descripcion_original,descripcion,tipo_servicio,tarifa_catalogo
+1234,Consulta General,consulta general,consulta_general,15850
+1241,Cirugía Drenaje Tejido Celular Subcutáneo,cirugía drenaje tejido celular subcutáneo,cirugia,50000
+1248,Cirugía Amigdalectomía,cirugía amigdalectomía,cirugia,543900
+1255,Examen Esofagogastroduodenoscopia,examen esofagogastroduodenoscopia,examen,58000
+1262,Examen Biopsia,examen biopsia,examen,50500
+1269,Consulta Especialista,consulta especialista,consulta_especialista,12200
+1276,Examen Curva de Toleracia a la Glucosa,examen curva de toleracia a la glucosa,examen,18500
+1283,Examen Cetonas,examen cetonas,examen,34000
+1290,Examen Glucemia,examen glucemia,examen,20000
+1297,Tratamiento Hemodiálisis,tratamiento hemodiálisis,tratamiento,150000
+1304,Tratamiento Dialisis,tratamiento dialisis,tratamiento,200000
+1311,Tratamiento Control Niveles Glucosa,tratamiento control niveles glucosa,tratamiento,80000
+1318,Examen Arteriografía renal,examen arteriografía renal,examen,176300
+1325,Examen Gamagrafía renal estática DMSA,examen gamagrafía renal estática dmsa,examen,78000
+1332,Examen Perfusión renal,examen perfusión renal,examen,51400
+1339,Cirugía Transplante Renal,cirugía transplante renal,cirugia,15000000
+1346,Hospitalización,hospitalización,hospitalizacion,45000
+1353,Cirugía Colocación o Retiro de Cateter Dialisis Peritoneal,cirugía colocación o retiro de cateter dialisis peritoneal,cirugia,1000000
+1360,Examen Alergias Estudio Completo,examen alergias estudio completo,examen,112200
+1367,Urgencias,urgencias,urgencias,30000
+1374,Examen Pruebas cutáneas,examen pruebas cutáneas,examen,90500
+1381,Examen  Oftalmológico Estándar ,examen oftalmológico estándar,examen,40000
+1388,Cirugía Extracción cuerpo extraño endo ocular (Sweet),cirugía extracción cuerpo extraño endo ocular (sweet),cirugia,300000
+1395,Cirugía Cataratas,cirugía cataratas,cirugia,542000
+1402,Examen Retina,examen retina,examen,50000
+1409,Examen Refracción,examen refracción,examen,50000
+1416,Examen Ecografía de abdomen,examen ecografía de abdomen,examen,120356
+1423,Examen TC de abdomen,examen tc de abdomen,examen,133356
+1430,Cirugía Apendicectomía,cirugía apendicectomía,cirugia,887500
+1437,Examen Radiografía de columna,examen radiografía de columna,examen,45689
+1444,Examen Resonancia nuclear (RNM) ,examen resonancia nuclear (rnm),examen,98645
+1451,Tratamiento Estimulación eléctrica del nervio,tratamiento estimulación eléctrica del nervio,tratamiento,123875
+1458,Examen Mielografía,examen mielografía,examen,72359
+1465,Examen Scanner (T.A.C.) de columna,examen scanner (t.a.c.) de columna,examen,120562
+1472,Examen Anestesia pre quirúrgica ,examen anestesia pre quirúrgica,examen,90088
+1479,Cirugía Discectomía,cirugía discectomía,cirugia,1200000
+1486,Examen Electromiografía,examen electromiografía,examen,125000
+1493,Cirugía Laminectomía,cirugía laminectomía,cirugia,1300000
+1500,Examen de Sangre,examen de sangre,examen,15000
+1507,Examen de Orina,examen de orina,examen,16000
+1514,Examen Audiometría,examen audiometría,examen,248600
+1521,Cirugía Estapedectomía,cirugía estapedectomía,cirugia,900600
+1528,Examen  Resonancia Magnética,examen resonancia magnética,examen,200000
+1535,Examen Electroencefalograma,examen electroencefalograma,examen,125000
+1542,Examen Radiografía de Rodilla,examen radiografía de rodilla,examen,46000
+1549,Tratamiento Fractura,tratamiento fractura,tratamiento,240000
+1556,Cirugía  Reducción abierta y fijación interna,cirugía reducción abierta y fijación interna,cirugia,1100000
+1563,Cirugía  Reducción abierta y fijación externa,cirugía reducción abierta y fijación externa,cirugia,960000
+1570,Examen Radiografía de Tobillo,examen radiografía de tobillo,examen,46000
+1577,Examen Radiografía de Tórax,examen radiografía de tórax,examen,45600
+1584,Cirugía  Hemorroidectomia,cirugía hemorroidectomia,cirugia,2560000
+1591,Cirugía  Reimplante de Pie,cirugía reimplante de pie,cirugia,3600000
+1598,Cirugía  Reimplante de Dedo,cirugía reimplante de dedo,cirugia,2500000
+1605,Tratamiento Control Tensión Arterial,tratamiento control tensión arterial,tratamiento,50000
+1612,Examen  Laringoscopia,examen laringoscopia,examen,120600
+1619,Examen Scanner (T.A.C.) de cuello,examen scanner (t.a.c.) de cuello,examen,120562
+1626,Tratamiento  Quimioterapia,tratamiento quimioterapia,tratamiento,450000
+1633,Tratamiento  Radioterapia,tratamiento radioterapia,tratamiento,455000
+1640,Cirugía  Laringectomía,cirugía laringectomía,cirugia,3698200
+1647,Tratamiento  Antirretrovira,tratamiento antirretrovira,tratamiento,560000
+1654,Examen  Recuento de Células T,examen recuento de células t,examen,60000
+1661,Examen  VIH,examen vih,examen,80000
+1668,Tratamiento  HAART,tratamiento haart,tratamiento,625000
+1675,Examen  de Embarazo,examen de embarazo,examen,20000
+1682,Tratamiento Control Embarazo,tratamiento control embarazo,tratamiento,35000
+1689,Cirugía  Cesárea,cirugía cesárea,cirugia,765000
+1696,Cirugía  Parto Normal,cirugía parto normal,cirugia,450000

@@ -1,0 +1,9 @@
+﻿tabla,filas,solo_cotizante,solo_beneficiario,ambos,sin_correspondencia,id_nulo
+citas_generales,3013,1353,1660,0,0,0
+urgencias,559,256,303,0,0,0
+hospitalizaciones,893,389,504,0,0,0
+remisiones,16742,7281,9461,0,0,0
+formulas_medicas,7484,3327,4157,0,0,0
+preexistencias,4416,1100,3316,0,0,0
+pagos,22938,22938,0,0,0,0
+retiros,89,89,0,0,0,0

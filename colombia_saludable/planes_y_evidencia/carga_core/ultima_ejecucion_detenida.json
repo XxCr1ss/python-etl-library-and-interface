@@ -1,0 +1,6 @@
+{
+  "estado": "ejecucion_detenida",
+  "celda": 22,
+  "tipo_error": "RuntimeError",
+  "modo_carga": true
+}

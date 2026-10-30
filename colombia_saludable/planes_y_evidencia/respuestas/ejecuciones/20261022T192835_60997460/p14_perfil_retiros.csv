@@ -1,0 +1,22 @@
+﻿grupo_retiro,atributo,categoria,retiros,grupo_pct
+Cambio informado,estrato,3,29,60.42
+Cambio informado,estrato,4,19,39.58
+Destino desconocido,estrato,2,23,56.1
+Destino desconocido,estrato,1,18,43.9
+Cambio informado,grupo_etario,25-44,17,35.42
+Cambio informado,grupo_etario,65+,14,29.17
+Cambio informado,grupo_etario,15-24,9,18.75
+Cambio informado,grupo_etario,45-64,8,16.67
+Destino desconocido,grupo_etario,65+,21,51.22
+Destino desconocido,grupo_etario,45-64,8,19.51
+Destino desconocido,grupo_etario,25-44,7,17.07
+Destino desconocido,grupo_etario,15-24,5,12.2
+Cambio informado,sexo,m,28,58.33
+Cambio informado,sexo,f,20,41.67
+Destino desconocido,sexo,f,21,51.22
+Destino desconocido,sexo,m,20,48.78
+Cambio informado,tipo_cotizante,empleado,32,66.67
+Cambio informado,tipo_cotizante,jubilado,13,27.08
+Cambio informado,tipo_cotizante,independiente,3,6.25
+Destino desconocido,tipo_cotizante,empleado,29,70.73
+Destino desconocido,tipo_cotizante,jubilado,12,29.27

@@ -1,0 +1,29 @@
+{
+  "run_id": "20261022T190822_3ea1ccdb",
+  "inicio_bogota": "2026-10-22T19:08:22.638328-05:00",
+  "modo": "preparacion",
+  "estado": "preparacion_exitosa_sin_escrituras",
+  "tablas_cargadas": [],
+  "destino": "colombia_saludable_dw_core",
+  "conteos": {
+    "dim_fecha": 1096,
+    "dim_empresa": 21,
+    "dim_ips": 86,
+    "dim_medico": 720,
+    "dim_familia": 1100,
+    "dim_paciente": 4416,
+    "dim_servicio": 67,
+    "dim_medicamento": 166,
+    "dim_diagnostico": 87,
+    "dim_drogueria": 35,
+    "puente_ips_drogueria": 69,
+    "fact_atencion": 21207,
+    "fact_pago": 22938,
+    "fact_formula": 7484,
+    "puente_formula_medicamento": 15770,
+    "fact_retiro": 89,
+    "fact_antecedente_familiar": 4416
+  },
+  "referencias_validadas": 42,
+  "core_sha256": "169dec580373492e809b4fd14eed2be873084d4451e2bcca66fb7e4f526df9d9"
+}

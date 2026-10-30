@@ -1,0 +1,3 @@
+﻿rol,estado,base,usuario,esquema,version_postgresql,solo_lectura,zona_horaria
+origen,OK,colombia_saludable,postgres,public,18.3,on,America/Bogota
+bodega,OK,colombia_saludable_dw_core,postgres,public,18.3,on,America/Bogota

@@ -1,0 +1,31 @@
+{
+  "estado": "aprobado",
+  "fecha_bogota": "2026-10-30T15:10:01.139887-05:00",
+  "run_carga": "20261030T150852_0357772f",
+  "destino": "colombia_saludable_dw_core_v2",
+  "carga_repetida_bloqueada": true,
+  "codigo_salida_esperado": 1,
+  "cuaderno_preservado_ante_bloqueo": true,
+  "evidencia_publicada_sin_cambios": true,
+  "tablas_bodega_sin_cambios": 17,
+  "origen_sin_cambios": true,
+  "huellas_bodega_sha256": {
+    "dim_diagnostico": "24323cb9e76b7c67aeae05ddb1343825f537c85da7587f5c4de5e350a88c2a8c",
+    "dim_drogueria": "a315158d4a4e09634114a6475daaeb18040ae9d62118a15cbd2cb2e5843f7463",
+    "dim_empresa": "a18a02971de18c72d4e947abfc4babfc1e8d4deb2bc2923896419ac2558f9c5a",
+    "dim_familia": "a3759a17933feee8a8e4768c0bad1b546c8de40114ca15d5bbb168b3acba3212",
+    "dim_fecha": "022e083ddf8202555a65a4a94669b54a07f8a78ce42b1bdf466697ff2621f51e",
+    "dim_ips": "54121cc831b33c394a68b625fdd7003495f1acc1b155eb12aae6478cf9ae411c",
+    "dim_medicamento": "6ec5e916b99731dfccfbc8db735d64e29edb17eeaa87959d296d36aa106237d8",
+    "dim_medico": "8acf9c898db9d83020f1c87e1473dbc48ff36b206c8bb75539d00772f4d774a3",
+    "dim_paciente": "6dff3b193b4a111633645080d9d8407b3b577bc0e6f390dd06aa96e7deb696fd",
+    "dim_servicio": "8c2fa302eb2b7e6d24bccbe80e8bc181efa4b0447a04ea45a533da76ac046d3b",
+    "fact_antecedente_familiar": "b6890dd8356fc98dc9c9b8dc617c3114180aaeec0da3c4a33b14b6ee257590c9",
+    "fact_atencion": "e5927b81eee9a74e6b8094f9cad9e984674975363266d14456fe96be76aacf71",
+    "fact_formula": "9ecabb1da30c6e8790134f4b0aa771e89c1630997db12fd644da4bab294007a4",
+    "fact_pago": "d2a4714ecc31ec9c61fa3ed29ee414b0f3e1771af386d9c7a8ec04599a59d61f",
+    "fact_retiro": "d026a38eb02bd954a2688634173a77ffada5221320e6a23534faac578707fab5",
+    "puente_formula_medicamento": "4e02366ef9d4df54b1e2c96f9308bc9cce08af020cd2e75548160a24dea80a35",
+    "puente_ips_drogueria": "1f46f3d3e49c6b0ec8d654bd6fb83e899a163d5aa58d6523a3e327ff01b26dbb"
+  }
+}

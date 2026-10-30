@@ -1,0 +1,9 @@
+{
+  "run_id": "20261022T190815_9f50e3bb",
+  "inicio_bogota": "2026-10-22T19:08:15.287253-05:00",
+  "modo": "carga",
+  "estado": "bloqueado_prevalidacion",
+  "tablas_cargadas": [],
+  "destino": "colombia_saludable_dw_core",
+  "motivo": "destino_no_vacio"
+}
