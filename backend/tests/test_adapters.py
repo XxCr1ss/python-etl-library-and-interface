@@ -100,7 +100,7 @@ def test_agent_wire_error_is_sanitized(monkeypatch, capsys):
 
     monkeypatch.setattr(etl_agent.websockets, "connect", connect)
     monkeypatch.setattr(etl_agent, "handle_get_table", broken)
-    asyncio.run(etl_agent.agent_loop("http://synthetic", "synthetic"))
+    asyncio.run(etl_agent.agent_loop("https://synthetic", "synthetic"))
     assert sent[0]["status"] == "error" and sent[0]["request_id"] == "synthetic"
     output = json.dumps(sent) + capsys.readouterr().out
     assert SECRET not in output and URL not in output

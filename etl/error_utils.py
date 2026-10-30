@@ -3,13 +3,22 @@ import re
 from urllib.parse import quote, quote_plus
 
 
+def decode_error_bytes(raw):
+    """Decode Windows driver diagnostics with the historical encoding preference."""
+    try:
+        return raw.decode("cp1252")
+    except UnicodeDecodeError:
+        # Latin-1 maps every byte, including the undefined Windows-1252 values.
+        return raw.decode("latin-1")
+
+
 def public_error(error, payload=None):
     secrets = set()
 
     def collect(value):
         if isinstance(value, dict):
             for key, item in value.items():
-                if key == "password" and isinstance(item, str) and item:
+                if key in {"password", "pair_token"} and isinstance(item, str) and item:
                     secrets.update((item, quote(item, safe=""), quote_plus(item)))
                 else:
                     collect(item)
@@ -19,14 +28,7 @@ def public_error(error, payload=None):
 
     collect(payload)
     if isinstance(error, UnicodeDecodeError) and isinstance(getattr(error, "object", None), bytes):
-        for enc in ("cp1252", "iso-8859-1", "latin-1", "utf-8"):
-            try:
-                message = error.object.decode(enc)
-                break
-            except Exception:
-                pass
-        else:
-            message = error.object.decode("latin-1", errors="replace")
+        message = decode_error_bytes(error.object)
     else:
         message = str(error)
     # Remove the entire URL, including URLs with masked passwords.
