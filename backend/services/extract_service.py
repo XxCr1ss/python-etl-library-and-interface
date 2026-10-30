@@ -3,7 +3,6 @@ import os
 import uuid
 import tempfile
 import shutil
-import pandas as pd
 import re
 from pathlib import Path
 from fastapi import UploadFile
@@ -11,24 +10,13 @@ from starlette.concurrency import run_in_threadpool
 from etl.extractors.csv_extractor import CSVExtractor
 from etl.extractors.xlsx_extractor import XLSXExtractor
 from etl.extractors.db_extractor import DB_Extractor
-from etl.json_utils import clean_value
-from etl.error_utils import public_error
-from typing import Dict, Any, List, Optional
+from etl.json_utils import clean_value as clean_value, clean_records
+from etl.extractors.metadata import table_metadata
+from typing import Dict, Any, Optional
 
 UPLOAD_DIR = os.getenv("ETL_UPLOAD_DIR") or os.path.join(tempfile.gettempdir(), "etl_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-def clean_records(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
-    """
-    Toma las primeras filas del DataFrame y las convierte en una lista de diccionarios limpios.
-    """
-    preview_df = df.head(limit)
-    records = []
-    for _, row in preview_df.iterrows():
-        record = {str(col): clean_value(val) for col, val in row.items()}
-        records.append(record)
-    return records
 
 async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict[str, Any]:
     """
@@ -109,24 +97,10 @@ def get_database_metadata(
             service_name=service_name,
             connect_timeout=positive_setting("ETL_SOURCE_CONNECT_TIMEOUT",10)
         ) as extractor:
-            # Obtener lista de tablas
-            tables = extractor.get_table_names()
-            
-            # Obtener esquemas para cada tabla
-            schema_preview = {}
-            for table in tables:
-                try:
-                    schema = extractor.get_table_schema(table)
-                    schema_preview[table] = schema.get('columns', [])
-                except Exception as e:
-                    print(f"Error al obtener esquema para la tabla '{table}': {public_error(e, {'password': password})}")
-                    schema_preview[table] = []
-                    
             return {
                 "status": "success",
                 "message": f"Conexión exitosa a {database}",
-                "tables": tables,
-                "schema_preview": schema_preview
+                **table_metadata(extractor, {"password": password})
             }
     except UnicodeDecodeError as e:
         raise ValueError(

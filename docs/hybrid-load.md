@@ -20,10 +20,19 @@ pueden proporcionarse sin prompts:
 python etl_agent.py --allow-load --server-url http://localhost:8000 --agent-id ID_DE_LA_INTERFAZ
 ```
 
-Para un backend remoto, Load exige HTTPS/WSS; HTTP se admite para loopback.
+Para un backend remoto, todas las acciones del agente exigen HTTPS/WSS, incluida
+la extracción sin `--allow-load`. HTTP se admite únicamente para `localhost`,
+`127.0.0.1` y `::1`. Si antes se usaba una URL HTTP remota para Extract, cambiarla
+a HTTPS; el agente la rechaza antes de abrir el socket. La URL base no admite
+credenciales, rutas, query ni fragmento.
 Sin `--allow-load`, el agente mantiene extracción pero rechaza prueba/carga de
 destino. Actualizar agente y backend juntos: Load negocia protocolo versión 1
 antes de enviar credenciales o datos. Un agente antiguo sigue sirviendo Extract.
+
+Con `--pair`, el código temporal se solicita sin mostrarlo y se envía solo en la
+cabecera de emparejamiento. Al terminar o fallar esa sesión el agente se detiene;
+para reconectar se necesita un código nuevo. No reutiliza el código mediante
+reintentos automáticos de apertura ni después de una desconexión.
 
 En Load, completar destino, activar la opción y probar conexión. Presencia del
 agente no implica que la base esté comprobada ni garantiza permisos de escritura.

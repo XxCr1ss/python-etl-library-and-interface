@@ -113,8 +113,8 @@ jobs:
         with:
           args: -Dsonar.qualitygate.wait=true
 
-      - name: Require 80 percent overall coverage on branches
+      - name: Require overall coverage of 80 percent and duplication below 3 percent
         if: github.event_name == 'push'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: .venv/bin/python scripts/check_sonar_coverage.py --branch "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" --minimum 80
+        run: .venv/bin/python scripts/check_sonar_coverage.py --branch "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" --minimum 80 --maximum-duplication 3

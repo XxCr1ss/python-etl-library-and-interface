@@ -91,3 +91,47 @@ def test_gate_fails_closed_for_invalid_metric_values(monkeypatch, value):
     )
     with pytest.raises(ValueError, match="valid overall coverage"):
         gate.check("main", "current")
+
+
+@pytest.mark.parametrize("value,accepted", [("0", True), ("2.9", True), ("3.0", False), ("3.1", False)])
+def test_overall_duplication_has_a_strict_three_percent_limit(monkeypatch, value, accepted):
+    def fetch(endpoint, parameters, token):
+        if endpoint == "project_branches/list":
+            return {"branches": [{"name": "main", "commit": {"sha": "current"}}]}
+        assert parameters["metricKeys"] == "coverage,duplicated_lines_density"
+        return {"component": {"measures": [{"metric": "coverage", "value": "83.2"},
+                    {"metric": "duplicated_lines_density", "value": value}]}}
+
+    monkeypatch.setattr(gate, "fetch", fetch)
+    if accepted:
+        assert gate.check("main", "current", maximum_duplication=3) == 83.2
+    else:
+        with pytest.raises(ValueError, match="duplication.*below"):
+            gate.check("main", "current", maximum_duplication=3)
+
+
+@pytest.mark.parametrize("value", [None, "NaN", "inf", "-1", "101", "invalid", True])
+def test_missing_or_invalid_duplication_fails_closed(monkeypatch, value):
+    def fetch(endpoint, parameters, token):
+        if endpoint == "project_branches/list":
+            return {"branches": [{"name": "main", "commit": {"sha": "current"}}]}
+        return {"component": {"measures": [{"metric": "coverage", "value": "83.2"},
+                    {"metric": "duplicated_lines_density", "value": value}]}}
+    monkeypatch.setattr(gate, "fetch", fetch)
+    with pytest.raises(ValueError, match="valid overall duplication"):
+        gate.check("main", "current", maximum_duplication=3)
+
+
+def test_revision_prefix_is_not_a_completed_analysis_of_this_commit(monkeypatch):
+    monkeypatch.setattr(gate, "get_branch_revision", lambda *args: "abc1234old")
+    with pytest.raises(ValueError, match="stale"):
+        gate.check("main", "abc1234", maximum_duplication=3)
+
+
+def test_metrics_cannot_be_accepted_after_the_branch_analysis_changes(monkeypatch):
+    revisions = iter(["current", "other-commit"])
+    monkeypatch.setattr(gate, "get_branch_revision", lambda *args: next(revisions))
+    monkeypatch.setattr(gate, "fetch", lambda *args: {"component": {"measures": [
+        {"metric": "coverage", "value": "83.2"}, {"metric": "duplicated_lines_density", "value": "0.0"}]}})
+    with pytest.raises(ValueError, match="analysis changed"):
+        gate.check("main", "current", maximum_duplication=3)

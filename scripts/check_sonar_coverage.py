@@ -1,4 +1,4 @@
-"""Enforce overall branch coverage only after the matching Sonar analysis finishes."""
+"""Enforce overall coverage and duplication on the matching Sonar revision."""
 import argparse
 import json
 import math
@@ -49,22 +49,36 @@ def get_branch_revision(branch, token):
     return None
 
 
-def check(branch, revision, minimum=80, token=None):
+def measure_value(measures, metric, label):
+    raw = next((item.get("value") for item in measures if item.get("metric") == metric), None)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"SonarCloud did not return valid overall {label}.") from exc
+    if isinstance(raw, bool) or not math.isfinite(value) or not 0 <= value <= 100:
+        raise ValueError(f"SonarCloud did not return valid overall {label}.")
+    return value
+
+
+def check(branch, revision, minimum=80, token=None, maximum_duplication=None):
     latest_revision = get_branch_revision(branch, token)
-    if not latest_revision or (
-        latest_revision != revision
-        and not latest_revision.startswith(revision)
-        and not revision.startswith(latest_revision)
-    ):
+    if not latest_revision or latest_revision != revision:
         raise ValueError("SonarCloud has no completed analysis for this branch and revision; refusing stale coverage.")
 
-    response = fetch("measures/component", {"component": PROJECT, "branch": branch, "metricKeys": "coverage"}, token)
+    metrics = "coverage" if maximum_duplication is None else "coverage,duplicated_lines_density"
+    response = fetch("measures/component", {"component": PROJECT, "branch": branch, "metricKeys": metrics}, token)
     measures = response.get("component", {}).get("measures", [])
-    value = next((float(m["value"]) for m in measures if m.get("metric") == "coverage"), None)
-    if value is None or not math.isfinite(value) or not 0 <= value <= 100:
-        raise ValueError("SonarCloud did not return valid overall coverage.")
+    value = measure_value(measures, "coverage", "coverage")
     if value < minimum:
         raise ValueError(f"Overall coverage {value:.1f}% is below {minimum:.1f}%.")
+    if maximum_duplication is not None:
+        if not math.isfinite(maximum_duplication) or not 0 < maximum_duplication <= 100:
+            raise ValueError("The duplication limit must be finite and between 0 (exclusive) and 100.")
+        duplication = measure_value(measures, "duplicated_lines_density", "duplication")
+        if duplication >= maximum_duplication:
+            raise ValueError(f"Overall duplication {duplication:.1f}% must be below {maximum_duplication:.1f}%.")
+        if get_branch_revision(branch, token) != revision:
+            raise ValueError("SonarCloud analysis changed while reading metrics; refusing stale results.")
     return value
 
 
@@ -73,9 +87,11 @@ def main():
     parser.add_argument("--branch", required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--minimum", type=float, default=80)
+    parser.add_argument("--maximum-duplication", type=float, default=3.0)
     args = parser.parse_args()
-    value = check(args.branch, args.revision, args.minimum, os.getenv("SONAR_TOKEN"))
+    value = check(args.branch, args.revision, args.minimum, os.getenv("SONAR_TOKEN"), args.maximum_duplication)
     print(f"Overall coverage: {value:.1f}% ({args.branch}, {args.revision}).")
+    print(f"Overall duplication is below {args.maximum_duplication:.1f}%.")
 
 
 if __name__ == "__main__":

@@ -110,3 +110,11 @@ def test_public_error_decodes_latin1_unicodedecodeerror():
     assert "la autenticación password falló" in result
     assert "codec can't decode" not in result
 
+
+def test_public_error_preserves_diagnostics_with_an_undefined_windows_byte():
+    from etl.error_utils import public_error
+    raw = b"driver detail: \x81"
+    with pytest.raises(UnicodeDecodeError) as caught:
+        raw.decode("utf-8")
+    assert public_error(caught.value) == raw.decode("latin-1")
+

@@ -8,6 +8,12 @@ import numpy as np
 import pandas as pd
 
 
+def clean_records(df: pd.DataFrame, limit: int = 5) -> list[dict[str, Any]]:
+    """Convert a bounded preview using the same policy for HTTP and the agent."""
+    return [{str(column): clean_value(value) for column, value in row.items()}
+            for _, row in df.head(limit).iterrows()]
+
+
 def clean_value(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value) if value.is_finite() else None

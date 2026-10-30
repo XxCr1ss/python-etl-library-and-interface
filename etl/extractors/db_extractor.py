@@ -1,6 +1,6 @@
 import sys
 import re
-from etl.error_utils import public_error
+from etl.error_utils import public_error, decode_error_bytes as _decode_bytes_safely
 from sqlalchemy import create_engine, text, inspect, MetaData, Table, select
 from sqlalchemy.engine import URL
 import pandas as pd
@@ -16,14 +16,6 @@ if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
-
-def _decode_bytes_safely(raw: bytes) -> str:
-    for enc in ("cp1252", "iso-8859-1", "latin-1", "utf-8"):
-        try:
-            return raw.decode(enc)
-        except Exception:
-            continue
-    return raw.decode("latin-1", errors="replace")
 
 def _patch_psycopg2_encoding() -> None:
     try:
