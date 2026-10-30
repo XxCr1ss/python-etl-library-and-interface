@@ -58,6 +58,7 @@ def live_backend_server(tmp_path: Path):
     base_url = f"http://127.0.0.1:{port}"
     env = os.environ.copy()
     env["ETL_UPLOAD_DIR"] = str(tmp_path / "uploads")
+    env["ETL_JOB_MANIFEST_DIR"] = str(tmp_path / "manifests")
     env["PYTHONUTF8"] = "1"
     proc = subprocess.Popen(
         [

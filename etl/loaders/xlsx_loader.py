@@ -1,4 +1,5 @@
 import pandas as pd
+from pathlib import Path
 from typing import Union, List, Dict, Optional
 
 class Excel_Loader:
@@ -48,6 +49,15 @@ class Excel_Loader:
         else:
             raise ValueError("❌ No se ha proporcionado una ruta para el archivo Excel.")
     
+    def _write_sheet(self, df, sheet_name, path, if_exists, index):
+        if if_exists not in {"append", "replace"}:
+            raise ValueError("if_exists debe ser append o replace.")
+        mode = "a" if Path(path).exists() else "w"
+        options = {"if_sheet_exists": "overlay" if if_exists == "append" else "replace"} if mode == "a" else {}
+        with pd.ExcelWriter(path, engine="openpyxl", mode=mode, **options) as writer:
+            start = writer.sheets[sheet_name].max_row if if_exists == "append" and sheet_name in writer.sheets else 0
+            df.to_excel(writer, sheet_name=sheet_name, index=index, startrow=start, header=start == 0)
+
     def load_dimension(self, df: pd.DataFrame, sheet_name: str, path: Optional[str] = None, 
                       if_exists: str = "replace", index: bool = False) -> None:
         """
@@ -80,10 +90,7 @@ class Excel_Loader:
         """
         try:
             file_path = self._get_path(path)
-            mode = 'a' if if_exists == "append" else 'w'
-            
-            with pd.ExcelWriter(file_path, engine='openpyxl', mode=mode, if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name=sheet_name, index=index)
+            self._write_sheet(df, sheet_name, file_path, if_exists, index)
             print(f"✅ Dimensión '{sheet_name}' cargada exitosamente en Excel (modo: {if_exists}).")
         except Exception as e:
             print(f"❌ Error al cargar dimensión '{sheet_name}' en Excel: {e}")
@@ -132,10 +139,7 @@ class Excel_Loader:
                 if missing:
                     raise ValueError(f"🚫 Faltan columnas de clave foránea: {missing}")
             
-            mode = 'a' if if_exists == "append" else 'w'
-            
-            with pd.ExcelWriter(file_path, engine='openpyxl', mode=mode, if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name=sheet_name, index=index)
+            self._write_sheet(df, sheet_name, file_path, if_exists, index)
             print(f"✅ Hechos cargados exitosamente en la hoja '{sheet_name}' (modo: {if_exists}).")
         except Exception as e:
             print(f"❌ Error al cargar hechos '{sheet_name}' en Excel: {e}")
@@ -211,10 +215,7 @@ class Excel_Loader:
         """
         try:
             file_path = self._get_path(path)
-            mode = 'a' if if_exists == "append" else 'w'
-            
-            with pd.ExcelWriter(file_path, engine='openpyxl', mode=mode, if_sheet_exists='replace') as writer:
-                dataframe.to_excel(writer, sheet_name=sheet_name, index=index)
+            self._write_sheet(dataframe, sheet_name, file_path, if_exists, index)
             print(f"✅ Datos cargados exitosamente en la hoja '{sheet_name}'.")
         except Exception as e:
             print(f"❌ Error al cargar datos en Excel: {e}")

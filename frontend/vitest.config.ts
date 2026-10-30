@@ -19,6 +19,11 @@ export default defineConfig({
       thresholds: {
         lines: 80,
         branches: 75,
+        "src/features/connections/ConnectionsManager.tsx": { lines: 80, branches: 75 },
+        "src/features/diagram/ERDiagramCanvas.tsx": { lines: 80, branches: 75 },
+        "src/app/**/analytics/components/AnalyticsChartViewer.tsx": { lines: 80, branches: 75 },
+        "src/middleware.ts": { lines: 80, branches: 75 },
+        "src/app/auth/callback/route.ts": { lines: 80, branches: 75 },
         "src/services/etlSerializers.ts": { lines: 80, branches: 75 },
         "src/services/responseValidators.ts": { lines: 80, branches: 75 },
         "src/services/diagramApi.ts": { lines: 80, branches: 75 },

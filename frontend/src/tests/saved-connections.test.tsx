@@ -16,12 +16,38 @@ import { parseSource } from "@/types/etlValidation";
 import { CredentialStore } from "@/state/credentialStore";
 import { pipelineReducer, initialState } from "@/state/pipelineReducer";
 import { mockDialogMethods } from "./dialog";
-const auth = vi.hoisted(() => ({ user: { id: "11111111-1111-4111-8111-111111111111" } as { id: string } | null }));
-vi.mock("@/auth/AuthProvider", () => ({ useAuth: () => ({ user: auth.user, configured: true, loading: false }) }));
+const auth = vi.hoisted(() => ({ user: { id: "11111111-1111-4111-8111-111111111111" } as { id: string } | null, configured: true, loading: false }));
+vi.mock("@/auth/AuthProvider", () => ({ useAuth: () => ({ user: auth.user, configured: auth.configured, loading: auth.loading }) }));
 const saved = { id: "22222222-2222-4222-8222-222222222222", name: "Origen registrado", connection_type: "source", db_type: "postgresql", host: "db.example.com", port: 5432, database: "example", user: "reader", service_name: null, transport: "direct", version: 3, has_password: true, last_test_status: "success", last_tested_at: "2026-10-21T10:00:00Z", created_at: "2026-10-21T10:00:00Z", updated_at: "2026-10-21T10:00:00Z" };
-afterEach(() => { setTokenReader(null); auth.user = { id: "11111111-1111-4111-8111-111111111111" }; });
+afterEach(() => { setTokenReader(null); auth.user = { id: "11111111-1111-4111-8111-111111111111" }; auth.configured = true; auth.loading = false; });
 function Extract() { const model = useDatabaseExtract(true, "guest-agent"); return <DatabaseTab model={model} agentId="guest-agent" />; }
 describe("saved connections and account boundaries", () => {
+  it.each([true, false])("explains guest access with auth configured=%s", configured => {
+    auth.user = null; auth.configured = configured;
+    render(<ConnectionsManager />);
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+    expect(screen.getByText(configured ? "Inicia sesión para guardar conexiones." : "Las cuentas aún no están configuradas.")).toBeVisible();
+  });
+  it("waits for the session before offering connection operations", () => {
+    auth.loading = true; auth.user = null; render(<ConnectionsManager />);
+    expect(screen.getByRole("status")).toHaveTextContent("Comprobando sesión");
+    expect(screen.queryByRole("button", { name: "Nueva conexión" })).not.toBeInTheDocument();
+  });
+  it("reports a successful test and a refused deletion without losing the saved row", async () => {
+    const restore = mockDialogMethods();
+    server.use(http.get(`${API_URL}/connections`, () => HttpResponse.json({ items: [saved] })),
+      http.post(`${API_URL}/connections/${saved.id}/test`, () => HttpResponse.json({ status: "success", message: "Checked" })),
+      http.delete(`${API_URL}/connections/${saved.id}`, () => HttpResponse.json({ detail: "Conexión en uso" }, { status: 409 })));
+    try {
+      const user = userEvent.setup(); render(<ConnectionsManager />);
+      await user.click(await screen.findByRole("button", { name: "Probar Origen registrado" }));
+      expect(await screen.findByText("Conexión comprobada.")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Eliminar Origen registrado" }));
+      await user.click(screen.getByRole("button", { name: "Confirmar eliminación" }));
+      expect(await screen.findByText("Conexión en uso")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Editar Origen registrado" })).toBeEnabled();
+    } finally { restore(); }
+  });
   it("uses only a connection reference and bearer, without receiving a password", async () => {
     let body: unknown, header: string | null = null;
     setTokenReader(async () => "synthetic-access-token");
@@ -70,6 +96,55 @@ describe("saved connections and account boundaries", () => {
     await ready; invalidateAuthRequests(); finish(); await assertion;
     const reset = pipelineReducer({ ...initialState, hydrationStatus: "ready", history: [{ id: "old", revision: 0, status: "running", table_name: "t", table_type: "dimension", startedAt: new Date().toISOString() }] }, { type: "accountChanged" });
     expect(reset.history).toEqual([]); expect(reset.source).toBeNull();
+  });
+  it("creates a checked connection and edits it without sending the stored password", async () => {
+    const restore = mockDialogMethods(), bodies: Record<string, unknown>[] = [];
+    let rows: typeof saved[] = [];
+    server.use(http.get(`${API_URL}/connections`, () => HttpResponse.json({ items: rows })),
+      http.post(`${API_URL}/connections`, async ({ request }) => { bodies.push(await request.json() as Record<string, unknown>); rows = [saved]; return HttpResponse.json(saved); }),
+      http.patch(`${API_URL}/connections/${saved.id}`, async ({ request }) => { bodies.push(await request.json() as Record<string, unknown>); return HttpResponse.json(saved); }));
+    try {
+      const user = userEvent.setup(); render(<ConnectionsManager />);
+      await screen.findByText("Aún no tienes conexiones guardadas");
+      await user.click(screen.getByRole("button", { name: "Nueva conexión" }));
+      for (const [label, value] of [["Alias", "Mi origen"], ["Host", "db.example.com"], ["Base de datos", "example"], ["Usuario", "reader"]])
+        await user.type(screen.getByLabelText(label, { exact: true }), value);
+      await user.click(screen.getByRole("button", { name: "Comprobar y guardar" }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Completa el alias");
+      await user.type(screen.getByLabelText("Contraseña", { exact: true }), "memory-only");
+      await user.click(screen.getByRole("button", { name: "Comprobar y guardar" }));
+      await screen.findByText("Conexión comprobada y guardada.");
+      expect(bodies[0]).toMatchObject({ name: "Mi origen", password: "memory-only", transport: "direct", connection_type: "source" });
+      await user.click(await screen.findByRole("button", { name: "Editar Origen registrado" }));
+      expect(screen.queryByLabelText("Contraseña")).not.toBeInTheDocument();
+      await user.clear(screen.getByLabelText("Alias")); await user.type(screen.getByLabelText("Alias"), "Nuevo alias");
+      await user.click(screen.getByRole("button", { name: "Comprobar y guardar" }));
+      await screen.findByText("Conexión comprobada y guardada.");
+      expect(bodies[1]).toMatchObject({ name: "Nuevo alias", version: 3 });
+      expect(bodies[1]).not.toHaveProperty("password");
+      expect(JSON.stringify({ ...sessionStorage, ...localStorage })).not.toContain("memory-only");
+    } finally { restore(); }
+  });
+  it("keeps an unsuccessful draft for retry and cancels without persisting", async () => {
+    const restore = mockDialogMethods(); let attempts = 0;
+    server.use(http.get(`${API_URL}/connections`, () => HttpResponse.json({ items: [saved] })),
+      http.patch(`${API_URL}/connections/${saved.id}`, () => { attempts++; return HttpResponse.json({ detail: "La conexión cambió" }, { status: 409 }); }),
+      http.post(`${API_URL}/connections/${saved.id}/test`, () => HttpResponse.json({ detail: "Destino no disponible" }, { status: 400 })));
+    try {
+      const user = userEvent.setup(); render(<ConnectionsManager />);
+      await user.click(await screen.findByRole("button", { name: "Probar Origen registrado" }));
+      expect(await screen.findByText("Destino no disponible")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Editar Origen registrado" }));
+      await user.click(screen.getByRole("button", { name: "Comprobar y guardar" }));
+      expect(await screen.findByText("La conexión cambió")).toBeVisible();
+      expect(screen.getByLabelText("Alias")).toHaveValue(saved.name);
+      expect(screen.getByRole("button", { name: "Comprobar y guardar" })).toBeEnabled();
+      await user.click(screen.getByRole("button", { name: "Cancelar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(attempts).toBe(1);
+      await user.selectOptions(screen.getByLabelText("Tipo de conexiones"), "target");
+      await screen.findByRole("button", { name: "Editar Origen registrado" });
+    } finally { restore(); }
   });
   it("shows unconfirmed executions and total destination without inventing inserted rows", async () => {
     server.use(http.get(`${API_URL}/monitoring/executions`, () => HttpResponse.json({ items: [{ id: saved.id, request_id: saved.id, status: "unknown", table_name: "result", table_type: "dimension", started_at: "2026-10-21T10:00:00Z", finished_at: null, duration_ms: null, destination_total_rows: null, error_message: null }], next_cursor: null })),
