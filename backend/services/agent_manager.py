@@ -63,7 +63,7 @@ class AgentManager:
         if not self.is_agent_connected(agent_id):
             raise ValueError("El agente no está conectado.")
         from services.agent_pairing import agent_bindings
-        binding = agent_bindings.get().get(agent_id)
+        binding = (agent_bindings.get() or {}).get(agent_id)
         if agent_id in self.paired_owners:
             if not binding or binding != self.connection_id(agent_id):
                 raise ValueError("El agente requiere emparejamiento con la sesión actual.")
