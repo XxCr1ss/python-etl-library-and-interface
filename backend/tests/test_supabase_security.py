@@ -112,6 +112,45 @@ def cloud(monkeypatch, crypto):
     return state
 
 
+def test_create_and_update_connections_encrypt_secrets_and_recheck_changes(client, cloud, monkeypatch, crypto):
+    from services import load_service
+    tested = []
+    def check(config):
+        tested.append(config)
+        return {'status': 'success'}
+    monkeypatch.setattr(load_service, 'test_target_connection', check)
+    headers = {'Authorization': 'Bearer token-a'}
+    body = {key: cloud['row'][key] for key in ('name', 'connection_type', 'db_type', 'host', 'port', 'database', 'user', 'service_name', 'transport')}
+    response = client.post('/api/v1/connections', json={**body, 'password': 'new-secret'}, headers=headers)
+    assert response.status_code == 201, response.text
+    assert tested[-1]['password'] == 'new-secret'
+    save = [body for name, body in cloud['rpc_calls'] if name == 'etl_connection_save'][-1]
+    assert crypto.decrypt(save['p_secret']) == 'new-secret'
+    assert 'password' not in save['p_metadata'] and 'new-secret' not in response.text
+    count = len(tested)
+    response = client.request('PATCH', '/api/v1/connections/'+CID, json={'version': 1, 'name': 'Renamed'}, headers=headers)
+    assert response.status_code == 200 and len(tested) == count
+    response = client.request('PATCH', '/api/v1/connections/'+CID, json={'version': 1, 'database': 'changed'}, headers=headers)
+    assert response.status_code == 200 and tested[-1]['password'] == 'synthetic-secret'
+    response = client.request('PATCH', '/api/v1/connections/'+CID, json={'version': 1, 'password': 'replacement'}, headers=headers)
+    assert response.status_code == 200 and tested[-1]['password'] == 'replacement'
+    count = len(tested)
+    response = client.request('PATCH', '/api/v1/connections/'+CID, json={'version': 2, 'database': 'stale'}, headers=headers)
+    assert response.status_code == 409 and len(tested) == count
+
+
+def test_failed_connection_is_not_saved_and_releases_operation_slot(client, cloud, monkeypatch):
+    from services import load_service
+    def fail(config): raise RuntimeError('driver private detail')
+    monkeypatch.setattr(load_service, 'test_target_connection', fail)
+    body = {key: cloud['row'][key] for key in ('name', 'connection_type', 'db_type', 'host', 'database', 'user')}
+    response = client.post('/api/v1/connections', json={**body, 'password': 'never-return'}, headers={'Authorization': 'Bearer token-a'})
+    assert response.status_code == 400
+    assert 'driver private detail' not in response.text and 'never-return' not in response.text
+    assert not any(name == 'etl_connection_save' for name, _ in cloud['rpc_calls'])
+    assert not connection_security.limits.running
+
+
 def test_guest_bad_token_and_owner_isolation(client, cloud):
     assert client.get('/api/v1/connections').status_code == 401
     assert client.get('/api/v1/connections',headers={'Authorization':'Bearer invalid'}).status_code == 401

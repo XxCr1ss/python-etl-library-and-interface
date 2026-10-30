@@ -7,6 +7,8 @@ on:
       - master
       - 'phase/**'
       - 'feature/**'
+      - 'sonar/**'
+      - 'codex/**'
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -14,10 +16,36 @@ permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: sonar-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: etl_test_isolated
+          POSTGRES_USER: etl_test_user
+          POSTGRES_PASSWORD: etl_test_synthetic_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U etl_test_user -d etl_test_isolated"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      ETL_IGNORE_DOTENV: "1"
+      ETL_TEST_DB_TYPE: postgresql
+      ETL_TEST_DB_HOST: 127.0.0.1
+      ETL_TEST_DB_PORT: "5432"
+      ETL_TEST_DB_NAME: etl_test_isolated
+      ETL_TEST_DB_USER: etl_test_user
+      ETL_TEST_DB_PASSWORD: etl_test_synthetic_pw
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -27,11 +55,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
-          node-version: 20
+          node-version: "24.11.0"
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci --ignore-scripts || npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Run tests and generate LCOV coverage report
         working-directory: frontend
@@ -48,15 +76,45 @@ jobs:
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -r backend/requirements-dev.txt -c backend/constraints.txt
 
-      - name: Run backend tests and generate XML coverage report
+      - name: Measure isolated Python suite
+        env:
+          COVERAGE_FILE: .coverage.unit
         run: |
           .venv/bin/python -m pytest -c backend/pytest.ini backend/tests -m "not integration" \
-            --cov=backend \
-            --cov=etl \
-            --cov-report=xml:backend-coverage.xml
+            --cov --cov-config=.coveragerc --cov-report= -q
+
+      - name: Measure real PostgreSQL and agent integration
+        env:
+          COVERAGE_FILE: .coverage.integration
+        run: |
+          .venv/bin/python -m pytest -c backend/pytest.ini backend/tests/integration -m integration \
+            --cov --cov-config=.coveragerc --cov-report= -q
+
+      - name: Combine coverage from this checkout
+        run: |
+          .venv/bin/python -m coverage combine --keep .coverage.unit .coverage.integration
+          .venv/bin/python -m coverage xml
+          .venv/bin/python -m coverage report
+
+      - name: Upload coverage reports from this checkout
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sonar-coverage-${{ github.sha }}
+          path: |
+            backend-coverage.xml
+            frontend/coverage/lcov.info
+          if-no-files-found: error
 
       - name: Scan and report to SonarCloud
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: -Dsonar.qualitygate.wait=true
+
+      - name: Require 80 percent overall coverage on branches
+        if: github.event_name == 'push'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: .venv/bin/python scripts/check_sonar_coverage.py --branch "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" --minimum 80

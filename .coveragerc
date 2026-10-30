@@ -1,0 +1,18 @@
+[run]
+source_dirs =
+    backend
+    etl
+    api
+source_pkgs = etl_agent
+relative_files = True
+patch = subprocess
+sigterm = True
+omit =
+    backend/tests/*
+    backend/test_api_*.py
+
+[report]
+show_missing = True
+
+[xml]
+output = backend-coverage.xml
