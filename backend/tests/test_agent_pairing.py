@@ -1,5 +1,6 @@
 import asyncio
 import json
+from contextvars import Context
 import pytest
 from fastapi import HTTPException
 from services.auth_service import Identity
@@ -30,6 +31,40 @@ def test_expired_pair_code_does_not_connect(monkeypatch):
     real=agent_pairing.time.monotonic
     monkeypatch.setattr(agent_pairing.time,'monotonic',lambda:real()+301)
     assert agent_pairing.consume('agent-example',code) is None
+
+def test_issuing_code_removes_expired_codes_and_preserves_active_codes(monkeypatch):
+    monkeypatch.setattr(agent_pairing.time, 'monotonic', lambda: 100)
+    agent_pairing.issue('expired-first', A)
+    agent_pairing.issue('expired-second', A)
+    monkeypatch.setattr(agent_pairing.time, 'monotonic', lambda: 200)
+    active_code = agent_pairing.issue('active', A)
+    monkeypatch.setattr(agent_pairing.time, 'monotonic', lambda: 401)
+
+    new_code = agent_pairing.issue('new', B)
+
+    assert list(agent_pairing.pending) == ['active', 'new']
+    assert agent_pairing.consume('active', active_code) == (A.user_id, A.session_id)
+    assert agent_pairing.consume('new', new_code) == (B.user_id, B.session_id)
+
+
+def test_authorization_initializes_bindings_in_isolated_contexts():
+    agent_manager.register_agent('agent-example', object())
+    generation = agent_manager.connection_id('agent-example')
+    agent_manager.paired_owners['agent-example'] = (A.user_id, A.session_id, generation)
+    authorized_context = Context()
+    unbound_context = Context()
+
+    authorized_context.run(agent_pairing.authorize, 'agent-example', A)
+
+    assert authorized_context.run(agent_pairing.agent_bindings.get) == {'agent-example': generation}
+    assert unbound_context.run(agent_pairing.agent_bindings.get) is None
+
+    async def send_without_binding():
+        with pytest.raises(ValueError, match='requiere emparejamiento'):
+            await agent_manager.send_command_and_wait('agent-example', 'get_metadata', {})
+
+    unbound_context.run(asyncio.run, send_without_binding())
+
 
 def test_owner_session_and_socket_generation_checked_before_secret_resolution():
     socket=object();agent_manager.register_agent('agent-example',socket)

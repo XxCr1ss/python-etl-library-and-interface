@@ -8,7 +8,7 @@ from contextvars import ContextVar
 
 from fastapi import HTTPException
 
-agent_bindings: ContextVar[dict[str, str]] = ContextVar("etl_agent_bindings", default={})
+agent_bindings: ContextVar[dict[str, str] | None] = ContextVar("etl_agent_bindings", default=None)
 pending = OrderedDict()
 
 
@@ -17,7 +17,7 @@ def issue(agent_id, identity):
     if agent_manager.is_agent_connected(agent_id):
         raise HTTPException(409, "Detén el agente conectado antes de generar un emparejamiento nuevo.")
     now = time.monotonic()
-    for key, value in list(pending.items()):
+    for key, value in pending.copy().items():
         if value[3] < now:
             pending.pop(key, None)
     code = secrets.token_urlsafe(32)
@@ -40,4 +40,4 @@ def authorize(agent_id, identity):
     generation = agent_manager.connection_id(agent_id)
     if not generation or agent_manager.paired_owners.get(agent_id) != (identity.user_id, identity.session_id, generation):
         raise HTTPException(403, "Empareja este agente con la sesión actual antes de usar la conexión guardada.")
-    agent_bindings.set({**agent_bindings.get(), agent_id: generation})
+    agent_bindings.set({**(agent_bindings.get() or {}), agent_id: generation})

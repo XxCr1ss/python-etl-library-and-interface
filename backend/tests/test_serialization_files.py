@@ -1,11 +1,16 @@
+import asyncio
 import datetime
 import json
+import threading
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+from fastapi import UploadFile
 
+from services import extract_service
 from services.extract_service import clean_records, clean_value
 
 
@@ -59,6 +64,34 @@ def test_upload_and_reload_real_files(client, name):
             "source": {"type": "file", "filepath": uploaded["filepath"], "sheet_name": "segunda"}, "steps": []})
         assert other.status_code == 200, other.text
         assert other.json()["preview_data"] == [{"marker": "second-sheet"}]
+
+
+def test_upload_streams_in_worker_thread_and_preserves_contents(monkeypatch):
+    event_loop_thread = threading.get_ident()
+    payload = b"id\n" + b"1\n" * (1024 * 1024)
+    read_sizes = []
+
+    class RecordingStream(BytesIO):
+        def read(self, size=-1):
+            assert threading.get_ident() != event_loop_thread
+            assert 0 < size <= 1024 * 1024
+            read_sizes.append(size)
+            return super().read(size)
+
+    class WorkerCSVExtractor(extract_service.CSVExtractor):
+        def read_csv(self, **kwargs):
+            assert threading.get_ident() != event_loop_thread
+            return super().read_csv(**kwargs)
+
+    monkeypatch.setattr(extract_service, "CSVExtractor", WorkerCSVExtractor)
+    with RecordingStream(payload) as stream:
+        upload = UploadFile(file=stream, filename="large.csv")
+        result = asyncio.run(extract_service.process_uploaded_file(upload, preview_rows=2))
+
+    assert len(read_sizes) > 1
+    assert Path(result["filepath"]).read_bytes() == payload
+    assert result["total_rows"] == 1024 * 1024
+    assert result["preview_data"] == [{"id": 1}, {"id": 1}]
 
 
 @pytest.mark.parametrize("name,content", [("bad.xlsx", b"corrupt"), ("empty.csv", b""),

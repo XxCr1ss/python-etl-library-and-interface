@@ -2,10 +2,12 @@ from etl.load_execution import positive_setting
 import os
 import uuid
 import tempfile
+import shutil
 import pandas as pd
 import re
 from pathlib import Path
 from fastapi import UploadFile
+from starlette.concurrency import run_in_threadpool
 from etl.extractors.csv_extractor import CSVExtractor
 from etl.extractors.xlsx_extractor import XLSXExtractor
 from etl.extractors.db_extractor import DB_Extractor
@@ -31,8 +33,13 @@ def clean_records(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
 async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict[str, Any]:
     """
     Guarda el archivo en UPLOAD_DIR temporal, lo lee usando CSVExtractor o XLSXExtractor,
-    y genera una vista previa de los datos y su información general.
+    y genera una vista previa sin bloquear el bucle de eventos.
     """
+    return await run_in_threadpool(_process_uploaded_file, file, preview_rows)
+
+
+def _process_uploaded_file(file: UploadFile, preview_rows: int) -> Dict[str, Any]:
+    """Ejecuta el guardado y la extracción síncronos en un hilo de trabajo."""
     filename = re.sub(r'[^\w. -]', '_', (file.filename or '').replace('\\', '/').split('/')[-1])
     suffix = os.path.splitext(filename)[1].lower()
     if suffix not in ('.csv', '.xlsx', '.xls'):
@@ -48,10 +55,9 @@ async def process_uploaded_file(file: UploadFile, preview_rows: int = 5) -> Dict
         raise ValueError("Nombre de archivo inválido.")
     file_path = str(destination)
     
-    # Escribir el contenido binario del UploadFile en el archivo persistente
+    # Copiar por bloques para no cargar todo el archivo en memoria.
     with open(file_path, 'wb') as f:
-        content = await file.read()
-        f.write(content)
+        shutil.copyfileobj(file.file, f, length=1024 * 1024)
         
     # Procesar según el tipo de archivo
     try:
