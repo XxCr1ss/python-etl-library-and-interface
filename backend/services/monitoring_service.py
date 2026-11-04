@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from services.auth_service import Identity
 from services.connection_security import limits
-from services.supabase_service import gateway, require_feature
+from services.supabase_service import ExecutionModeUnavailable, gateway, require_feature
 
 EXECUTION_FIELDS = ("id,request_id,status,source_label,target_label,source_type,target_type,table_name,table_type,if_exists,"
                     "destination_total_rows,rows_extracted,rows_written,started_at,finished_at,duration_ms,error_code,error_message")
@@ -58,8 +58,12 @@ async def _run_monitored(identity: Identity, req, operation):
     # A durable unique constraint claims the attempt, including across restarts.
     key = "load:" + identity.user_id
     limits.check(key, 10)
-    attempt = await gateway().rpc("etl_claim_execution", {"p_user_id": identity.user_id,
-        "p_request_id": str(req.request_id), "p_fingerprint": fingerprint(body), "p_metadata": meta})
+    try:
+        attempt = await gateway().rpc("etl_claim_execution", {"p_user_id": identity.user_id,
+            "p_request_id": str(req.request_id), "p_fingerprint": fingerprint(body), "p_metadata": meta})
+    except ExecutionModeUnavailable as exc:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail,
+            "code": "load_not_started", "technical_detail": "Restricción pipeline_executions_if_exists_check (23514)."})
     if not attempt["claimed"]:
         return JSONResponse(status_code=202, content={"status": attempt["status"], "execution_id": attempt["id"],
             "duplicate": True, "message": "El intento ya fue aceptado; consulta su estado en el historial."})

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { CredentialRecoveryDialog } from "@/components/etl/CredentialRecoveryDialog";
+import { TechnicalDetails } from "@/components/etl/OperationError";
 import { Button, Modal } from "@/components/ui";
 import { ManualHelpLink } from "@/features/manual/components/ManualHelpLink";
 import { downloadLoadSummary, unknownLoadMessage } from "@/state/loadReport";
@@ -37,9 +38,12 @@ export default function LoadPage() {
     <Button variant="outline" disabled={!canTransform || running || preview.status === "loading"} onClick={() => void session.runPreview(1)}>Actualizar vista previa</Button>
     {report && execution?.status === "success" ? <LoadReport report={report} record={execution} onReset={session.newLoad} /> : <>
       {(execution?.status === "error" || execution?.status === "unknown" || recoveredUnknown) && <section role="alert" className="rounded-xl border border-line p-4 space-y-2">
-        <h2 className="font-bold">{execution?.status === "error" ? "Solicitud rechazada (422)" : "Resultado desconocido"}</h2>
+        <h2 className="font-bold">{execution?.status === "error" ? "Solicitud de carga rechazada" : "Resultado desconocido"}</h2>
         {(execution?.status === "unknown" || recoveredUnknown) && <p>{unknownLoadMessage}</p>}
-        {state.executionError && <p>{state.executionError}</p>}
+        {state.executionError && <>
+          <p>{state.executionError instanceof Error ? state.executionError.message : state.executionError}</p>
+          <TechnicalDetails error={state.executionError} reference={execution?.id} />
+        </>}
         {execution && <Button variant="outline" onClick={() => downloadLoadSummary(execution)}>Descargar resumen JSON</Button>}
       </section>}
       <div className="grid items-start gap-6 lg:grid-cols-3">

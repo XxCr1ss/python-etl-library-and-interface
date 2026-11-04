@@ -46,6 +46,7 @@ def test_json_roundtrip_preserves_loader_input(series):
     pd.DataFrame({"a": [[1, 2]]}), pd.DataFrame({"a": [{"secret": "value"}]}),
     pd.DataFrame({"a": pd.Series([1, "x"], dtype="object")}),
     pd.DataFrame({"a": [np.inf]}), pd.DataFrame({"a": [Decimal("Infinity")]}),
+    pd.DataFrame({"a": pd.Series([Decimal("NaN"), np.nan], dtype="object")}),
     pd.DataFrame({"a": pd.Series([dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)], dtype="object")}),
     pd.DataFrame({"a": pd.Categorical(["x"])}), pd.DataFrame([[1, 2]], columns=["a", "a"]),
     pd.DataFrame({1: [2]}), pd.DataFrame(),
@@ -53,6 +54,20 @@ def test_json_roundtrip_preserves_loader_input(series):
 def test_unsupported_values_fail_without_coercion(frame):
     with pytest.raises(LoadValidationError):
         encode_dataset(frame)
+
+
+def test_left_join_missing_markers_keep_codes_and_exact_tariffs():
+    left = pd.DataFrame({"id": [1, 2, 3]})
+    right = pd.DataFrame({"id": [1, 2], "company": pd.Series(["00123", "NaN"], dtype="object"),
+                          "fee": [Decimal("100.1234567890123"), pd.NA]})
+    frame = left.merge(right, on="id", how="left")
+    frame["unknown"] = pd.Series([np.nan, pd.NA, pd.NaT], dtype="object")
+    decoded = decode_dataset(encode_dataset(frame))
+    assert decoded.to_dict("records") == [
+        {"id": 1, "company": "00123", "fee": Decimal("100.1234567890123"), "unknown": None},
+        {"id": 2, "company": "NaN", "fee": None, "unknown": None},
+        {"id": 3, "company": None, "fee": None, "unknown": None},
+    ]
 
 
 def test_byte_and_row_limits_include_unicode_and_envelope():

@@ -38,6 +38,25 @@ def test_api_contracts_and_safe_errors(warehouse):
     assert post("catalog", {"connection": CONNECTION}, base="http://remote.invalid").status_code == 400
 
 
+def test_blank_count_unit_has_a_safe_field_specific_error(warehouse):
+    analysis = {"version": 1, "title": "Count", "grain": "one event",
+                "selection": {"base_table_id": query(warehouse)["base_table_id"]},
+                "measures": [{"id": "rows", "aggregation": "COUNT_ROWS", "unit": ""}]}
+    response = post("analyze", {"connection": CONNECTION, "analysis": analysis})
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Revisa la unidad de la medida 1. Para un conteo usa count.",
+                               "code": "invalid_measure_unit"}
+
+
+@pytest.mark.parametrize("kind", ["date", "datetime"])
+def test_temporal_filter_errors_suggest_the_input_format(kind):
+    with pytest.raises(WarehouseError) as error:
+        parse_value("synthetic-invalid-value", kind)
+    assert error.value.code == f"invalid_filter_{kind}"
+    assert "synthetic-invalid-value" not in str(error.value)
+    assert ("AAAA-MM-DD" if kind == "date" else "2006-01-01T08:30:00") in str(error.value)
+
+
 @pytest.mark.parametrize("caps", [None, {}, {"warehouse": {}}, {"warehouse": {"protocol_version": True, "actions": [], "limits": {}}}, {"warehouse": None, "warehouse_unavailable": "insecure_transport"}])
 def test_old_or_malformed_agent_receives_no_credentials(monkeypatch, caps):
     monkeypatch.setattr(agent_manager, "is_agent_connected", lambda _: True)

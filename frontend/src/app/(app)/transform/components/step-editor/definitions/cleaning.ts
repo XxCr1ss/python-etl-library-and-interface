@@ -11,7 +11,7 @@ const replace = fieldsFor<StepParamsByType["replace_values"]>();
 const group = "Conversión y limpieza";
 export const cleaning = {
   convert_types: defineStep("convert_types", "Cambiar Tipo", group, "Convertir columnas con un tipo o un mapa de tipos por columna.", { columns: [], dtype: "str" }, [
-    columnDependency(convert("columns", "Columnas", "columns", c.columns), p => p.columns), convert("dtype", "Tipo de datos", "value", c.dtype, "Ejemplos: str, int64, float64, bool; JSON permite un mapa de columna a tipo."),
+    columnDependency(convert("columns", "Columnas", "columns", c.columns), p => p.columns), convert("dtype", "Tipo de datos", "text", c.dtype, 'Escribe un tipo como string, boolean, integer, decimal o datetime. También puedes usar un mapa JSON, por ejemplo {"fecha":"datetime"}.'),
   ], (p, ctx) => typeof p.dtype === "object" && Object.keys(p.dtype).some(name => !ctx.columns.includes(name)) ? { dtype: "El mapa contiene una columna inexistente." } : {}),
   fill_nulls: defineStep("fill_nulls", "Rellenar Nulos", group, "Sustituir nulos con un valor explícito. Admite 0, false y texto vacío.", { column: "", value: "" }, [
     columnDependency(fill("column", "Columna", "column", c.nonempty), p => p.column), fill("value", "Valor de relleno", "value", c.nonNullValue),

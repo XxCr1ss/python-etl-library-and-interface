@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
@@ -31,15 +31,22 @@ async function configure() {
 describe("explicit schema load UX", () => {
   it("applies nullable types, composite metadata, indexes, checks and exact extraction", async () => {
     const user = await configure();
+    await user.click(screen.getByRole("tab", { name: "Tabla" }));
     await user.type(screen.getByLabelText("Grano de la tabla"), "Una fila por estudiante");
+    screen.getByRole("tab", { name: "Tabla" }).focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tab", { name: "Columnas", selected: true })).toHaveFocus();
     await user.click(screen.getByLabelText("Parte de PK: id"));
     await user.selectOptions(screen.getByLabelText("Tipo de amount"), "decimal");
     await user.clear(screen.getByLabelText("Precisión de amount")); await user.type(screen.getByLabelText("Precisión de amount"), "30");
     await user.clear(screen.getByLabelText("Escala de amount")); await user.type(screen.getByLabelText("Escala de amount"), "8");
     await user.type(screen.getByLabelText("Unidad de amount"), "money");
     await user.click(screen.getByLabelText("Instante con zona horaria"));
+    await user.click(screen.getByRole("tab", { name: "Claves" }));
     await user.click(screen.getByRole("button", { name: "Agregar clave única" }));
+    await user.click(screen.getByRole("tab", { name: "Índices" }));
     await user.click(screen.getByRole("button", { name: "Agregar índice" }));
+    await user.click(screen.getByRole("tab", { name: "Calidad" }));
     await user.click(screen.getByRole("button", { name: "Agregar comprobación" }));
     await user.selectOptions(screen.getByLabelText("Columna de comprobación 1"), "amount");
     await user.selectOptions(screen.getByLabelText("Regla 1"), "range");
@@ -50,8 +57,10 @@ describe("explicit schema load UX", () => {
     expect(config.schema_spec.primary_key).toEqual(["id"]); expect(config.schema_spec.columns[2].scale).toBe(8);
     expect(config.schema_spec.checks[0].severity).toBe("warning"); expect(screen.getByLabelText("Read mode")).toHaveTextContent("exact");
     await user.click(screen.getByRole("button", { name: "Quitar comprobación 1" }));
-    await user.click(screen.getByRole("button", { name: "Quitar unique_keys 1" }));
-    await user.click(screen.getByRole("button", { name: "Quitar indexes 1" }));
+    await user.click(screen.getByRole("tab", { name: "Claves" }));
+    await user.click(screen.getByRole("button", { name: "Quitar clave única 1" }));
+    await user.click(screen.getByRole("tab", { name: "Índices" }));
+    await user.click(screen.getByRole("button", { name: "Quitar índice 1" }));
     await user.click(screen.getByRole("button", { name: "Usar carga tradicional" }));
     expect(JSON.parse(screen.getByLabelText("Config").textContent!).schema_spec).toBeUndefined();
   });
@@ -61,9 +70,13 @@ describe("explicit schema load UX", () => {
     server.use(http.post(`${API_URL}/load/schema-preview`, async ({ request }) => { received = await request.json(); return HttpResponse.json({ status: "success", message: "Validated", table_name: "students", table_type: "dimension", total_rows: 0, previous_rows: 0, submitted_rows: 1, preview_data: [], schema_actions: ["create_table", "insert_rows"], preview_only: true }); }));
     const user = await configure();
     await user.click(screen.getByRole("button", { name: "Aplicar esquema" }));
-    await screen.findByText("Revisa grano, tipos, columnas y claves del esquema.");
+    await waitFor(() => expect(screen.getByLabelText("Grano de la tabla")).toHaveFocus());
     await user.type(screen.getByLabelText("Grano de la tabla"), "Un estudiante");
+    await user.click(screen.getByRole("tab", { name: "Claves" }));
     await user.click(screen.getByRole("button", { name: "Agregar FK física" }));
+    await user.click(screen.getByRole("tab", { name: "Columnas" }));
+    await user.click(screen.getByRole("button", { name: "Aplicar esquema" }));
+    await waitFor(() => expect(screen.getByLabelText("Tabla referenciada 1")).toHaveFocus());
     await user.type(screen.getByLabelText("Tabla referenciada 1"), "schools");
     await user.clear(screen.getByLabelText("Columnas FK 1")); await user.type(screen.getByLabelText("Columnas FK 1"), "id");
     await user.clear(screen.getByLabelText("Clave referenciada 1")); await user.type(screen.getByLabelText("Clave referenciada 1"), "id");
@@ -72,6 +85,9 @@ describe("explicit schema load UX", () => {
     await screen.findByText(/No se escribió ningún dato/);
     expect(JSON.stringify(received)).toContain('"read_mode":"exact"');
     expect(screen.getByRole("button", { name: "Revisar impacto sin escribir" })).toBeEnabled();
+    await user.click(screen.getByRole("tab", { name: "Calidad" }));
+    expect(screen.getByText(/No se escribió ningún dato/)).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Claves" }));
     await user.click(screen.getByRole("button", { name: "Quitar FK física 1" }));
   });
 
@@ -83,5 +99,9 @@ describe("explicit schema load UX", () => {
     expect(() => parseLoadSchema({ ...schema, columns: [{ name: "id", type: "decimal", nullable: true, precision: 4, scale: 8 }] })).toThrow();
     expect(() => parseLoadSchema({ ...schema, columns: [schema.columns[0], schema.columns[0]] })).toThrow();
     expect(() => parseLoadSchema({ ...schema, checks: [{ column: "id", kind: "arbitrary_code", severity: "error" }] })).toThrow();
+    const composite = { ...schema, columns: [schema.columns[0], { ...schema.columns[0], name: "region" }] };
+    const orders = [["id", "region"], ["region", "id"]];
+    expect(() => parseLoadSchema({ ...composite, unique_keys: orders })).toThrow(/repite una definición/);
+    expect(parseLoadSchema({ ...composite, indexes: orders }).indexes).toEqual(orders);
   });
 });

@@ -132,7 +132,7 @@ describe("outcomes, navigation and reload without automatic retries", () => {
       return HttpResponse.json({ detail: "Mensaje público" }, { status: Number(status) });
     }));
     render(<PipelineProvider><LoadPage /></PipelineProvider>); const user = await connect(); await user.click(execute());
-    await screen.findByRole("heading", { name: expected === "error" ? "Solicitud rechazada (422)" : "Resultado desconocido" });
+    await screen.findByRole("heading", { name: expected === "error" ? "Solicitud de carga rechazada" : "Resultado desconocido" });
     expect(stored().history).toHaveLength(1); expect(stored().history[0].status).toBe(expected); expect(calls).toBe(1);
     if (expected === "unknown") {
       expect(screen.getByText("No se pudo confirmar el resultado; revisa la tabla destino antes de repetir")).toBeVisible();
@@ -140,6 +140,21 @@ describe("outcomes, navigation and reload without automatic retries", () => {
       await user.click(screen.getByRole("checkbox", { name: /He revisado la tabla destino/ })); expect(execute()).toBeEnabled();
     }
     expect(sessionStorage.getItem(SESSION_KEY)).not.toContain("Mensaje público");
+  });
+  it("distinguishes a missing load-mode migration from an uncertain write", async () => {
+    server.use(http.post(`${API_URL}/load/execute`, () => HttpResponse.json({
+      code: "load_not_started",
+      detail: "La carga no se inició. El historial requiere la migración de modos de carga.",
+      technical_detail: "Restricción pipeline_executions_if_exists_check (23514).",
+    }, { status: 503 })));
+    render(<PipelineProvider><LoadPage /></PipelineProvider>);
+    const user = await connect();
+    await user.click(execute());
+    await screen.findByRole("heading", { name: "Solicitud de carga rechazada" });
+    await user.click(screen.getByText("Ver detalle técnico"));
+    expect(screen.getByText(/HTTP 503 · load_not_started/)).toBeVisible();
+    expect(stored().history[0].status).toBe("error");
+    expect(screen.queryByRole("checkbox", { name: /He revisado la tabla destino/ })).not.toBeInTheDocument();
   });
   it("in-flight navigation preserves the attempt, locks edits/reset, warns beforeunload and reports once on return", async () => {
     let release!: () => void; let calls = 0;

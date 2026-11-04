@@ -30,7 +30,8 @@ function useWarehouseCore() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [analysisDraft, setAnalysisDraft] = useState<AnalysisSpec | null>(null);
+  const [analysisDraft, setDraftAnalysis] = useState<AnalysisSpec | null>(null);
+  const [analysisError, setAnalysisError] = useState<Error | null>(null);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [analysisApplied, setAnalysisApplied] = useState<AnalysisSpec[]>([]);
   const sequence = useRef(0), controller = useRef<AbortController | null>(null), inFlight = useRef(false);
@@ -46,7 +47,7 @@ function useWarehouseCore() {
   const invalidate = useCallback(() => {
     cancel(); setCatalog(null); setDraft(null); setApplied(null); setResult(null);
     setDetail(null); setDetailRequest(null); setDetailColumns([]); setError(null); setNotice(null);
-    setAnalysisDraft(null); setAnalysisResults([]); setAnalysisApplied([]);
+    setDraftAnalysis(null); setAnalysisError(null); setAnalysisResults([]); setAnalysisApplied([]);
   }, [cancel]);
   const disconnect = useCallback(() => {
     invalidate(); credentials.clear(); setPasswordProvided(false); setCopied(false); setConnection(initialConnection);
@@ -78,15 +79,18 @@ function useWarehouseCore() {
     return { ...fields, password: credentials.get("warehouse"), ...(service_name ? { service_name } : {}),
       ...(use_agent ? { use_agent: true, agent_id: configuredAgent || agentId } : {}) };
   }
-  async function run<T>(label: string, work: (signal: AbortSignal) => Promise<T>, apply: (value: T) => void) {
+  async function run<T>(label: string, work: (signal: AbortSignal) => Promise<T>, apply: (value: T) => void, analysis = false) {
     if (inFlight.current) return;
     const version = ++sequence.current;
     const aborter = new AbortController(); controller.current = aborter; inFlight.current = true;
-    setBusy(label); setError(null); setNotice(null);
+    setBusy(label); setError(null); setNotice(null); setAnalysisError(null);
     try { const value = await work(aborter.signal); if (version === sequence.current) apply(value); }
     catch (e) {
-      if (version === sequence.current && !(e instanceof ApiError && e.kind === "aborted") && !aborter.signal.aborted)
-        setError(publicMessage(e instanceof Error ? e.message : null, "No se pudo completar la operación.", credentials.has("warehouse") ? [credentials.get("warehouse")] : []));
+      if (version === sequence.current && !(e instanceof ApiError && e.kind === "aborted") && !aborter.signal.aborted) {
+        const message = publicMessage(e instanceof Error ? e.message : null, "No se pudo completar la operación.", credentials.has("warehouse") ? [credentials.get("warehouse")] : []);
+        if (analysis) setAnalysisError(e instanceof ApiError ? new ApiError(e.kind, message, e.status, e.code, e.technicalDetail) : new Error(message));
+        else setError(message);
+      }
     } finally { if (version === sequence.current) { inFlight.current = false; setBusy(null); controller.current = null; } }
   }
   function connect() {
@@ -142,14 +146,15 @@ function useWarehouseCore() {
   }
   function consultAnalysis(analysis: AnalysisSpec) {
     const captured = structuredClone(analysis);
-    return run("Calculando análisis…", signal => analyzeWarehouse(dto(), captured, signal), value => { setAnalysisResults([value]); setAnalysisApplied([captured]); });
+    return run("Calculando análisis…", signal => analyzeWarehouse(dto(), captured, signal), value => { setAnalysisResults([value]); setAnalysisApplied([captured]); }, true);
   }
+  function setAnalysisDraft(analysis: AnalysisSpec) { setDraftAnalysis(analysis); setAnalysisError(null); }
   function consultAnalyses(analyses: AnalysisSpec[]) {
     const captured = structuredClone(analyses);
     return run("Calculando paneles en una operación de lectura…", signal => reportWarehouse(dto(), captured, signal), value => { setAnalysisResults(value.results); setAnalysisApplied(captured); });
   }
   return { connection, passwordProvided, copied, catalog, draft, applied, result, detail, detailRequest, detailColumns,
-    analysisDraft, analysisResults, analysisApplied, setAnalysisDraft, consultAnalysis, consultAnalyses,
+    analysisDraft, analysisError, analysisResults, analysisApplied, setAnalysisDraft, consultAnalysis, consultAnalyses,
     busy, error, notice, dirty, agent, agentId, hasConnection: passwordProvided || !!catalog,
     canCopy: !!pipeline.state.target && pipeline.credentials.has(pipeline.state.target.credentialRef),
     updateConnection, disconnect, connect, copyTarget, changeDraft, consult, loadDetail, changeDetailColumns, exportReport, cancel,

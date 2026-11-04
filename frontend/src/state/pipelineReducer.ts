@@ -10,7 +10,7 @@ export interface PipelineState {
   historyRecoveryRequired: boolean;
   credentialVersion: number;
   foreignKeys: ForeignKeyRow[];
-  executionError: string | null;
+  executionError: string | Error | null;
   loadVersion: number;
 }
 export const emptyLoadConfig = (): LoadConfigDto => ({ table_name: "", table_type: "dimension", if_exists: "replace" });
@@ -43,7 +43,7 @@ export type PipelineAction =
   | { type: "loadConfig"; config: LoadConfigDto }
   | { type: "foreignKeys"; rows: ForeignKeyRow[] }
   | { type: "executionStart"; record: ExecutionRecord }
-  | { type: "executionFinish"; record: ExecutionRecord; report?: LoadResponse; error?: string }
+  | { type: "executionFinish"; record: ExecutionRecord; report?: LoadResponse; error?: string | Error }
   | { type: "clearReport" } | { type: "reset" } | { type: "clearHistory" };
 function invalidate(state: PipelineState): PipelineState {
   const revision = state.revision + 1;

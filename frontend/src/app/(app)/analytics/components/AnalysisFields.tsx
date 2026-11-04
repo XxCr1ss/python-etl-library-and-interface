@@ -3,6 +3,7 @@ import { fieldKey, newOutputId, queryFields, type FieldOption } from "@/features
 import type { Catalog, FieldRef, Selection } from "@/types/warehouse";
 import type { ValueSpec } from "@/types/analysis";
 import { FilterEditor } from "./FilterEditor";
+import type { AnalysisIssue } from "./analysisIssues";
 
 export function FieldPicker({ label, fields, value, optional, onChange }: { label: string; fields: FieldOption[]; value?: FieldRef | null; optional?: boolean; onChange: (v: FieldRef | null) => void }) {
   return <Select label={label} value={value ? fieldKey(value) : ""} onChange={e => onChange(fields.find(f => f.key === e.target.value)?.ref || null)}><option value="">{optional ? "Sin configurar" : "Selecciona columna"}</option>{fields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</Select>;
@@ -19,7 +20,7 @@ export function ValueEditor({ value, fields, onChange, label = "Valor" }: { valu
 
 export const fieldsFor = (catalog: Catalog, selection: Selection) => queryFields(catalog, { ...selection, metrics: [], dimensions: [], order_by: [], limit: 20 });
 
-export function SelectionEditor({ catalog, value, onChange, label }: { catalog: Catalog; value: Selection; onChange: (s: Selection) => void; label: string }) {
+export function SelectionEditor({ catalog, value, onChange, label, filterScope, issue }: { catalog: Catalog; value: Selection; onChange: (s: Selection) => void; label: string; filterScope?: string; issue?: AnalysisIssue | null }) {
   const fields = fieldsFor(catalog, value);
   const base = catalog.tables.find(t => t.table_id === value.base_table_id);
   const relations = [{ id: "base", table: base }, ...value.joins.map(j => ({ id: j.id, table: catalog.tables.find(t => t.table_id === j.target_table_id) }))];
@@ -35,6 +36,6 @@ export function SelectionEditor({ catalog, value, onChange, label }: { catalog: 
     </div>; })}
     <Button variant="outline" disabled={!targets.length || value.joins.length >= catalog.capabilities.effective_limits.joins} onClick={() => { const target = targets[0]; onChange({ ...value, joins: [...value.joins, { id: newOutputId("relation"), source_relation: "base", target_table_id: target.table_id, type: "LEFT", via: { kind: "manual", pairs: target.unique_keys[0].map(c => ({ target_column: c, base_column: "" })) } }] }); }}>Agregar relación verificada</Button>
     <p className="text-sm text-content-muted">Solo rutas hacia claves únicas completas. Las referencias que dejen de existir se rechazan antes de consultar.</p>
-    <FilterEditor fields={fields} filters={value.filters} onChange={filters => onChange({ ...value, filters })} max={catalog.capabilities.effective_limits.filters} disabled={false} />
+    <FilterEditor fields={fields} filters={value.filters} onChange={filters => onChange({ ...value, filters })} max={catalog.capabilities.effective_limits.filters} disabled={false} scope={filterScope} issue={issue} />
   </fieldset>;
 }

@@ -1,4 +1,7 @@
-import { Alert, Button, Input, Select } from "@/components/ui";
+import { Alert, Button, Input, Select, Tabs } from "@/components/ui";
+import { useRef, useState } from "react";
+import { OperationError } from "@/components/etl/OperationError";
+import { defaultCountUnits, firstAnalysisIssue, type AnalysisIssue } from "./analysisIssues";
 import type { Catalog } from "@/types/warehouse";
 import type { AnalysisSpec } from "@/types/analysis";
 import { AnalysisMeasures } from "./AnalysisMeasures";
@@ -9,44 +12,93 @@ export function newAnalysis(base_table_id: string): AnalysisSpec {
   return { version: 1, title: "Nuevo análisis", grain: "", selection: { base_table_id, joins: [], filters: [] }, dimensions: [], measures: [{ id: "events", label: "Eventos", aggregation: "COUNT_ROWS", unit: "count" }], formulas: [], order_by: [], limit: 20 };
 }
 
-export function AnalysisBuilder({ spec, catalog, busy, onChange, onRun }: { spec: AnalysisSpec; catalog: Catalog; busy: boolean; onChange: (s: AnalysisSpec) => void; onRun: () => void }) {
+export function AnalysisBuilder({ spec, catalog, busy, requestError, onChange, onRun }: { spec: AnalysisSpec; catalog: Catalog; busy: boolean; requestError?: Error | null; onChange: (s: AnalysisSpec) => void; onRun: (spec: AnalysisSpec) => void }) {
   const fields = fieldsFor(catalog, spec.selection), limits = catalog.capabilities.effective_limits;
   const populationFields = spec.population ? fieldsFor(catalog, spec.population.selection) : [];
   const pattern = spec.pairs ? "pairs" : spec.histogram ? "histogram" : "aggregate";
   const outputs = spec.pairs ? ["item_a", "item_b", "frequency", "support", "baskets"] : spec.histogram ? ["interval", "frequency"] : [...spec.dimensions, ...spec.measures, ...spec.formulas].map(m => m.id);
-  // Long output IDs in nested summaries must wrap without widening the fieldsets.
-  return <fieldset disabled={busy} className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
-    <Input label="Zona horaria del análisis" value={spec.timezone || ""} hint="Zona IANA, por ejemplo America/Bogota. Vacío conserva la zona de la sesión de base de datos." onChange={e => onChange({ ...spec, timezone: e.target.value || null })} />
-    <div className="grid gap-4 sm:grid-cols-2"><Input label="Título del análisis" value={spec.title} onChange={e => onChange({ ...spec, title: e.target.value })} /><Input label="Qué representa una fila" value={spec.grain} placeholder="Una fila por evento, persona, línea…" onChange={e => onChange({ ...spec, grain: e.target.value })} /></div>
+  const [selected, setSelected] = useState("events");
+  const [issue, setIssue] = useState<AnalysisIssue | null>(null);
+  const editor = useRef<HTMLDivElement>(null);
+  const change = (next: AnalysisSpec) => {
+    setIssue(null);
+    onChange(next);
+  };
+  function run() {
+    const invalid = firstAnalysisIssue(spec, catalog);
+    setIssue(invalid);
+    if (!invalid) { onRun(defaultCountUnits(spec)); return; }
+    setSelected(invalid.tab);
+    requestAnimationFrame(() => {
+      const field = editor.current?.querySelector<HTMLElement>(`[data-analysis-field="${invalid.field}"]`);
+      const details = field?.closest("details");
+      if (details) details.open = true;
+      field?.focus();
+    });
+  }
+
+  const events = <div className="space-y-4">
+    <Input label="Zona horaria del análisis" value={spec.timezone || ""} hint="Zona IANA, por ejemplo America/Bogota. Vacío conserva la zona de la sesión de base de datos." onChange={e => change({ ...spec, timezone: e.target.value || null })} />
+    <div className="grid gap-4 sm:grid-cols-2"><Input data-analysis-field="title" error={issue?.field === "title" ? issue.message : undefined} label="Título del análisis" value={spec.title} onChange={e => change({ ...spec, title: e.target.value })} /><Input data-analysis-field="grain" error={issue?.field === "grain" ? issue.message : undefined} label="Qué representa una fila" value={spec.grain} placeholder="Una fila por evento, persona, línea…" onChange={e => change({ ...spec, grain: e.target.value })} /></div>
     <Select label="Patrón de análisis" value={pattern} onChange={e => {
       const base = { ...spec, dimensions: [], measures: [], formulas: [], population: null, calendar: null, pairs: null, histogram: null, order_by: [] };
-      onChange(e.target.value === "pairs" ? { ...base, pairs: { basket: fields[0]?.ref || { relation: "base", column: "" }, item: fields[0]?.ref || { relation: "base", column: "" } } } : e.target.value === "histogram" ? { ...base, histogram: { value: { field: fields[0]?.ref || { relation: "base", column: "" } }, boundaries: [0, 10, 20] } } : { ...base, measures: [{ id: "events", aggregation: "COUNT_ROWS", unit: "count" }] });
+      change(e.target.value === "pairs" ? { ...base, pairs: { basket: fields[0]?.ref || { relation: "base", column: "" }, item: fields[0]?.ref || { relation: "base", column: "" } } } : e.target.value === "histogram" ? { ...base, histogram: { value: { field: fields[0]?.ref || { relation: "base", column: "" } }, boundaries: [0, 10, 20] } } : { ...base, measures: [{ id: "events", aggregation: "COUNT_ROWS", unit: "count" }] });
     }}><option value="aggregate">Indicadores, tasas y medias por entidad</option><option value="pairs">Pares y coocurrencia</option><option value="histogram">Distribución por intervalos</option></Select>
-    <SelectionEditor label="Eventos a medir" catalog={catalog} value={spec.selection} onChange={selection => onChange(selection.base_table_id !== spec.selection.base_table_id ? { ...newAnalysis(selection.base_table_id), title: spec.title, grain: spec.grain } : { ...spec, selection })} />
-    {!spec.pairs && !spec.histogram && <>
-      <AnalysisDimensions dimensions={spec.dimensions} fields={fields} max={limits.dimensions} onChange={dimensions => onChange({ ...spec, dimensions, calendar: null, order_by: [], ...(spec.population ? { population: { ...spec.population, dimensions: dimensions.map(d => spec.population!.dimensions?.find(p => p.id === d.id) || { id: d.id, field: populationFields[0]?.ref || spec.population!.entity, bucket: d.bucket }) } } : {}) })} />
+    <SelectionEditor label="Eventos a medir" filterScope="events" issue={issue} catalog={catalog} value={spec.selection} onChange={selection => change(selection.base_table_id !== spec.selection.base_table_id ? { ...newAnalysis(selection.base_table_id), title: spec.title, grain: spec.grain } : { ...spec, selection })} />
+    <p className="text-sm text-content-muted">Cambiar la tabla base reinicia su configuración. Cambiar el patrón reinicia las opciones de cálculo que dependen de él.</p>
+  </div>;
+  const dimensions = <div className="space-y-4">
+      <AnalysisDimensions dimensions={spec.dimensions} fields={fields} max={limits.dimensions} onChange={dimensions => change({ ...spec, dimensions, calendar: null, order_by: [], ...(spec.population ? { population: { ...spec.population, dimensions: dimensions.map(d => spec.population!.dimensions?.find(p => p.id === d.id) || { id: d.id, field: populationFields[0]?.ref || spec.population!.entity, bucket: d.bucket }) } } : {}) })} />
+      <details className="space-y-4 rounded-lg border border-line p-4" open={!!spec.calendar}><summary className="cursor-pointer font-semibold">Completar calendario</summary><p className="text-sm text-content-muted">Requiere una única agrupación por día, semana ISO, mes o año. Solo se completa con cero cuando confirmas observación del intervalo; las medias y fórmulas desconocidas permanecen sin valor.</p>
+        {!spec.calendar ? <Button variant="outline" disabled={spec.dimensions.length !== 1 || !spec.dimensions[0].bucket} onClick={() => change({ ...spec, calendar: { dimension_id: spec.dimensions[0].id, start: "", end: "", bucket: spec.dimensions[0].bucket!, observed: false }, order_by: [] })}>Configurar calendario de observación</Button> : <><div className="grid gap-3 sm:grid-cols-2"><Input label="Inicio de observación" type="date" value={spec.calendar.start} onChange={e => change({ ...spec, calendar: { ...spec.calendar!, start: e.target.value } })} /><Input label="Fin de observación" type="date" value={spec.calendar.end} onChange={e => change({ ...spec, calendar: { ...spec.calendar!, end: e.target.value } })} /></div><label className="flex gap-2 text-sm"><input type="checkbox" checked={spec.calendar.observed || false} onChange={e => change({ ...spec, calendar: { ...spec.calendar!, observed: e.target.checked } })} />Confirmo cobertura del intervalo: ausencia de eventos significa cero observado.</label><Button variant="ghost" onClick={() => change({ ...spec, calendar: null })}>Quitar calendario</Button></>}
+      </details>
+  </div>;
+  const population = <>
       <details className="space-y-4 rounded-lg border border-line p-4" open={!!spec.population}><summary className="cursor-pointer font-semibold">Población de referencia y denominadores</summary>
         <p className="text-sm text-content-muted">Define entidades elegibles, incluso sin eventos. Sus filtros son independientes de los eventos medidos. Mapea cada agrupación para incluir ceros sin cambiar el grano.</p>
-        {!spec.population ? <Button variant="outline" onClick={() => { const table = catalog.tables[0]; const field = { relation: "base", column: table.columns[0].name }; onChange({ ...spec, population: { selection: { base_table_id: table.table_id, joins: [], filters: [] }, entity: field, event_entity: fields[0].ref, dimensions: spec.dimensions.map(d => ({ id: d.id, field, bucket: d.bucket })) } }); }}>Agregar población de referencia</Button> : <>
-          <SelectionEditor label="Población" catalog={catalog} value={spec.population.selection} onChange={selection => onChange({ ...spec, population: { ...spec.population!, selection } })} />
+        {!spec.population ? <Button variant="outline" onClick={() => { const table = catalog.tables[0]; const field = { relation: "base", column: table.columns[0].name }; change({ ...spec, population: { selection: { base_table_id: table.table_id, joins: [], filters: [] }, entity: field, event_entity: fields[0].ref, dimensions: spec.dimensions.map(d => ({ id: d.id, field, bucket: d.bucket })) } }); }}>Agregar población de referencia</Button> : <>
+          <SelectionEditor label="Población" filterScope="population" issue={issue} catalog={catalog} value={spec.population.selection} onChange={selection => change({ ...spec, population: { ...spec.population!, selection } })} />
           <div className="grid gap-3 sm:grid-cols-2"><FieldPicker label="Clave de entidad en población" fields={populationFields} value={spec.population.entity} onChange={entity => { if (entity) onChange({ ...spec, population: { ...spec.population!, entity } }); }} /><FieldPicker label="Clave de entidad en eventos" fields={fields} value={spec.population.event_entity} onChange={event_entity => { if (event_entity) onChange({ ...spec, population: { ...spec.population!, event_entity } }); }} /></div>
-          <AnalysisDimensions dimensions={spec.population.dimensions || []} fields={populationFields} max={spec.dimensions.length} onChange={dimensions => onChange({ ...spec, population: { ...spec.population!, dimensions } })} />
-          <Button variant="ghost" onClick={() => onChange({ ...spec, population: null })}>Quitar población de referencia</Button>
+          <AnalysisDimensions dimensions={spec.population.dimensions || []} fields={populationFields} max={spec.dimensions.length} onChange={dimensions => change({ ...spec, population: { ...spec.population!, dimensions } })} />
+          <Button variant="ghost" onClick={() => change({ ...spec, population: null })}>Quitar población de referencia</Button>
         </>}
       </details>
-      <AnalysisMeasures spec={spec} fields={fields} populationFields={populationFields} max={limits.metrics} onChange={onChange} />
-      <details className="space-y-4 rounded-lg border border-line p-4" open={!!spec.calendar}><summary className="cursor-pointer font-semibold">Completar calendario</summary><p className="text-sm text-content-muted">Requiere una única agrupación por día, semana ISO, mes o año. Solo se completa con cero cuando confirmas observación del intervalo; las medias y fórmulas desconocidas permanecen sin valor.</p>
-        {!spec.calendar ? <Button variant="outline" disabled={spec.dimensions.length !== 1 || !spec.dimensions[0].bucket} onClick={() => onChange({ ...spec, calendar: { dimension_id: spec.dimensions[0].id, start: "", end: "", bucket: spec.dimensions[0].bucket!, observed: false }, order_by: [] })}>Configurar calendario de observación</Button> : <><div className="grid gap-3 sm:grid-cols-2"><Input label="Inicio de observación" type="date" value={spec.calendar.start} onChange={e => onChange({ ...spec, calendar: { ...spec.calendar!, start: e.target.value } })} /><Input label="Fin de observación" type="date" value={spec.calendar.end} onChange={e => onChange({ ...spec, calendar: { ...spec.calendar!, end: e.target.value } })} /></div><label className="flex gap-2 text-sm"><input type="checkbox" checked={spec.calendar.observed || false} onChange={e => onChange({ ...spec, calendar: { ...spec.calendar!, observed: e.target.checked } })} />Confirmo cobertura del intervalo: ausencia de eventos significa cero observado.</label><Button variant="ghost" onClick={() => onChange({ ...spec, calendar: null })}>Quitar calendario</Button></>}
-      </details>
-    </>}
+  </>;
+  const measures = <>
+      <AnalysisMeasures issue={issue} spec={spec} fields={fields} populationFields={populationFields} max={limits.metrics} onChange={change} />
+  </>;
+  const patterns = <>
     {spec.pairs && <div className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><FieldPicker label="Clave de canasta o documento" fields={fields} value={spec.pairs.basket} onChange={basket => { if (basket) onChange({ ...spec, pairs: { ...spec.pairs!, basket } }); }} /><FieldPicker label="Código de elemento" fields={fields} value={spec.pairs.item} onChange={item => { if (item) onChange({ ...spec, pairs: { ...spec.pairs!, item } }); }} /></div><Alert title="Definición de soporte">Cada elemento cuenta una vez por canasta. Los pares no tienen orden ni elementos consigo mismos. El denominador incluye todas las canastas elegibles, incluso las de un elemento; Top N no lo modifica.</Alert></div>}
-    {spec.histogram && <div className="space-y-3"><ValueEditor label="Valor de distribución" fields={fields} value={spec.histogram.value} onChange={value => onChange({ ...spec, histogram: { ...spec.histogram!, value } })} /><Input label="Límites de intervalos" value={spec.histogram.boundaries.join(",")} hint="Números ascendentes separados por coma. El último intervalo incluye su extremo superior." onChange={e => onChange({ ...spec, histogram: { ...spec.histogram!, boundaries: e.target.value.split(",") } })} /></div>}
+    {spec.histogram && <div className="space-y-3"><ValueEditor label="Valor de distribución" fields={fields} value={spec.histogram.value} onChange={value => change({ ...spec, histogram: { ...spec.histogram!, value } })} /><Input label="Límites de intervalos" value={spec.histogram.boundaries.join(",")} hint="Números ascendentes separados por coma. El último intervalo incluye su extremo superior." onChange={e => change({ ...spec, histogram: { ...spec.histogram!, boundaries: e.target.value.split(",") } })} /></div>}
+  </>;
+  const cohorts = <div className="space-y-4">
+    {pattern === "aggregate" && population}
     <details className="space-y-4 rounded-lg border border-line p-4" open={!!spec.cohorts?.length}><summary className="cursor-pointer font-semibold">Cohortes: seleccionar entidades antes de medir</summary><p className="text-sm text-content-muted">Las condiciones siguientes seleccionan entidades; después se miden sus eventos con los filtros principales. Los períodos se configuran de forma independiente.</p>
-      {(spec.cohorts || []).map((cohort, i) => <div key={i} className="space-y-3 border-t border-line pt-3"><SelectionEditor label={`Cohorte ${i + 1}`} catalog={catalog} value={cohort.selection} onChange={selection => onChange({ ...spec, cohorts: spec.cohorts!.map((c, n) => n === i ? { ...c, selection } : c) })} /><div className="grid gap-3 sm:grid-cols-2"><FieldPicker label={`Entidad de cohorte ${i + 1}`} fields={fieldsFor(catalog, cohort.selection)} value={cohort.entity} onChange={entity => { if (entity) onChange({ ...spec, cohorts: spec.cohorts!.map((c, n) => n === i ? { ...c, entity } : c) }); }} /><FieldPicker label={`Entidad de eventos para cohorte ${i + 1}`} fields={fields} value={cohort.event_entity} onChange={event_entity => { if (event_entity) onChange({ ...spec, cohorts: spec.cohorts!.map((c, n) => n === i ? { ...c, event_entity } : c) }); }} /></div><Button variant="ghost" onClick={() => onChange({ ...spec, cohorts: spec.cohorts!.filter((_, n) => n !== i) })}>Quitar cohorte {i + 1}</Button></div>)}
-      <Select label="Combinar cohortes" value={spec.cohort_logic || "all"} onChange={e => onChange({ ...spec, cohort_logic: e.target.value as "all" | "any" })}><option value="all">Intersección: todas</option><option value="any">Unión: alguna</option></Select><Button variant="outline" disabled={(spec.cohorts?.length || 0) >= 4 || !fields.length} onClick={() => onChange({ ...spec, cohorts: [...spec.cohorts || [], { selection: { base_table_id: spec.selection.base_table_id, joins: [], filters: [] }, entity: fields[0].ref, event_entity: fields[0].ref }] })}>Agregar cohorte</Button>
+      {(spec.cohorts || []).map((cohort, i) => <div key={i} className="space-y-3 border-t border-line pt-3"><SelectionEditor label={`Cohorte ${i + 1}`} filterScope={`cohort-${i}`} issue={issue} catalog={catalog} value={cohort.selection} onChange={selection => change({ ...spec, cohorts: spec.cohorts!.map((c, n) => n === i ? { ...c, selection } : c) })} /><div className="grid gap-3 sm:grid-cols-2"><FieldPicker label={`Entidad de cohorte ${i + 1}`} fields={fieldsFor(catalog, cohort.selection)} value={cohort.entity} onChange={entity => { if (entity) onChange({ ...spec, cohorts: spec.cohorts!.map((c, n) => n === i ? { ...c, entity } : c) }); }} /><FieldPicker label={`Entidad de eventos para cohorte ${i + 1}`} fields={fields} value={cohort.event_entity} onChange={event_entity => { if (event_entity) onChange({ ...spec, cohorts: spec.cohorts!.map((c, n) => n === i ? { ...c, event_entity } : c) }); }} /></div><Button variant="ghost" onClick={() => change({ ...spec, cohorts: spec.cohorts!.filter((_, n) => n !== i) })}>Quitar cohorte {i + 1}</Button></div>)}
+      <Select label="Combinar cohortes" value={spec.cohort_logic || "all"} onChange={e => change({ ...spec, cohort_logic: e.target.value as "all" | "any" })}><option value="all">Intersección: todas</option><option value="any">Unión: alguna</option></Select><Button variant="outline" disabled={(spec.cohorts?.length || 0) >= 4 || !fields.length} onClick={() => change({ ...spec, cohorts: [...spec.cohorts || [], { selection: { base_table_id: spec.selection.base_table_id, joins: [], filters: [] }, entity: fields[0].ref, event_entity: fields[0].ref }] })}>Agregar cohorte</Button>
     </details>
-    <div className="grid gap-3 sm:grid-cols-3"><Input label="Grupos a mostrar" type="number" min={1} max={limits.groups} value={spec.limit} onChange={e => onChange({ ...spec, limit: Number(e.target.value) })} /><Select label="Orden del análisis" value={spec.order_by[0]?.field_id || ""} onChange={e => onChange({ ...spec, order_by: e.target.value ? [{ field_id: e.target.value, direction: "DESC" }] : [] })}><option value="">Orden estable de dimensiones</option>{outputs.map(id => <option key={id}>{id}</option>)}</Select><Select label="Dirección del análisis" value={spec.order_by[0]?.direction || "ASC"} disabled={!spec.order_by.length} onChange={e => onChange({ ...spec, order_by: [{ ...spec.order_by[0], direction: e.target.value as "ASC" | "DESC" }] })}><option>ASC</option><option>DESC</option></Select></div>
-    <Alert title="Alcance del cálculo">{spec.grain || "Declara el grano de la tabla"}. {spec.cohorts?.length || 0} cohortes. {spec.population ? "Incluye una población de referencia con filtros propios." : "Población limitada a los eventos seleccionados."} Los KPI se recalculan sobre toda la selección; una división por cero produce Sin valor.</Alert>
-    <Button disabled={!spec.title.trim() || !spec.grain.trim() || !Number.isInteger(spec.limit) || spec.limit < 1 || spec.limit > limits.groups} onClick={onRun}>Calcular análisis</Button>
-  </fieldset>;
+  </div>;
+  const output = <>
+    <div className="grid gap-3 sm:grid-cols-3"><Input data-analysis-field="limit" error={issue?.field === "limit" ? issue.message : undefined} label="Grupos a mostrar" type="number" min={1} max={limits.groups} value={spec.limit} onChange={e => change({ ...spec, limit: Number(e.target.value) })} /><Select label="Orden del análisis" value={spec.order_by[0]?.field_id || ""} onChange={e => change({ ...spec, order_by: e.target.value ? [{ field_id: e.target.value, direction: "DESC" }] : [] })}><option value="">Orden estable de dimensiones</option>{outputs.map(id => <option key={id}>{id}</option>)}</Select><Select label="Dirección del análisis" value={spec.order_by[0]?.direction || "ASC"} disabled={!spec.order_by.length} onChange={e => change({ ...spec, order_by: [{ ...spec.order_by[0], direction: e.target.value as "ASC" | "DESC" }] })}><option>ASC</option><option>DESC</option></Select></div>
+  </>;
+  const items = [
+    { id: "events", label: "Eventos", content: events },
+    ...(pattern === "aggregate" ? [{ id: "dimensions", label: "Dimensiones", content: dimensions }] : []),
+    { id: "measures", label: pattern === "pairs" ? "Pares" : pattern === "histogram" ? "Distribución" : "Medidas", content: pattern === "aggregate" ? measures : patterns },
+    { id: "cohorts", label: "Población y cohortes", content: cohorts },
+    { id: "output", label: "Salida", content: output },
+  ];
+  const active = items.some(item => item.id === selected) ? selected : "events";
+  const toolbar = <div className="space-y-2 border-b border-line py-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <Button disabled={busy} onClick={run}>{busy ? "Calculando…" : "Calcular análisis"}</Button>
+      <p className="text-sm text-content-muted">{spec.cohorts?.length || 0} cohortes · {spec.population ? "Con población de referencia" : "Sin población de referencia"}</p>
+    </div>
+    {(issue || requestError) && <OperationError title="No se pudo calcular el análisis" error={issue?.message ?? requestError!} />}
+  </div>;
+  return <div ref={editor} className="min-w-0 [overflow-wrap:anywhere]">
+    <Tabs label="Configuración del análisis" items={items.map(item => ({
+      ...item, content: <fieldset disabled={busy} className="min-w-0">{item.content}</fieldset>,
+    }))} selectedId={active} onChange={setSelected} toolbar={toolbar} />
+  </div>;
 }

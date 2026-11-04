@@ -41,6 +41,12 @@ def serialize_command(message, max_bytes=MAX_LOAD_MESSAGE_BYTES):
     return encoded
 
 
+def _missing(value):
+    return value is None or value is pd.NA or value is pd.NaT or (
+        isinstance(value, (float, np.floating)) and math.isnan(value)
+    )
+
+
 def _column_schema(series):
     dtype = str(series.dtype)
     logical = None
@@ -56,34 +62,31 @@ def _column_schema(series):
     elif DATETIME.fullmatch(dtype):
         logical = "datetime"
     elif dtype == "object":
-        kinds = {type(v) for v in series if v is not None}
+        present = [v for v in series if not _missing(v)]
+        kinds = {type(v) for v in present}
         mapping = {str: "string", int: "integer", bool: "boolean", float: "float",
                    Decimal: "decimal", dt.date: "date", dt.time: "time", dt.datetime: "datetime_object"}
         if not kinds:
             logical = "null"
         elif len(kinds) == 1:
             logical = mapping.get(next(iter(kinds)))
-        if logical in {"time", "datetime_object"} and any(v is not None and (v.tzinfo is not None or v.fold) for v in series):
+        if logical in {"time", "datetime_object"} and any(v.tzinfo is not None or v.fold for v in present):
             raise LoadValidationError("Convierte fechas con zona a datetime64 antes de cargar; no se admiten objetos temporales ambiguos.")
     if logical is None:
-        raise LoadValidationError("El lote contiene un dtype u objetos no admitidos; convierte esa columna antes de cargar.")
+        raise LoadValidationError(f"La columna «{series.name}» contiene tipos no admitidos por el agente. Revisa su tipo en Transformación.")
     return {"name": series.name, "logical_type": logical, "pandas_dtype": dtype,
             "nullable": dtype == "object" or dtype not in {"bool", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"}}
 
 
 def _encode(value, schema):
-    if value is None or value is pd.NA or value is pd.NaT:
+    if _missing(value):
         return None
     kind = schema["logical_type"]
-    if kind == "string" and schema["pandas_dtype"] == "str" and pd.isna(value):
-        return None
     if kind == "datetime":
         return None if pd.isna(value) else value.isoformat()
     if isinstance(value, np.generic):
         value = value.item()
     if kind == "float":
-        if math.isnan(value) and schema["pandas_dtype"] != "object":
-            return None
         if not math.isfinite(value):
             raise LoadValidationError("El lote contiene números no finitos; corrígelos antes de cargar.")
         return value

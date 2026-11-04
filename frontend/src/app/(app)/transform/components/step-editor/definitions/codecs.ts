@@ -37,8 +37,13 @@ export const stringMap: Codec<Record<string, string>> = { format: value => JSON.
   ensure(new Set(pairs.map(p => p[0])).size === pairs.length, "No repitas la columna original.");
   return Object.fromEntries(pairs.map(pair => [pair[0], pair[1]]));
 } };
-export const dtype: Codec<string | Record<string, string>> = { format: JSON.stringify, parse: raw => {
-  const value = jsonValue.parse(raw); if (typeof value === "string") return nonempty.parse(value);
+export const dtype: Codec<string | Record<string, string>> = { format: value => typeof value === "string" ? value : JSON.stringify(value), parse: raw => {
+  const input = raw.trim();
+  if (!input.startsWith("{") && !input.startsWith('"')) {
+    ensure(input && !/^(true|false|null)$/i.test(input), "Escribe el nombre del tipo, por ejemplo boolean.");
+    return input;
+  }
+  const value = jsonValue.parse(input); if (typeof value === "string") return nonempty.parse(value);
   ensure(value && !Array.isArray(value) && typeof value === "object" && Object.keys(value).length && Object.entries(value).every(([key, v]) => !!key.trim() && typeof v === "string" && !!v.trim()), "Usa un tipo o un mapa no vacío de columna a tipo.");
   // Runtime-checked object values retain the exact dtype map supplied by the user.
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, nonempty.parse(String(item))]));

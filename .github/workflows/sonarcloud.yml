@@ -8,6 +8,7 @@ on:
       - 'phase/**'
       - 'feature/**'
       - 'sonar/**'
+      - 'fix/**'
       - 'codex/**'
   pull_request:
     types: [opened, synchronize, reopened]

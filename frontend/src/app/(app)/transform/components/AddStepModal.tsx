@@ -32,13 +32,15 @@ export default function AddStepModal(props: AddStepModalProps) {
           props.onEditStep(step, merged);
         } else {
           const dto = stepDto(step, merged);
-          // Preserve the original file display metadata at the public callback boundary.
+          const params: Record<string, unknown> = { ...dto.params };
+          // The add callback ingests session descriptors, not wire-only saved references.
           for (const key of ["right_source", "secondary_source"] as const) {
             const source = key === "right_source" && "right_source" in step.params ? step.params.right_source
               : key === "secondary_source" && "secondary_source" in step.params ? step.params.secondary_source : undefined;
-            if (source?.type === "file" && typeof dto.params[key] === "object" && dto.params[key] !== null) dto.params[key] = { ...dto.params[key], ...(source.filename ? { filename: source.filename } : {}), ...(source.unique_filename ? { unique_filename: source.unique_filename } : {}) };
+            if (source?.type === "database" && source.savedConnection) params[key] = source;
+            if (source?.type === "file" && typeof dto.params[key] === "object" && dto.params[key] !== null) params[key] = { ...dto.params[key], ...(source.filename ? { filename: source.filename } : {}), ...(source.unique_filename ? { unique_filename: source.unique_filename } : {}) };
           }
-          props.onAddStep(dto);
+          props.onAddStep({ type: dto.type, params });
         }
       } finally { merged.clear(); }
       props.onClose();

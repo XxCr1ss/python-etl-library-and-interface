@@ -7,6 +7,11 @@ import httpx
 from fastapi import HTTPException
 
 
+class ExecutionModeUnavailable(HTTPException):
+    def __init__(self):
+        super().__init__(503, "La carga no se inició. El historial requiere la migración de modos de carga.")
+
+
 def require_feature(name: str):
     if os.getenv(name, "true").lower() != "true":
         raise HTTPException(503, "Esta función está deshabilitada temporalmente.")
@@ -57,17 +62,23 @@ class SupabaseGateway:
             raise HTTPException(503, "No se pudo contactar con la persistencia.") from None
         if response.is_error:
             # Never propagate PostgREST/driver bodies (they can include values).
-            code = ""
+            problem = {}
             try:
-                code = response.json().get("code", "")
-            except (ValueError, AttributeError):
+                data = response.json()
+                if isinstance(data, dict):
+                    problem = data
+            except ValueError:
                 pass
+            code = problem.get("code")
             if response.status_code == 401:
                 raise HTTPException(401, "La sesión no es válida o ha caducado.")
             if code == "PT404":
                 raise HTTPException(404, "Conexión no disponible.")
             if code in ("PT409", "23505"):
                 raise HTTPException(409, "La configuración cambió; actualiza e inténtalo de nuevo.")
+            if (path == "/rest/v1/rpc/etl_claim_execution" and code == "23514"
+                    and "pipeline_executions_if_exists_check" in str(problem.get("message", ""))):
+                raise ExecutionModeUnavailable()
             raise HTTPException(503, "La persistencia no está disponible; comprueba configuración y migraciones.")
         if not response.content:
             return None

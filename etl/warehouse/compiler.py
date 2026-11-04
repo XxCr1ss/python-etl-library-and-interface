@@ -41,6 +41,10 @@ def parse_value(value, kind):
             return dt.datetime.fromisoformat(value)
     except (ValueError, InvalidOperation, OverflowError):
         pass
+    if kind == "date":
+        invalid("Escribe una fecha válida en el filtro con el formato AAAA-MM-DD.", "invalid_filter_date")
+    if kind == "datetime":
+        invalid("Escribe una fecha y hora ISO válida en el filtro, por ejemplo 2006-01-01T08:30:00.", "invalid_filter_datetime")
     invalid("El valor del filtro no corresponde al tipo de columna; usa texto para decimales y enteros grandes.")
 
 

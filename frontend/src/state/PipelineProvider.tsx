@@ -175,9 +175,10 @@ function useSessionCore() {
       if (report.table_name !== record.table_name || report.table_type !== record.table_type) throw new ApiError("contract", "La respuesta no corresponde a la tabla y al tipo enviados.");
       dispatch({ type: "executionFinish", record: { ...record, status: "success", finishedAt: new Date().toISOString(), durationMs: Date.now() - started, total_rows: report.total_rows }, report });
     } catch (error) {
-      const status = error instanceof ApiError && error.kind === "http" && error.status === 422 ? "error" : "unknown";
-      const message = error instanceof Error ? error.message : "No se recibió una respuesta válida.";
-      dispatch({ type: "executionFinish", record: { ...record, status, finishedAt: new Date().toISOString(), durationMs: Date.now() - started }, error: message });
+      const rejected = error instanceof ApiError && error.kind === "http" && (error.status === 422 || error.code === "load_not_started");
+      const status = rejected ? "error" : "unknown";
+      const failure = error instanceof ApiError ? error : "No se recibió una respuesta válida.";
+      dispatch({ type: "executionFinish", record: { ...record, status, finishedAt: new Date().toISOString(), durationMs: Date.now() - started }, error: failure });
     } finally { loadInFlight.current = false; }
   }, [credentials, dispatch, agentReady, user]);
   const newLoad = useCallback(() => {

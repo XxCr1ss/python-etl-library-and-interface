@@ -11,7 +11,10 @@ import { ConnectionsManager } from "@/features/connections/ConnectionsManager";
 import { RemoteMonitoring } from "@/features/monitoring/RemoteMonitoring";
 import { setTokenReader, invalidateAuthRequests } from "@/services/authSession";
 import { request } from "@/services/apiClient";
-import { sourceDto } from "@/services/etlSerializers";
+import { sourceDto, stepDto } from "@/services/etlSerializers";
+import { PipelineProvider } from "@/state/PipelineProvider";
+import { usePipelineSession } from "@/hooks/usePipelineSession";
+import AddStepModal from "@/app/(app)/transform/components/AddStepModal";
 import { parseSource } from "@/types/etlValidation";
 import { CredentialStore } from "@/state/credentialStore";
 import { pipelineReducer, initialState } from "@/state/pipelineReducer";
@@ -69,6 +72,51 @@ describe("saved connections and account boundaries", () => {
     expect(sourceDto(source, store)).toEqual({ type: "database", table_name: "table", connection_id: saved.id, connection_version: 3 });
     expect(store.has((source as { credentialRef: string }).credentialRef)).toBe(false);
   });
+  it.each([["union", "secondary_source", "direct"], ["left_join", "right_source", "agent"]] as const)(
+    "saves %s with a %s from a saved connection and sends its reference", async (type, sourceKey, transport) => {
+      const restore = mockDialogMethods();
+      server.use(
+        http.get(`${API_URL}/connections`, () => HttpResponse.json({ items: [{ ...saved, transport }] })),
+        http.get(`${API_URL}/extract/agent/status/:agentId`, ({ params }) => HttpResponse.json({ agent_id: params.agentId, connected: true, connection_id: "connected" })),
+        http.post(`${API_URL}/extract/database`, () => HttpResponse.json({ status: "success", message: "Checked", tables: ["lookup"], schema_preview: { lookup: ["id"] } })),
+        http.post(`${API_URL}/extract/database/preview`, () => HttpResponse.json({ status: "success", table_name: "lookup", preview_data: [{ id: 1 }], total_rows: 1 })),
+      );
+      function Editor() {
+        const session = usePipelineSession();
+        return <>
+          <button onClick={() => session.confirmSource({ type: "file", filepath: "fixture.csv" })}>Preparar origen</button>
+          <AddStepModal isOpen onClose={() => {}} availableColumns={["id"]} onAddStep={session.addStep} initialType={type} />
+          <output aria-label="Receta enviada">{JSON.stringify(session.state.recipe.map(step => stepDto(step, session.credentials)))}</output>
+          <output aria-label="Agente">{session.agentId}</output>
+        </>;
+      }
+      const user = userEvent.setup();
+      const view = render(<PipelineProvider><Editor /></PipelineProvider>);
+      try {
+        await user.click(screen.getByRole("button", { name: "Preparar origen" }));
+        await user.selectOptions(screen.getByLabelText("Tipo de fuente secundaria"), "database");
+        await screen.findByRole("option", { name: /Origen registrado/ });
+        await user.selectOptions(screen.getByLabelText("Conexión guardada"), saved.id);
+        const connect = screen.getByRole("button", { name: "Conectar y listar tablas" });
+        await vi.waitFor(() => expect(connect).toBeEnabled());
+        await user.click(connect);
+        await user.selectOptions(await screen.findByLabelText("Tabla secundaria"), "lookup");
+        await screen.findByText(/Origen procesado/);
+        await user.click(screen.getByRole("button", { name: "Confirmar fuente secundaria" }));
+        if (type === "left_join") {
+          const input = screen.getByLabelText(/Claves de cruce/);
+          await user.clear(input);
+          await user.type(input, '"id"');
+        }
+        await user.click(screen.getByRole("button", { name: "Aplicar Operación" }));
+        const sent = JSON.parse(screen.getByLabelText("Receta enviada").textContent!);
+        expect(sent[0].params[sourceKey]).toEqual({
+          type: "database", table_name: "lookup", connection_id: saved.id, connection_version: saved.version,
+          ...(transport === "agent" ? { runtime_agent_id: screen.getByLabelText("Agente").textContent } : {}),
+        });
+        expect(sessionStorage.getItem("etl_pipeline_session_v1")).not.toContain('"password"');
+      } finally { view.unmount(); restore(); }
+    });
   it("shows a guest invitation without querying another account's connections", () => {
     auth.user = null; render(<SavedConnectionsSelector type="source" onSelect={() => {}} />);
     expect(screen.getByRole("link", { name: "Crea una cuenta" })).toHaveAttribute("href", "/register");

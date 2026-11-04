@@ -32,6 +32,7 @@ test("configure calculated indicators, compare series and persist a reusable rep
   await page.getByRole("button", { name: "Conectar y leer catálogo" }).click();
   await page.getByRole("button", { name: "Nuevo análisis avanzado" }).click();
   await page.getByLabel("Qué representa una fila").fill("Una fila por evento");
+  await page.getByRole("tab", { name: "Medidas" }).click();
   await page.getByRole("button", { name: "Agregar componente" }).click();
   await page.getByLabel("ID de medida 2").fill("people");
   await page.getByLabel("Agregación de medida 2").selectOption("COUNT_DISTINCT");
@@ -40,6 +41,7 @@ test("configure calculated indicators, compare series and persist a reusable rep
   await page.getByLabel("ID de indicador 1").fill("usage");
   await page.getByLabel("Nombre de indicador 1").fill("Utilización media");
   await page.getByLabel("Fórmula 1").fill("events / people");
+  await page.getByRole("tab", { name: "Dimensiones" }).click();
   await page.getByRole("button", { name: "Agregar agrupación", exact: true }).click();
   // A wide UUID-sized ID makes the mobile overflow regression deterministic.
   await page.getByLabel("ID de agrupación 1").fill(`group_${"8".repeat(32)}`);
