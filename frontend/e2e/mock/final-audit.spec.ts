@@ -80,6 +80,18 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByLabel("Tabla destino").fill("etl_e2e_audit");
       await page.getByLabel("Modo de carga", { exact: true }).selectOption("replace");
       await audit("load-ready");
+      await page.getByRole("button", { name: "Configurar tipos y claves" }).click();
+      await page.getByLabel("Parte de PK: col_45").check();
+      const schemaTabs = page.getByRole("tablist", { name: "Configuración del esquema" });
+      await expect(schemaTabs).toBeInViewport();
+      await schemaTabs.getByRole("tab", { name: "Tabla" }).click();
+      await page.getByLabel("Grano de la tabla").fill("Una fila sintética");
+      await schemaTabs.getByRole("tab", { name: "Columnas" }).click();
+      await expect(page.getByLabel("Parte de PK: col_45")).toBeChecked();
+      await expect(page.getByLabel("Permitir nulos en col_45")).toBeDisabled();
+      await audit("load-schema-tabs");
+      await testInfo.attach("load-schema-tabs", { body: await page.screenshot(), contentType: "image/png" });
+      await page.getByRole("button", { name: "Usar carga tradicional" }).click();
       const schema = page.getByRole("list", { name: "Columnas de origen" });
       await schema.focus();
       await page.keyboard.press("End");

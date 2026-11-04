@@ -12,6 +12,7 @@ except ImportError:
 
 from etl.agent_protocol import (backend_url, command_error, require_load,
                                 validate_command, warehouse_transport_allowed, websocket_url)
+from etl.agent_table import temporal_columns
 from etl.extractors.db_extractor import DB_Extractor
 from etl.extractors.metadata import table_metadata
 from etl.json_utils import clean_records, clean_value as clean_value
@@ -91,8 +92,11 @@ def _get_table(payload):
         raise ValueError("Falta el parámetro 'table_name' para extraer los datos de la tabla.")
     with DB_Extractor(**_connection(payload)) as extractor:
         frame = extractor.get_table(table_name)
+        temporal = temporal_columns(frame)
         return {"status": "success", "table_name": table_name,
-                "records": clean_records(frame, len(frame)), "total_rows": len(frame)}
+                "records": clean_records(frame, len(frame)), "total_rows": len(frame),
+                **({"columns": frame.columns.tolist()} if frame.empty else {}),
+                **({"temporal_columns": temporal} if temporal else {})}
 
 
 async def handle_get_metadata(payload):

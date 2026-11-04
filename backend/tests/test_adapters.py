@@ -1,4 +1,5 @@
 import asyncio
+import datetime as dt
 import json
 
 import pandas as pd
@@ -59,6 +60,37 @@ def test_agent_request_and_recursive_records(client, monkeypatch):
     assert calls[0]["action"] == "get_table"
     assert calls[0]["payload"]["password"] == ""
     assert "use_agent" not in calls[0]["payload"] and "agent_id" not in calls[0]["payload"]
+
+
+def test_inferred_agent_dates_survive_a_join_and_calculation(client, monkeypatch):
+    import etl_agent
+
+    born = pd.Series([dt.date(1990, 1, 3)], dtype="object")
+    event = pd.to_datetime(["2006-01-01T23:55:00Z"]).tz_convert("America/Bogota")
+    tables = {"events": pd.DataFrame({"id": [1], "occurred": event, "literal": ["2006-01-01"]}),
+              "people": pd.DataFrame({"id": [1], "born": born})}
+
+    class Extractor:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def get_table(self, name): return tables[name]
+
+    async def send(**kwargs):
+        assert kwargs["action"] == "get_table"
+        return {"status": "success", "data": etl_agent._get_table(kwargs["payload"])}
+
+    monkeypatch.setattr(etl_agent, "DB_Extractor", Extractor)
+    monkeypatch.setattr(agent_manager, "send_command_and_wait", send)
+    source = {"type": "database", **CONNECTION, "table_name": "events", "use_agent": True, "agent_id": "synthetic"}
+    steps = [{"type": "left_join", "params": {"on": "id", "right_source": {**source, "table_name": "people"}}},
+             {"type": "add_new_column", "params": {"new_column_name": "age",
+              "expression": "occurred.year - born.year - ((occurred.month, occurred.day) < (born.month, born.day))"}}]
+    response = client.post("/api/v1/transform/preview", json={"source": source, "steps": steps})
+    assert response.status_code == 200, response.text
+    assert response.json()["preview_data"] == [
+        {"id": 1, "occurred": "2006-01-01T18:55:00-05:00", "literal": "2006-01-01", "born": "1990-01-03", "age": 15}
+    ]
 
 
 def test_core_adapter_log_redacts_connection_without_real_network(monkeypatch, capsys):

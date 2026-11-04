@@ -1,4 +1,5 @@
 from etl.load_execution import positive_setting
+from etl.agent_table import table_from_agent
 import os
 import pandas as pd
 from typing import Dict, Any, List, Optional
@@ -63,8 +64,7 @@ async def load_source_df(source: Dict[str, Any], typed=False) -> pd.DataFrame:
         if result.get("status") == "error":
             raise ValueError(result.get("message"))
             
-        records = result.get("data", {}).get("records", [])
-        return pd.DataFrame(records)
+        return table_from_agent(result.get("data", {}))
 
     source_type = source.get("type")
     if source_type == "file":

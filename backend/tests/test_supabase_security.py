@@ -88,6 +88,9 @@ def cloud(monkeypatch, crypto):
                 assert body['p_user_id'] == A and body['p_connection_id'] == CID
                 return encrypted
             if name == 'etl_claim_execution':
+                if state.get('missing_load_modes'):
+                    from services.supabase_service import ExecutionModeUnavailable
+                    raise ExecutionModeUnavailable()
                 old = state['claims'].get(body['p_request_id'])
                 if old:
                     if old['fingerprint'] != body['p_fingerprint']: raise HTTPException(409,'conflict')
@@ -208,6 +211,22 @@ def test_idempotent_load_claim_and_monitoring_failure_never_repeat_write(client,
     assert conflict.status_code == 409 and len(writes)==1
     claim=next(body for name,body in cloud['rpc_calls'] if name=='etl_claim_execution')
     assert 'password' not in json.dumps(claim) and 'preview_data' not in json.dumps(claim)
+
+
+def test_missing_load_modes_migration_reports_the_load_did_not_start(client, cloud, monkeypatch):
+    from services import load_service
+    from unittest.mock import AsyncMock
+
+    cloud["missing_load_modes"] = True
+    execute = AsyncMock()
+    monkeypatch.setattr(load_service, "execute_load", execute)
+    body = {"request_id": RID, "source": {"type": "date_dimension", "start_year": 2024, "end_year": 2024},
+            "recipe": [], "target_connection": {"db_type": "postgresql", "host": "example", "database": "db", "user": "u", "password": ""},
+            "load_config": {"table_name": "result", "table_type": "dimension", "if_exists": "schema_only"}}
+    response = client.post("/api/v1/load/execute", json=body, headers={"Authorization": "Bearer token-a"})
+    assert response.status_code == 503 and response.json()["code"] == "load_not_started"
+    assert "La carga no se inició" in response.json()["detail"]
+    execute.assert_not_awaited()
 
 
 def test_http_cancellation_does_not_release_an_accepted_write_slot(cloud):

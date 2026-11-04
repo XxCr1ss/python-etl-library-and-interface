@@ -23,12 +23,18 @@ def test_general_schema_analytics_and_multi_output_job(pg_harness, run_prefix, l
     agent_name = pg_harness.register_table(run_prefix + "_agent")
     job_first = pg_harness.register_table(run_prefix + "_job1")
     job_second = pg_harness.register_table(run_prefix + "_job2")
+    lookup_name = pg_harness.register_table(run_prefix + "_lookup")
+    joined_name = pg_harness.register_table(run_prefix + "_joined")
     schema = {"version": 1, "grain": "one sale or tuition payment", "columns": [
         {"name": "id", "type": "integer", "nullable": False}, {"name": "entity", "type": "integer", "nullable": False},
         {"name": "amount", "type": "decimal", "precision": 30, "scale": 8}, {"name": "active", "type": "boolean"}, {"name": "occurred", "type": "datetime", "timezone": True}], "primary_key": ["id"], "indexes": [["entity"]]}
     frame = pd.DataFrame({"id": pd.Series([9007199254740993, 2, 3], dtype="object"), "entity": [1, 1, 2],
                           "amount": [Decimal("10.12345678"), Decimal("30.12345678"), Decimal("60.12345678")], "active": pd.Series([True, None, False], dtype="object"), "occurred": [dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc), None, dt.datetime(2026, 1, 3, tzinfo=dt.timezone.utc)]})
     persist_schema(frame, pg_harness.engine, source_name, "fail", LoadSchemaSpec.model_validate(schema))
+    extra_columns = [{"name": "company", "type": "string"}, {"name": "tariff", "type": "decimal", "precision": 30, "scale": 8}]
+    lookup = pd.DataFrame({"entity": [1], "company": ["00123"], "tariff": [Decimal("123.45678901")]})
+    lookup_schema = LoadSchemaSpec.model_validate({"grain": "one lookup", "columns": [schema["columns"][1], *extra_columns]})
+    persist_schema(lookup, pg_harness.engine, lookup_name, "fail", lookup_schema)
     config = pg_harness.config.to_connection_dto()
     agent_id = run_prefix + "_general"
     process = subprocess.Popen([sys.executable, "etl_agent.py", "--server-url", live_backend_server, "--agent-id", agent_id, "--allow-load"],
@@ -40,6 +46,10 @@ def test_general_schema_analytics_and_multi_output_job(pg_harness, run_prefix, l
             for name, transport in [(direct_name, {}), (agent_name, {"use_agent": True, "agent_id": agent_id})]:
                 selected = {**config, **transport}
                 source = {**selected, "type": "database", "table_name": source_name, "read_mode": "exact"}
+                inferred = client.post("/api/v1/transform/preview", json={"source": {**source, "read_mode": "inferred"},
+                    "steps": [{"type": "add_new_column", "params": {"new_column_name": "year", "expression": "occurred.year"}}]})
+                assert inferred.status_code == 200, "Inferred timestamp was lost"
+                assert sorted(row["year"] for row in inferred.json()["preview_data"] if row["year"] is not None) == [2026, 2026]
                 payload = {"source": source, "recipe": [], "target_connection": selected, "load_config": {"table_name": name, "table_type": "fact", "if_exists": "fail", "schema_spec": schema}}
                 preview = client.post("/api/v1/load/schema-preview", json=payload)
                 assert preview.status_code == 200, "Structured preview failed"
@@ -76,6 +86,21 @@ def test_general_schema_analytics_and_multi_output_job(pg_harness, run_prefix, l
                 assert paired.status_code == 200, "Pairs failed"
                 assert Decimal(paired.json()["data"][0]["support"]) == Decimal("0.5")
                 assert paired.json()["data"][0]["item_b"] == "9007199254740993"
+            selected = {**config, "use_agent": True, "agent_id": agent_id}
+            source = {**selected, "type": "database", "table_name": source_name, "read_mode": "exact"}
+            join = {"type": "left_join", "params": {"on": "entity", "right_source": {**source, "table_name": lookup_name}}}
+            payload = {"source": source, "recipe": [join], "target_connection": selected, "load_config": {
+                "table_name": joined_name, "table_type": "fact", "if_exists": "fail", "schema_spec": {**schema, "columns": [*schema["columns"], *extra_columns]}}}
+            preview = client.post("/api/v1/load/schema-preview", json=payload)
+            assert preview.status_code == 200 and preview.json()["submitted_rows"] == 3
+            import sqlalchemy as sa
+            assert not sa.inspect(pg_harness.engine).has_table(joined_name)
+            loaded = client.post("/api/v1/load/execute", json=payload)
+            assert loaded.status_code == 200 and loaded.json()["total_rows"] == 3
+            joined = sa.Table(joined_name, sa.MetaData(), autoload_with=pg_harness.engine)
+            with pg_harness.engine.connect() as connection:
+                assert connection.execute(sa.select(joined.c.company, joined.c.tariff).order_by(joined.c.entity)).all() == [
+                    ("00123", Decimal("123.45678901")), ("00123", Decimal("123.45678901")), (None, None)]
             definition = {"version": 1, "title": "Two reusable outputs", "nodes": [
                 {"id": "first", "source_ref": "payments", "output": {"target_ref": "direct", "table_name": job_first, "table_type": "fact", "schema_spec": schema}},
                 {"id": "second", "input_node": "first", "preserve_rows": True, "preserve_sums": ["amount"], "output": {"target_ref": "agent", "table_name": job_second, "table_type": "fact", "schema_spec": schema}}]}

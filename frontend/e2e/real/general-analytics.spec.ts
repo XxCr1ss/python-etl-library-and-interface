@@ -15,6 +15,7 @@ test("real configurable calculated report from PostgreSQL to the browser", async
     await page.getByLabel("Tabla base", { exact: true }).selectOption({ label: "public." + tables.fact });
     await page.getByRole("button", { name: "Nuevo análisis avanzado" }).click();
     await page.getByLabel("Qué representa una fila").fill("Una transacción de prueba");
+    await page.getByRole("tab", { name: "Medidas" }).click();
     await page.getByLabel("ID de medida 1").fill("amount");
     await page.getByLabel("Agregación de medida 1").selectOption("SUM");
     await page.getByLabel("Valor de medida 1", { exact: true }).selectOption({ label: `Base · ${tables.fact}.amount` });

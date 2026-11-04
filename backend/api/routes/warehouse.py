@@ -11,6 +11,15 @@ from etl.warehouse.responses import AnalysisResponse, ReportResponse
 from services.connection_service import resolve_connection
 
 
+def invalid_warehouse_request(exc):
+    for error in exc.errors():
+        path = error.get("loc", ())
+        if len(path) == 5 and path[:3] == ("body", "analysis", "measures") and type(path[3]) is int and path[-1] == "unit":
+            return {"detail": f"Revisa la unidad de la medida {path[3] + 1}. Para un conteo usa count.",
+                    "code": "invalid_measure_unit"}
+    return {"detail": "Solicitud analítica inválida; revisa los campos y sus límites.", "code": "invalid_query"}
+
+
 class WarehouseRoute(APIRoute):
     def get_route_handler(self):
         handler = super().get_route_handler()
@@ -31,8 +40,8 @@ class WarehouseRoute(APIRoute):
                 return response
             except WarehouseError as exc:
                 return JSONResponse(status_code=exc.status, content={"detail": str(exc), "code": exc.code}, headers={"Cache-Control": "no-store"})
-            except RequestValidationError:
-                return JSONResponse(status_code=422, content={"detail": "Solicitud analítica inválida; revisa los campos y sus límites.", "code": "invalid_query"}, headers={"Cache-Control": "no-store"})
+            except RequestValidationError as exc:
+                return JSONResponse(status_code=422, content=invalid_warehouse_request(exc), headers={"Cache-Control": "no-store"})
         return bounded_request
 
 

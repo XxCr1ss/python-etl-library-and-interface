@@ -2,7 +2,8 @@ import { accessToken, authEpoch } from "./authSession";
 import { queueAgentRead, sourceAgentIds } from "./agentReadQueue";
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/+$/, "");
 export class ApiError extends Error {
-  constructor(public kind: "http" | "network" | "contract" | "aborted", message: string, public status?: number) { super(message); this.name = "ApiError"; }
+  constructor(public kind: "http" | "network" | "contract" | "aborted", message: string, public status?: number,
+    public code?: string, public technicalDetail?: string) { super(message); this.name = "ApiError"; }
 }
 export const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 // Only allow public validation text. Never render HTML, request input or a driver URL.
@@ -11,6 +12,10 @@ export function publicMessage(value: unknown, fallback: string, secrets: string[
   let message = value;
   for (const secret of secrets) if (secret) message = message.split(secret).join("[oculto]");
   return message.slice(0, 400);
+}
+function publicDiagnostic(value: unknown, secrets: string[]) {
+  if (typeof value !== "string" || /[\r\n]|\bbearer\b|\b(?:select|insert|update|delete|alter|drop)\s.+\b(?:from|into|table|set)\b/i.test(value)) return undefined;
+  return publicMessage(value, "", secrets) || undefined;
 }
 function passwords(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(passwords);
@@ -59,10 +64,13 @@ async function performRequest<T>(path: string, validate: (v: unknown) => T, body
   if (!response.ok) {
     const fallback = `Error del servidor (${response.status})`;
     const detail = object(data) ? data.detail : undefined;
+    const secrets = passwords(body);
     const message = Array.isArray(detail)
-      ? detail.map(e => object(e) ? publicMessage(e.msg, "Solicitud inválida", passwords(body)) : "Solicitud inválida").join("; ")
-      : publicMessage(detail, fallback, passwords(body));
-    throw new ApiError("http", message || fallback, response.status);
+      ? detail.map(e => object(e) ? publicMessage(e.msg, "Solicitud inválida", secrets) : "Solicitud inválida").join("; ")
+      : publicMessage(detail, fallback, secrets);
+    const code = object(data) && typeof data.code === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(data.code) ? publicMessage(data.code, "", secrets) : undefined;
+    const technical = object(data) ? publicDiagnostic(data.technical_detail, secrets) : undefined;
+    throw new ApiError("http", message || fallback, response.status, code, technical);
   }
   try { return validate(data); } catch { throw new ApiError("contract", "La respuesta del servidor no cumple el contrato esperado.", response.status); }
 }
