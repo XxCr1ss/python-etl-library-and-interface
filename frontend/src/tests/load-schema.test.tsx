@@ -99,5 +99,9 @@ describe("explicit schema load UX", () => {
     expect(() => parseLoadSchema({ ...schema, columns: [{ name: "id", type: "decimal", nullable: true, precision: 4, scale: 8 }] })).toThrow();
     expect(() => parseLoadSchema({ ...schema, columns: [schema.columns[0], schema.columns[0]] })).toThrow();
     expect(() => parseLoadSchema({ ...schema, checks: [{ column: "id", kind: "arbitrary_code", severity: "error" }] })).toThrow();
+    const composite = { ...schema, columns: [schema.columns[0], { ...schema.columns[0], name: "region" }] };
+    const orders = [["id", "region"], ["region", "id"]];
+    expect(() => parseLoadSchema({ ...composite, unique_keys: orders })).toThrow(/repite una definición/);
+    expect(parseLoadSchema({ ...composite, indexes: orders }).indexes).toEqual(orders);
   });
 });

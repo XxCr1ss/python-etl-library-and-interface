@@ -39,7 +39,7 @@ export function parseLoadSchema(value: unknown): LoadSchemaSpec {
     entries.forEach((entry, i) => {
       const field = `load-${group}-${i}`;
       requireField(key(entry) && entry.length, tab, field, `La entrada ${i + 1} requiere columnas existentes sin repetirlas.`);
-      const signature = JSON.stringify(group === "unique_keys" ? [...entry].sort() : entry);
+      const signature = JSON.stringify(group === "unique_keys" ? [...entry].sort((left, right) => left.localeCompare(right, "en")) : entry);
       requireField(!seen.has(signature), tab, field, `La entrada ${i + 1} repite una definición de esta sección.`);
       seen.add(signature);
     });
