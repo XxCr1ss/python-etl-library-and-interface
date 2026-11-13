@@ -13,6 +13,7 @@ import { WarehouseSessionProvider, useWarehouse } from "@/features/warehouse/War
 import { analysisResult, analyzeWarehouse, reportWarehouse } from "@/services/analysisApi";
 import { csvResult, reportStorageKey } from "@/features/warehouse/reportStorage";
 import type { AnalysisSpec } from "@/types/analysis";
+import type { DatabaseType } from "@/types/etl";
 import { SharedReportFilters } from "@/app/(app)/analytics/components/SharedReportFilters";
 
 vi.mock("next/dynamic", () => ({ default: () => function Chart() { return null; } }));
@@ -29,16 +30,16 @@ function advancedResult(analysis: AnalysisSpec) {
     summary_kpis: [{ metric_id: "events", aggregation: "COUNT_ROWS", value: 100, logical_type: "integer", encoding: "native" }], filtered_rows: { value: 100, logical_type: "integer", encoding: "native" },
     units: { events: "count" }, warnings: [], definition: analysis, execution_id: "execution-1", meta: { ...warehouseMeta, applied_limit: analysis.limit, truncated: false } };
 }
-function ConnectionControls() {
+function ConnectionControls({ engine = "postgresql" }: { engine?: DatabaseType }) {
   const w = useWarehouse();
-  return <><button onClick={() => w.updateConnection({ database: "synthetic", user: "reader", password: "runtime-only" })}>Configure</button><button onClick={() => void w.connect()}>Connect</button>{w.busy && <p role="status">{w.busy}</p>}{w.error && <p role="alert">{w.error}</p>}<AdvancedAnalysisPanel /></>;
+  return <><button onClick={() => w.updateConnection({ db_type: engine, database: "synthetic", user: "reader", password: "runtime-only", service_name: engine === "oracle" ? "synthetic" : null })}>Configure</button><button onClick={() => void w.connect()}>Connect</button>{w.busy && <p role="status">{w.busy}</p>}{w.error && <p role="alert">{w.error}</p>}<AdvancedAnalysisPanel /></>;
 }
-async function workspace() {
+async function workspace(engine: DatabaseType = "postgresql") {
   server.use(http.post(`${API_URL}/warehouse/catalog`, () => HttpResponse.json(catalog)),
     http.post(`${API_URL}/warehouse/analyze`, async ({ request }) => { const body = await request.json() as { analysis: AnalysisSpec }; return HttpResponse.json(advancedResult(body.analysis)); }),
     http.post(`${API_URL}/warehouse/definition`, async ({ request }) => HttpResponse.json(await request.json())),
     http.post(`${API_URL}/warehouse/report`, async ({ request }) => { const body = await request.json() as { analyses: AnalysisSpec[] }; return HttpResponse.json({ status: "success", version: 1, execution_id: "report-1", results: body.analyses.map(advancedResult) }); }));
-  render(<PipelineProvider><WarehouseSessionProvider><ConnectionControls /></WarehouseSessionProvider></PipelineProvider>);
+  render(<PipelineProvider><WarehouseSessionProvider><ConnectionControls engine={engine} /></WarehouseSessionProvider></PipelineProvider>);
   const user = userEvent.setup();
   await user.click(screen.getByText("Configure")); await user.click(screen.getByText("Connect"));
   await screen.findByRole("heading", { name: "Análisis avanzados y reportes" });
@@ -46,6 +47,10 @@ async function workspace() {
 }
 
 describe("general analytics user flows", () => {
+  it.each(["mysql", "oracle"] as const)("opens advanced analysis when the %s catalog advertises it", async (engine) => {
+    await workspace(engine);
+    expect(screen.getByRole("heading", { name: "Análisis avanzados y reportes" })).toBeInTheDocument();
+  });
   it("requires an explicit mapping or exception before applying shared report filters", async () => {
     const user = userEvent.setup(), changed = vi.fn();
     const panels = [newAnalysis(catalog.tables[0].table_id), { ...newAnalysis(catalog.tables[1].table_id), title: "Population" }];

@@ -34,4 +34,5 @@ class WarehouseError(ValueError):
 
 
 def capabilities(limits=None):
-    return {"protocol_version": 1, "actions": ACTIONS, "limits": effective_limits(limits)}
+    return {"protocol_version": 1, "actions": ACTIONS, "limits": effective_limits(limits),
+            "advanced_engines": ["postgresql", "mysql", "oracle"]}

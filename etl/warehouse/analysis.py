@@ -1,9 +1,10 @@
 """Bounded server-side analytical patterns shared by Python, HTTP and the agent."""
 import datetime as dt
 from uuid import uuid4
-from sqlalchemy import select, func, case, literal, and_, or_, cast, Numeric, union, String, values, column
+from sqlalchemy import select, func, case, literal, and_, or_, cast, union
 
 from .compiler import Compiler, invalid, ordered, temporal_expression, parse_value
+from .dialects import calendar_source, completed_years, decimal_type, duration_seconds, set_analysis_timezone, week_start
 from .catalog import family
 from .serialization import descriptor, encode_rows, count_value
 from .formulas import compile_formulas
@@ -11,7 +12,7 @@ from .settings import positive
 
 
 def matching(left, right):
-    return and_(*[a.is_not_distinct_from(b) for a, b in zip(left, right)]) if left else literal(True)
+    return and_(*[a.is_not_distinct_from(b) for a, b in zip(left, right)])
 
 
 def value_expression(compiler, value):
@@ -21,17 +22,12 @@ def value_expression(compiler, value):
         other = compiler.field(value.multiply_by)
         if kind not in {"integer", "decimal", "float"} or family(other.type) not in {"integer", "decimal", "float"}:
             invalid("El producto de línea requiere dos columnas numéricas.")
-        field, kind = cast(field, Numeric()) * other, "decimal"
+        field, kind = cast(field, decimal_type(compiler.dialect)) * other, "decimal"
     if value.duration_end:
         other = compiler.field(value.duration_end)
         if kind not in {"date", "datetime"} or family(other.type) != kind:
             invalid("La duración requiere dos fechas de tipos compatibles.")
-        if compiler.dialect == "postgresql":
-            seconds = (other - field) * 86400 if kind == "date" else func.extract("epoch", other - field)
-        elif compiler.dialect == "sqlite":
-            seconds = (func.julianday(other) - func.julianday(field)) * 86400
-        else:
-            invalid("Las duraciones avanzadas requieren PostgreSQL en esta versión.")
+        seconds = duration_seconds(field, other, kind, compiler.dialect)
         field = seconds / {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}[value.duration_unit]
         if value.exclude_negative:
             field = case((field >= 0, field), else_=None)
@@ -47,12 +43,7 @@ def dimension_expression(compiler, dimension):
         other = compiler.field(dimension.age_at) if dimension.age_at else literal(dimension.age_at_date)
         if family(column.type) not in {"date", "datetime"} or family(other.type) not in {"date", "datetime"}:
             invalid("La edad requiere nacimiento y fecha de corte/evento.")
-        if compiler.dialect == "postgresql":
-            age = cast(func.extract("year", func.age(other, column)), Numeric(10, 0))
-        elif compiler.dialect == "sqlite":
-            age = cast(func.strftime("%Y", other), Numeric) - cast(func.strftime("%Y", column), Numeric) - case((func.strftime("%m-%d", other) < func.strftime("%m-%d", column), 1), else_=0)
-        else:
-            invalid("La edad al evento requiere PostgreSQL en esta versión.")
+        age = completed_years(column, other, compiler.dialect)
         column = case((other >= column, age), else_=None)
     if dimension.ranges:
         if not (dimension.age_at or dimension.age_at_date) and family(column.type) not in {"integer", "decimal", "float"}:
@@ -72,11 +63,7 @@ def dimension_expression(compiler, dimension):
     if dimension.bucket == "week":
         if family(column.type) not in {"date", "datetime"}:
             invalid("La semana requiere una fecha.")
-        if compiler.dialect == "postgresql":
-            return func.to_char(func.date_trunc("week", column), "YYYY-MM-DD"), "string"
-        if compiler.dialect == "sqlite":
-            return func.date(column, "-6 days", "weekday 1"), "string"
-        invalid("La semana avanzada requiere PostgreSQL en esta versión.")
+        return week_start(column, compiler.dialect), "string"
     if dimension.bucket:
         return temporal_expression(column, dimension.bucket, compiler.dialect), "string"
     return column, family(column.type)
@@ -96,10 +83,6 @@ def aggregate_expression(compiler, measure):
         return func.count(value.distinct()), "integer"
     if aggregation in {"SUM", "AVG", "PERCENTILE"} and kind not in {"integer", "decimal", "float"}:
         invalid("Esta agregación requiere valores numéricos.")
-    if aggregation == "PERCENTILE":
-        if compiler.dialect != "postgresql":
-            invalid("Los percentiles exactos requieren PostgreSQL en esta versión.")
-        return func.percentile_cont(measure.percentile).within_group(value), "decimal"
     if aggregation == "ENTITY_AVG":
         invalid("La media por entidad requiere una etapa interior.")
     expression = {"COUNT": func.count, "SUM": func.sum, "AVG": func.avg, "MIN": func.min, "MAX": func.max}[aggregation](value)
@@ -142,12 +125,10 @@ class AnalysisCompiler:
         c = self.population if measure.scope in {"population", "population_total"} else self.compiler
         dims = [] if summary or measure.scope in {"filtered_total", "population_total"} else (self.pop_dimensions if measure.scope == "population" else [e for e, _ in self.dimensions])
         if measure.aggregation == "PERCENTILE":
-            if self.dialect != "postgresql":
-                invalid("Los percentiles exactos requieren PostgreSQL en esta versión.")
             value, kind = value_expression(c, measure.value)
             if kind not in {"integer", "decimal", "float"}:
                 invalid("Los percentiles requieren números.")
-            value = cast(value, Numeric())
+            value = cast(value, decimal_type(self.dialect))
             eligible = c.statement([*[d.label(f"d{i}") for i, d in enumerate(dims)], value.label("value"),
                                     func.row_number().over(partition_by=dims, order_by=value).label("position"),
                                     func.count().over(partition_by=dims).label("n")]).where(value.is_not(None), *[c.filter(f) for f in measure.filters]).subquery()
@@ -197,7 +178,7 @@ class AnalysisCompiler:
         dims = [] if summary else [e for e, _ in self.dimensions]
         if dims and self.spec.calendar:
             labels = calendar_labels(self.spec.calendar, self.limits["groups"])
-            groups = values(column("d0", String())).data([(label,) for label in labels]).cte("analysis_calendar")
+            groups = calendar_source(labels, self.dialect)
         elif dims:
             group_query = self.compiler.statement([d.label(f"d{i}") for i, d in enumerate(dims)]).distinct()
             if self.population and self.pop_dimensions:
@@ -215,7 +196,7 @@ class AnalysisCompiler:
             staged = query.subquery(f"measure_{i}")
             keys = [groups.c[f"d{n}"] for n in range(len(dims))]
             skeys = [staged.c[f"d{n}"] for n in range(len(dims))] if measure.scope not in {"filtered_total", "population_total"} else []
-            source = source.outerjoin(staged, matching(keys, skeys) if skeys else literal(True))
+            source = source.outerjoin(staged, matching(keys, skeys) if skeys else staged.c.valid_count.is_not(None))
             expression = staged.c.value
             if measure.aggregation in {"COUNT_ROWS", "COUNT", "COUNT_DISTINCT"}:
                 if summary or not self.spec.calendar or self.spec.calendar.observed or measure.scope in {"filtered_total", "population_total"}:
@@ -229,7 +210,7 @@ class AnalysisCompiler:
                     name = "_" + suffix + "_" + measure.id
                     count_expressions.append(func.coalesce(value, 0).label(name))
                     self.count_columns.append(descriptor(name, name, "integer", "metric"))
-        compile_formulas(self.spec.formulas, expressions, units)
+        compile_formulas(self.spec.formulas, expressions, units, decimal_type(self.dialect))
         self.units = units
         for formula in self.spec.formulas:
             columns.append(descriptor(formula.id, formula.label, "decimal", "metric"))
@@ -259,7 +240,7 @@ def pair_result(connection, compiler, spec, budget, limits):
     paired = a.join(b, and_(a.c.basket == b.c.basket, a.c.item < b.c.item))
     frequency = func.count()
     expressions = {"item_a": a.c.item, "item_b": b.c.item, "frequency": frequency,
-                   "support": cast(frequency, Numeric()) / func.nullif(total, 0), "baskets": literal(total)}
+                   "support": cast(frequency, decimal_type(compiler.dialect)) / func.nullif(total, 0), "baskets": literal(total)}
     columns = [descriptor(n, n, family(item.type) if n.startswith("item_") else "decimal" if n == "support" else "integer", "dimension" if n.startswith("item_") else "metric") for n in expressions]
     statement = select(*[e.label(n) for n, e in expressions.items()]).select_from(paired).group_by(a.c.item, b.c.item)
     ordering = spec.order_by or []
@@ -292,8 +273,6 @@ def run_analysis(connection, catalog, spec, budget, limits, meta):
     import time
     started = time.monotonic()
     from .execution import rows
-    if connection.dialect.name not in {"postgresql", "sqlite"}:
-        invalid("Los patrones avanzados requieren PostgreSQL en esta versión.")
     zone = spec.timezone or meta["temporal_context"]["timezone"]
     if spec.timezone:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -301,10 +280,8 @@ def run_analysis(connection, catalog, spec, budget, limits, meta):
             ZoneInfo(zone)
         except (ZoneInfoNotFoundError, ValueError):
             invalid("Zona horaria IANA inválida.")
-    if connection.dialect.name == "postgresql":
-        connection.execute(select(func.set_config("TimeZone", zone, True)))
-    elif spec.timezone and spec.timezone != "UTC":
-        invalid("El oráculo SQLite admite únicamente UTC.")
+    if connection.dialect.name == "postgresql" or spec.timezone:
+        set_analysis_timezone(connection, zone)
     meta = {**meta, "temporal_context": {**meta["temporal_context"], "timezone": zone}}
     ac = AnalysisCompiler(catalog, spec, connection.dialect.name, limits)
     warnings = list(catalog.warnings)

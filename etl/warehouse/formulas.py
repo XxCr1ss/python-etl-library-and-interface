@@ -5,7 +5,7 @@ from sqlalchemy import literal, null, Numeric, cast, func
 from .compiler import invalid
 
 
-def compile_formulas(formulas, expressions, units):
+def compile_formulas(formulas, expressions, units, numeric_type=None):
     pending = {f.id: f for f in formulas}
     resolving = set()
 
@@ -46,7 +46,7 @@ def compile_formulas(formulas, expressions, units):
                     return (left + right if isinstance(node.op, ast.Add) else left - right), lu
                 if isinstance(node.op, ast.Mult):
                     return left * right, ru if lu == "scalar" else lu if ru == "scalar" else f"({lu}*{ru})"
-                return cast(left, Numeric()) / func.nullif(right, 0), "ratio" if lu == ru else f"{lu}/{ru}"
+                return cast(left, numeric_type or Numeric()) / func.nullif(right, 0), "ratio" if lu == ru else f"{lu}/{ru}"
             invalid("Solo se admiten referencias, números y operaciones aritméticas; no llamadas ni atributos.")
 
         expression, unit = visit(tree.body)
