@@ -4,7 +4,7 @@ from sqlalchemy import Table, MetaData, select, DateTime, func
 from sqlalchemy.dialects.mysql import TIMESTAMP
 from .load_transport import MAX_LOAD_ROWS, MAX_LOAD_MESSAGE_BYTES, LoadValidationError, encode_dataset
 from .warehouse.models import Connection
-from .warehouse.execution import engine_for, read_session, Budget
+from .warehouse.execution import engine_for, retry_catalog_read, Budget
 from .warehouse.settings import effective_limits
 
 
@@ -14,7 +14,7 @@ def read_typed_table(config, table_name):
     limits = effective_limits()
     engine = engine_for(connection, limits)
     try:
-        with read_session(engine, Budget(limits)) as (conn, _):
+        def read(conn, _):
             table = Table(table_name, MetaData(), autoload_with=conn)
             if connection.db_type == "mysql":
                 conn.exec_driver_sql("SET SESSION time_zone = '+00:00'")
@@ -39,5 +39,7 @@ def read_typed_table(config, table_name):
                         frame[column.name] = pd.Series(values, dtype="datetime64[us]")
             encode_dataset(frame)
             return frame
+
+        return retry_catalog_read(engine, Budget(limits), read)
     finally:
         engine.dispose()
