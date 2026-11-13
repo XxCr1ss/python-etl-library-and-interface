@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from .load_transport import LoadReconciliationRequired, LoadValidationError
 from .schema_dialects import (IMPLICIT_DDL, STRUCTURED_ENGINES, column_matches, ensure_transactional_table, lock_existing_table,
-                              physical_type, publication_available, publication_names, publish,
-                              storage_values, verify_replace_dependencies, write_session)
+                              physical_type, publication_available, publication_names, publish, storage_values,
+                              verify_column_size, verify_replace_dependencies, write_session)
 
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$", max_length=63)]
 
@@ -34,6 +34,8 @@ class ColumnSpec(Contract):
     def valid_scale(self):
         if self.scale > self.precision:
             raise ValueError("La escala no puede superar la precisión.")
+        if self.timezone and self.type != "datetime":
+            raise ValueError("La zona horaria solo se admite en columnas de fecha y hora.")
         return self
 
     def sql_type(self):
@@ -237,7 +239,7 @@ def persist_schema(frame, engine, name, mode, spec, preview_only=False, validati
                 raise LoadValidationError("La FK debe apuntar a una PK/UNIQUE completa.")
             from .warehouse.catalog import family
             requested_types = {c.name: c for c in spec.columns}
-            if any(c not in target.c for c in reference.target_columns) or any(
+            if any(c not in requested_types for c in reference.columns) or any(c not in target.c for c in reference.target_columns) or any(
                 (not column_matches(target.c[b].type, requested_types[a], dialect) if dialect in IMPLICIT_DDL
                  else family(requested_types[a].sql_type()) != family(target.c[b].type))
                 for a, b in zip(reference.columns, reference.target_columns)
@@ -276,6 +278,8 @@ def persist_schema(frame, engine, name, mode, spec, preview_only=False, validati
         if exists and mode in {"append", "reload", "schema_only"}:
             if set(old.c.keys()) != set(table.c.keys()):
                 raise LoadValidationError("La estructura existente no coincide con el contrato.")
+            if dialect in IMPLICIT_DDL and mode != "schema_only":
+                verify_column_size(old, spec, frame)
             for column in spec.columns:
                 actual_type = old.c[column.name].type
                 if not column_matches(actual_type, column, dialect):

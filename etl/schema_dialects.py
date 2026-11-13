@@ -158,6 +158,15 @@ def verify_replace_dependencies(connection, old):
         raise LoadValidationError("La tabla cambió mientras se comprobaba el reemplazo.")
 
 
+def verify_column_size(table, spec, frame):
+    """Reject string truncation independently of server coercion settings."""
+    for column in spec.columns:
+        actual = table.c[column.name].type
+        length = getattr(actual, "length", None)
+        if column.type == "string" and length is not None and any(len(value) > length for value in frame[column.name].dropna()):
+            raise LoadValidationError(f"El texto de {column.name} supera el tamaño de la columna destino.")
+
+
 def publish(connection, table, name, old, insert_and_verify):
     """Create and validate before publishing. The old object survives until verification."""
     stage, backup = publication_names(name)

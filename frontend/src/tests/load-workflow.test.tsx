@@ -43,6 +43,18 @@ function ExternalChanges() {
 }
 
 describe("load validation, snapshots and foreign keys", () => {
+  it("shows the Oracle publication behavior before structured replacement", async () => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(persistedSession({ ...initialState, hydrationStatus: "ready", source, target,
+      loadConfig: { table_name: "fact_sales", table_type: "dimension", if_exists: "replace", schema_spec: {
+        version: 1, grain: "Una venta", columns: [{ name: "id", type: "integer", nullable: false }],
+        primary_key: ["id"], unique_keys: [], foreign_keys: [], indexes: [], checks: [],
+      } } })));
+    render(<PipelineProvider><LoadPage /></PipelineProvider>);
+    const user = await connect();
+    await user.click(execute());
+    const dialog = screen.getByRole("dialog", { name: "Confirmar reemplazo de tabla" });
+    expect(within(dialog).getByText(/Oracle publica la tabla mediante dos renombres/)).toBeVisible();
+  });
   it("direct load in StrictMode validates the current source with a valid empty recipe and Oracle payload", async () => {
     let payload: unknown;
     server.use(http.post(`${API_URL}/load/execute`, async ({ request }) => { payload = await request.json(); return HttpResponse.json(response); }));
