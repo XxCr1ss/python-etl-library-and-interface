@@ -1,6 +1,7 @@
 """Dialect-specific expressions for advanced warehouse queries."""
 from sqlalchemy import Numeric, String, case, cast, column, extract, func, literal, select, text, union_all, values
 from sqlalchemy.dialects.oracle import TIMESTAMP
+from sqlalchemy.dialects.mysql import TIMESTAMP as MYSQL_TIMESTAMP
 from sqlalchemy.exc import DBAPIError
 
 from .compiler import invalid
@@ -13,6 +14,10 @@ def decimal_type(dialect):
 
 def duration_seconds(start, end, kind, dialect):
     if dialect == "mysql":
+        if isinstance(start.type, MYSQL_TIMESTAMP) or isinstance(end.type, MYSQL_TIMESTAMP):
+            if not isinstance(start.type, MYSQL_TIMESTAMP) or not isinstance(end.type, MYSQL_TIMESTAMP):
+                invalid("La duración requiere dos instantes o dos fechas locales del mismo tipo.")
+            return func.unix_timestamp(end) - func.unix_timestamp(start)
         return cast(func.timestampdiff(text("MICROSECOND"), start, end), Numeric(40, 12)) / 1_000_000
     if dialect == "oracle":
         zoned = any(getattr(value.type, "timezone", False) for value in (start, end))
@@ -64,8 +69,7 @@ def set_analysis_timezone(connection, zone):
         except DBAPIError:
             invalid("MySQL no reconoce la zona horaria; revisa las tablas de zonas del servidor.")
     elif dialect == "oracle":
-        # Oracle ALTER SESSION cannot bind its time_zone argument. The caller has
-        # validated the IANA name. Quote it independently of that validation.
+        # Oracle ALTER SESSION cannot bind its time_zone argument.
         quoted = "'" + zone.replace("'", "''") + "'"
         try:
             connection.exec_driver_sql("ALTER SESSION SET TIME_ZONE = " + quoted)

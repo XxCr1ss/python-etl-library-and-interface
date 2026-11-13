@@ -269,7 +269,7 @@ def calendar_labels(calendar, maximum):
     return labels
 
 
-def run_analysis(connection, catalog, spec, budget, limits, meta):
+def run_analysis(connection, catalog, spec, budget, limits, meta, *, restore_default_zone=False):
     import time
     started = time.monotonic()
     from .execution import rows
@@ -280,7 +280,7 @@ def run_analysis(connection, catalog, spec, budget, limits, meta):
             ZoneInfo(zone)
         except (ZoneInfoNotFoundError, ValueError):
             invalid("Zona horaria IANA inválida.")
-    if connection.dialect.name == "postgresql" or spec.timezone:
+    if connection.dialect.name == "postgresql" or spec.timezone or restore_default_zone:
         set_analysis_timezone(connection, zone)
     meta = {**meta, "temporal_context": {**meta["temporal_context"], "timezone": zone}}
     ac = AnalysisCompiler(catalog, spec, connection.dialect.name, limits)

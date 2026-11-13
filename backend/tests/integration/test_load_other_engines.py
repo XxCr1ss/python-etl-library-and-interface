@@ -162,6 +162,23 @@ def test_structured_http_and_live_agent(disposable_engine, live_backend_server, 
                 result = client.post("/api/v1/warehouse/analyze", json={"connection": target, "analysis": analysis})
                 assert result.status_code == 200, result.text
                 assert result.json()["data"] == [{"n": 2}]
+            # Read one typed database output and materialize another through a live agent.
+            # Reuse the two disposable tables by explicitly selecting reload.
+            definition = {"title": "Dos salidas", "nodes": [
+                {"id": "first", "source_ref": "sales", "output": {"target_ref": "direct", "table_name": dimension,
+                    "table_type": "dimension", "if_exists": "reload", "schema_spec": schema}},
+                {"id": "second", "input_node": "first", "preserve_rows": True, "preserve_sums": ["amount"],
+                 "output": {"target_ref": "agent", "table_name": fact, "table_type": "dimension", "if_exists": "reload", "schema_spec": schema}},
+            ]}
+            request = {"definition": definition, "sources": {"sales": {**config, "type": "database", "table_name": dimension, "read_mode": "exact"}},
+                       "targets": {"direct": config, "agent": {**config, "use_agent": True, "agent_id": agent_id}},
+                       "run_id": str(uuid.uuid4()), "preview_only": False, "confirm_destructive": True}
+            result = client.post("/api/v1/jobs/execute", json=request)
+            assert result.status_code == 200, result.text
+            assert result.json()["status"] == "success", result.json()["nodes"]
+            resumed = client.post("/api/v1/jobs/execute", json={**request, "run_id": str(uuid.uuid4()), "resume_run_id": request["run_id"]})
+            assert resumed.status_code == 200 and resumed.json()["status"] == "success", resumed.text
+            assert resumed.json()["nodes"]["second"]["reused"]
     finally:
         process.terminate()
         try:

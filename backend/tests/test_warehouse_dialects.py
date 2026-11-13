@@ -39,6 +39,13 @@ def test_unknown_database_timezone_has_actionable_error(engine):
         set_analysis_timezone(connection, "America/Bogota")
 
 
+def test_mysql_timestamp_duration_uses_absolute_instants():
+    start, end = column("started", mysql.TIMESTAMP()), column("ended", mysql.TIMESTAMP())
+    assert "unix_timestamp(ended) - unix_timestamp(started)" in str(duration_seconds(start, end, "datetime", "mysql"))
+    with pytest.raises(WarehouseError, match="dos instantes"):
+        duration_seconds(start, column("local_time", mysql.DATETIME()), "datetime", "mysql")
+
+
 @pytest.mark.parametrize("fails", [False, True])
 def test_oracle_snapshot_restarts_after_ddl(monkeypatch, fails):
     @contextmanager

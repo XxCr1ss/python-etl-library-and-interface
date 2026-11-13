@@ -66,7 +66,7 @@ def test_real_advanced_report(disposable_engine):
                       "measures": [{"id": "median", "aggregation": "PERCENTILE", "percentile": 0.5, "value": {"field": {"column": "amount"}}},
                                    {"id": "days", "aggregation": "SUM", "value": {"field": {"column": "started"},
                                                                                     "duration_end": {"column": "occurred"}, "duration_unit": "days"}}]}
-        report = run_warehouse(engine, "report", {"connection": config, "analyses": [definition, {**definition, "title": "Calendario",
+        report = run_warehouse(engine, "report", {"connection": config, "analyses": [definition, {**definition, "title": "Calendario", "timezone": None,
             "calendar": {"dimension_id": "week", "start": "2021-01-01", "end": "2021-01-17", "bucket": "week", "observed": True}}]})
         first, calendar = report["results"]
         assert first["data"][0]["week"] == "2020-12-28"

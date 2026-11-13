@@ -250,8 +250,11 @@ def execute(operation, payload, limits=None, engine_factory=None):
                 else:
                     from uuid import uuid4
                     result = {"status": "success", "version": 1, "execution_id": str(uuid4()), "results": []}
+                    prior_zone = None
                     for analysis in req.analyses:
-                        result["results"].append(run_analysis(connection, catalog, analysis, budget, limits, meta))
+                        result["results"].append(run_analysis(connection, catalog, analysis, budget, limits, meta,
+                            restore_default_zone=bool(prior_zone and not analysis.timezone)))
+                        prior_zone = analysis.timezone
                         bounded(result, limits["message_bytes"] - 2048)
             elif operation == "query" or (operation == "export" and req.mode == "aggregate"):
                 result = analytics(connection, catalog, req, budget, limits, meta)
