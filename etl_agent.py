@@ -21,6 +21,7 @@ from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, M
                                 LoadValidationError, decode_dataset, encode_dataset,
                                 serialize_command, strict_json)
 from etl.typed_source import read_typed_table
+from etl.schema_dialects import STRUCTURED_ENGINES
 from etl.warehouse.execution import execute as execute_warehouse
 from etl.warehouse.settings import capabilities as warehouse_capabilities, WarehouseError
 
@@ -32,6 +33,7 @@ PAIRED_SESSION_ENDED = "La sesión del agente terminó. Genera otro código de e
 def load_capabilities(allow_load=False, allow_warehouse=True):
     return {"load_protocol_version": LOAD_PROTOCOL_VERSION, "load_enabled": allow_load,
             "load_schema_version": 1 if allow_warehouse else None,
+            "structured_load_engines": list(STRUCTURED_ENGINES) if allow_load and allow_warehouse else [],
             "typed_extract_version": 1 if allow_warehouse else None,
             "actions": ["test_target_connection", "execute_load", "preview_load"] if allow_load else [],
             "max_load_message_bytes": MAX_LOAD_MESSAGE_BYTES, "max_load_rows": MAX_LOAD_ROWS,

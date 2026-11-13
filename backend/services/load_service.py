@@ -7,7 +7,7 @@ import pandas as pd  # Kept as an adapter seam for existing characterization tes
 from etl import DB_Extractor, DB_Loader
 from etl.load_execution import connection_parameters, persist_and_verify, test_connection, validate_load_config
 from etl.load_transport import (LOAD_PROTOCOL_VERSION, MAX_LOAD_MESSAGE_BYTES, MAX_LOAD_ROWS,
-                                LoadValidationError, encode_dataset, strict_json)
+                                LoadReconciliationRequired, LoadValidationError, encode_dataset, strict_json)
 from services.agent_manager import agent_manager
 from services.transform_service import load_source_df, apply_transformation_steps
 
@@ -27,6 +27,8 @@ def test_target_connection(target_config):
 
 
 def _result(response):
+    if isinstance(response, dict) and response.get("code") == "load_reconciliation_required":
+        raise LoadReconciliationRequired("La publicación o el cambio de estructura requiere conciliación. Revisa el destino antes de repetir.")
     if not isinstance(response, dict) or response.get("status") != "success" or not isinstance(response.get("data"), dict):
         raise LoadValidationError("El agente no pudo completar la operación; revisa su configuración y el destino.")
     return response["data"]
@@ -43,6 +45,10 @@ async def _capabilities(target, require_schema=False, require_preview=False):
     data = response["data"]
     if require_schema and (type(data.get("load_schema_version")) is not int or data["load_schema_version"] != 1):
         raise LoadValidationError("Actualiza el agente para cargar con un esquema explícito.")
+    if require_schema and target.get("db_type") in {"mysql", "oracle"}:
+        engines = data.get("structured_load_engines")
+        if not isinstance(engines, list) or target["db_type"] not in engines:
+            raise LoadValidationError("Actualiza el agente para usar carga estructurada con este motor.")
     if require_preview and "preview_load" not in (data.get("actions") or []):
         raise LoadValidationError("Actualiza el agente para revisar el impacto sin escribir.")
     if (type(data.get("load_protocol_version")) is not int or data["load_protocol_version"] != LOAD_PROTOCOL_VERSION or data.get("load_enabled") is not True or
@@ -85,7 +91,7 @@ def _validate_report(data, config):
             extra[key] = data[key]
         if type(data.get("preview_only")) is not bool or data["preview_only"] != config.get("preview_only", False):
             raise LoadValidationError("Respuesta de prevalidación incompatible.")
-        if not isinstance(data.get("schema_actions"), list) or any(a not in {"preserve_schema", "delete_rows", "append_rows", "drop_table", "create_table", "insert_rows", "create_indexes", "add_primary_key", "add_unique", "add_foreign_key", "set_not_null"} for a in data["schema_actions"]):
+        if not isinstance(data.get("schema_actions"), list) or any(a not in {"preserve_schema", "delete_rows", "append_rows", "drop_table", "create_table", "insert_rows", "create_indexes", "add_primary_key", "add_unique", "add_foreign_key", "set_not_null", "publish_table", "replace_table"} for a in data["schema_actions"]):
             raise LoadValidationError("Acciones de esquema inválidas.")
         extra.update(preview_only=data["preview_only"], schema_actions=data["schema_actions"])
         from etl.schema import CheckOutcome

@@ -30,6 +30,10 @@ class LoadValidationError(ValueError):
     """Controlled public text, without source values or driver diagnostics."""
 
 
+class LoadReconciliationRequired(LoadValidationError):
+    """A write may have committed and requires inspection before retry."""
+
+
 def strict_json(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
 

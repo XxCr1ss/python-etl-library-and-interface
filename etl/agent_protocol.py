@@ -2,7 +2,7 @@
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from etl.error_utils import public_error
-from etl.load_transport import LoadValidationError
+from etl.load_transport import LoadReconciliationRequired, LoadValidationError
 from etl.warehouse.settings import WarehouseError
 
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
@@ -69,6 +69,8 @@ def command_error(request_id, action, payload, error, pair_token=None):
         message = error if isinstance(error, WarehouseError) else "No se pudo completar la lectura local."
     elif isinstance(action, str) and action in LOAD_ACTIONS and not isinstance(error, LoadValidationError):
         message = "No se pudo completar la carga local; revisa el destino antes de repetir."
+    elif isinstance(action, str) and action in LOAD_ACTIONS and isinstance(error, LoadReconciliationRequired):
+        code = "load_reconciliation_required"
     response = {"request_id": request_id, "status": "error",
                 "message": public_error(message, {"payload": payload, "pair_token": pair_token})}
     if code is not None:
