@@ -5,11 +5,27 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/auth/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/features/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
+        public: {
+          canvas: "#f5f7fc",
+          line: "#dce4f0",
+          field: "#a7b5c9",
+          muted: "#62728b",
+          navy: "#0b1530",
+          panel: "#13213f",
+          "navy-line": "#2a3e64",
+          light: "#f1f5ff",
+          "on-navy": "#aebedb",
+          ice: "#9fb9ff",
+          mint: "#8fe4d7",
+          "blue-soft": "#eaf0ff",
+          "blue-ink": "#183a9a",
+        },
         background: "var(--background)",
         foreground: "var(--foreground)",
         surface: { DEFAULT: "var(--ui-surface)", muted: "var(--ui-surface-muted)" },

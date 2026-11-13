@@ -9,6 +9,7 @@ on:
       - "feature/**"
       - "sonar/**"
       - "codex/**"
+      - "refactor/**"
   pull_request:
     types: [opened, synchronize, reopened]
 
