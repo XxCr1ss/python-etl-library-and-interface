@@ -1,6 +1,6 @@
 """Dialect-specific expressions for advanced warehouse queries."""
 from sqlalchemy import Numeric, String, case, cast, column, extract, func, literal, select, text, union_all, values
-from sqlalchemy.dialects.oracle import TIMESTAMP
+from sqlalchemy.dialects.oracle import NUMBER, TIMESTAMP
 from sqlalchemy.dialects.mysql import TIMESTAMP as MYSQL_TIMESTAMP
 from sqlalchemy.exc import DBAPIError
 
@@ -8,8 +8,12 @@ from .compiler import invalid
 
 
 def decimal_type(dialect):
-    # CAST AS DECIMAL in MySQL defaults to (10, 0).
-    return Numeric(65, 24) if dialect == "mysql" else Numeric()
+    # Bare DECIMAL/NUMERIC casts discard the fraction in MySQL and Oracle.
+    if dialect == "mysql":
+        return Numeric(65, 24)
+    if dialect == "oracle":
+        return NUMBER(asdecimal=True)
+    return Numeric()
 
 
 def duration_seconds(start, end, kind, dialect):

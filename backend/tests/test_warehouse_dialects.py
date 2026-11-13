@@ -15,7 +15,7 @@ from etl.warehouse.settings import WarehouseError
 
 @pytest.mark.parametrize(("dialect", "duration", "age", "week", "numeric"), [
     (mysql.dialect(), "timestampdiff(MICROSECOND", "timestampdiff(YEAR", "weekday(", "DECIMAL(65, 24)"),
-    (oracle.dialect(), "EXTRACT(day FROM", "EXTRACT(year FROM", "trunc(", "NUMERIC"),
+    (oracle.dialect(), "EXTRACT(day FROM", "EXTRACT(year FROM", "trunc(", " AS NUMBER)"),
 ])
 def test_advanced_sql_compiles_on_each_dialect(dialect, duration, age, week, numeric):
     start, end = column("started", DateTime()), column("ended", DateTime())

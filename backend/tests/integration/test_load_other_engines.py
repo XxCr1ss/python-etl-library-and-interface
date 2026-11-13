@@ -8,13 +8,14 @@ from decimal import Decimal
 import httpx
 import pandas as pd
 import pytest
-from sqlalchemy import MetaData, Table, inspect
+from sqlalchemy import MetaData, Table, event, inspect
 
 import etl_agent
 from etl import DB_Extractor
 from etl.load_execution import persist_and_verify
 from etl.load_transport import LoadReconciliationRequired, encode_dataset
 from etl.schema_dialects import publication_names
+from etl.schema import LoadSchemaSpec, persist_schema
 from etl.typed_source import read_typed_table
 from .test_agent_integration import ROOT, _wait_for_agent_status, live_backend_server
 
@@ -110,6 +111,31 @@ def test_unpublished_stage_blocks_retry_without_modifying_existing_rows(disposab
         with pytest.raises(LoadReconciliationRequired, match=stage):
             persist_and_verify(frame, config, {**request, "if_exists": "replace"})
         assert extractor.get_table(dimension)["id"].tolist() == [1]
+
+
+def test_interrupted_live_replacement_preserves_old_rows(disposable_engine):
+    config, (dimension, _) = disposable_engine
+    old, new = pd.DataFrame({"id": [1]}), pd.DataFrame({"id": [2]})
+    spec = LoadSchemaSpec.model_validate({"grain": "una fila por ID", "columns": [{"name": "id", "type": "integer"}], "primary_key": ["id"]})
+    stage, backup = publication_names(dimension)
+    with DB_Extractor(**config) as extractor:
+        engine = extractor.engine
+        assert persist_schema(old, engine, dimension, "fail", spec)["total_rows"] == 1
+
+        def interrupt(conn, cursor, statement, parameters, context, executemany):
+            if statement.startswith(f"RENAME {stage} TO ") or statement.startswith(f"RENAME TABLE {dimension} TO "):
+                raise RuntimeError("test publication interruption")
+
+        event.listen(engine, "before_cursor_execute", interrupt)
+        try:
+            expected = "se restauró" if config["db_type"] == "oracle" else "por conciliar"
+            with pytest.raises(ValueError, match=expected):
+                persist_schema(new, engine, dimension, "replace", spec)
+        finally:
+            event.remove(engine, "before_cursor_execute", interrupt)
+        assert extractor.get_table(dimension)["id"].tolist() == [1]
+        assert not inspect(engine).has_table(backup)
+        assert inspect(engine).has_table(stage) is (config["db_type"] == "mysql")
 
 
 def test_additive_schema_and_exact_temporal_round_trip(disposable_engine):

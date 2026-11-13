@@ -109,7 +109,7 @@ jobs:
             COVERAGE_FILE=".coverage.$engine" .venv/bin/python -m pytest -c backend/pytest.ini \
               backend/tests/integration/test_load_other_engines.py \
               backend/tests/integration/test_warehouse_other_engines.py \
-              -m integration -k "$engine" --cov --cov-config=.coveragerc --cov-report= \
+              -m integration -k "$engine" --tb=short --cov --cov-config=.coveragerc --cov-report= \
               --junitxml="integration-$engine.xml" -q
           done
 

@@ -30,7 +30,7 @@ def run_warehouse(engine, operation, payload):
 
 
 def test_real_warehouse_engine(disposable_engine):
-    config, (dimension, fact) = disposable_engine
+    config, (_, fact) = disposable_engine
     engine = engine_for(Connection.model_validate(config), LIMITS)
     try:
         metadata = MetaData()

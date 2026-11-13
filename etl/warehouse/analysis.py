@@ -12,7 +12,7 @@ from .settings import positive
 
 
 def matching(left, right):
-    return and_(true(), *[a.is_not_distinct_from(b) for a, b in zip(left, right)])
+    return and_(true(), *(or_(a == b, and_(a.is_(None), b.is_(None))) for a, b in zip(left, right)))
 
 
 def value_expression(compiler, value):
