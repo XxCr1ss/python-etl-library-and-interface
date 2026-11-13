@@ -4,6 +4,10 @@ Load permite elegir conexión directa o «Usar agente local híbrido». El host/
 del destino se interpreta desde la máquina del agente. Origen y destino eligen
 su transporte por separado; las transformaciones siguen ejecutándose en backend.
 
+La carga con esquema explícito en MySQL y Oracle requiere un agente actualizado.
+El backend comprueba que el agente anuncie el motor antes de enviar la carga.
+Consulta [Oracle y MySQL](oracle-mysql-schema-analytics.md).
+
 ## Arranque
 
 En la raíz del proyecto, con las dependencias de `requirements.txt` instaladas:

@@ -4,8 +4,9 @@ El módulo `/analytics` explora la bodega real mediante SELECT. Está disponible
 «Bodega de datos» en la navegación y no necesita un pipeline ni una carga previa.
 La muestra de Load y su conteo de destino no se utilizan como datos analíticos.
 
-La evolución general incorpora un constructor avanzado, reportes reproducibles y
-trabajos ETL con varias salidas. Consulta [la guía de ETL y analítica general](general-etl-analytics.md)
+El constructor avanzado y los reportes reproducibles admiten PostgreSQL, MySQL y Oracle.
+Consulta [Oracle y MySQL](oracle-mysql-schema-analytics.md) para las garantías por motor y
+[la guía de ETL y analítica general](general-etl-analytics.md)
 para tipos/claves explícitos, cohortes, pares, calendarios, fórmulas y sus garantías.
 Las secciones siguientes describen principalmente la consulta sencilla original.
 

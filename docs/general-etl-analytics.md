@@ -20,7 +20,7 @@ La aplicación incorpora contratos de carga, operaciones analíticas y trabajos 
 | CSV/JSON del resultado ya calculado y SVG del gráfico | Acciones del resultado avanzado |
 | Dependencias, resultados transformados reutilizables y manifiesto | Trabajos ETL, ruta `/jobs` |
 
-Los nuevos patrones analíticos y el DDL están disponibles para PostgreSQL. MySQL/Oracle conservan la exploración y carga anteriores; el catálogo no anuncia los patrones nuevos para esos motores. SQLite se utiliza únicamente como oráculo aislado en pruebas, no como conexión pública del producto.
+La carga con esquema explícito y los patrones analíticos avanzados admiten PostgreSQL, MySQL 8.4/InnoDB y Oracle. Consulta las garantías de publicación, los tipos y los perfiles de integración en [Oracle y MySQL](oracle-mysql-schema-analytics.md). SQLite se usa en las pruebas aisladas.
 
 ## Preparar una bodega desde la web
 
@@ -44,7 +44,7 @@ Los alias de conversión `integer`/`Int64`, `boolean` y `numeric` conservan nulo
 | `reload` | Borra datos dentro de la transacción y vuelve a cargar, conservando la estructura compatible. No cambia tipos ni elimina claves. |
 | `schema_only` | Prepara/verifica estructura y restricciones; no inserta ni borra filas. Puede crear una tabla vacía si no existe. |
 
-En una tabla existente, **Permitir agregar restricciones verificadas** autoriza cambios aditivos: PK faltante, UNIQUE, FK y NOT NULL. La revisión detecta nulos, duplicados y huérfanos. No cambia una PK diferente ni convierte tipos de una tabla existente. Las restricciones y la carga se aplican dentro de la misma transacción PostgreSQL; un fallo revierte los cambios de esa salida.
+En una tabla existente, **Permitir agregar restricciones verificadas** autoriza cambios aditivos de PK faltante, UNIQUE, FK y NOT NULL. La revisión detecta nulos, duplicados y huérfanos. PostgreSQL aplica la estructura y los datos en una transacción. MySQL y Oracle pueden confirmar el DDL antes de terminar la carga. Usa `schema_only` para aplicar cambios de estructura antes de `reload` en esos motores.
 
 Para preparar una bodega ya cargada, selecciona su tabla como origen, configura un contrato compatible y usa `schema_only`. Empieza por dimensiones referenciadas y continúa con hechos. Esto no requiere copiar filas al destino ni reconstruir toda la bodega.
 
