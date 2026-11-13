@@ -86,7 +86,7 @@ export function LoadSchemaEditor({ config, columns, onChange }: { config: LoadCo
   </div>;
   return <div ref={editor} className="space-y-4 border-t border-line pt-4">
     <h3 className="font-semibold">Esquema explícito y calidad</h3>
-    <p className="text-sm text-content-muted">Define qué representa una fila y crea claves físicas para explorar relaciones. Disponible para PostgreSQL. Aplicar activa lectura exacta y requiere actualizar la vista previa: CSV conserva códigos y decimales como texto, y los campos vacíos se leen como nulos. Convierte explícitamente las columnas antes de agregarlas. No cambia la base hasta ejecutar Carga.</p>
+    <p className="text-sm text-content-muted">Define qué representa una fila y crea claves físicas para explorar relaciones. Disponible para PostgreSQL, Oracle y MySQL. Aplicar activa lectura exacta y requiere actualizar la vista previa. CSV conserva códigos y decimales como texto y lee los campos vacíos como nulos. Convierte explícitamente las columnas antes de agregarlas. Los cambios se aplican al ejecutar Carga.</p>
     {!draft ? <Button variant="outline" disabled={!columns.length} onClick={initialize}>Configurar tipos y claves</Button> : <SchemaTabs draft={draft} setDraft={changeDraft} columns={columns} tab={tab} setTab={setTab} toolbar={toolbar} error={error} focusField={focusField} />}
   </div>;
 }

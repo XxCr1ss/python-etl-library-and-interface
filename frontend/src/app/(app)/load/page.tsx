@@ -65,6 +65,8 @@ export default function LoadPage() {
     </>}>
       <p>{state.loadConfig.if_exists === "reload" ? "Se recargarán los datos conservando la estructura de" : "Se reemplazará la tabla"} <strong>{load.approval?.config.table_name}</strong> en <strong className="break-all">{state.target?.database} · {state.target?.host}{state.target?.port ? `:${state.target.port}` : ""} · {state.target?.db_type}{state.target?.service_name ? ` · ${state.target.service_name}` : ""}</strong>.</p>
       <p>Se eliminarán los datos existentes de esta tabla.</p>
+      {load.approval?.config.schema_spec && state.loadConfig.if_exists === "replace" && state.target?.db_type === "oracle" &&
+        <p className="mt-2 text-sm">Oracle publica la tabla mediante dos renombres. El nombre destino puede quedar temporalmente indisponible.</p>}
       {preview.data?.total_rows === 0 && <p className="mt-3 font-bold text-danger">El resultado contiene 0 filas. Confirmar puede vaciar la tabla destino.</p>}
     </Modal>
   </div>;

@@ -1,4 +1,4 @@
-"""Additive PostgreSQL schema changes. Never drop keys, alter types or use CASCADE."""
+"""Additive schema changes that preserve existing keys and column types."""
 import sqlalchemy as sa
 from .load_transport import LoadValidationError
 
@@ -44,16 +44,28 @@ def additions(connection, old, desired, spec, mode):
                     raise LoadValidationError("El destino contiene referencias sin correspondencia para la FK solicitada.")
             constraint = next(c for c in desired.constraints if isinstance(c, sa.ForeignKeyConstraint) and list(c.columns.keys()) == fk.columns and [e.target_fullname for e in c.elements] == [fk.target_table + "." + name for name in fk.target_columns])
             changes.append(("add_foreign_key", constraint))
-    if changes and connection.dialect.name != "postgresql":
+    if changes and connection.dialect.name not in {"postgresql", "mysql", "oracle"}:
         raise LoadValidationError("Agregar restricciones a tablas existentes requiere PostgreSQL.")
     return changes
 
 
-def apply_additions(connection, table, changes):
+def apply_additions(connection, table, changes, completed):
     for action, value in changes:
         if action == "set_not_null":
             # Both names were validated and reflected, then quoted by the actual dialect.
             quote = connection.dialect.identifier_preparer
-            connection.execute(sa.DDL("ALTER TABLE " + quote.format_table(table) + " ALTER COLUMN " + quote.quote(value) + " SET NOT NULL"))
+            column = quote.quote(value)
+            dialect = connection.dialect.name
+            if dialect == "oracle":
+                definition = f"MODIFY ({column} NOT NULL)"
+            elif dialect == "mysql":
+                actual = sa.Table(table.name, sa.MetaData(), autoload_with=connection).c[value]
+                if actual.server_default is not None or actual.computed is not None or actual.comment or actual.autoincrement is True:
+                    raise LoadValidationError("La columna MySQL tiene atributos que requieren conservarse mediante una migración explícita.")
+                definition = f"MODIFY COLUMN {column} {actual.type.compile(dialect=connection.dialect)} NOT NULL"
+            else:
+                definition = f"ALTER COLUMN {column} SET NOT NULL"
+            connection.exec_driver_sql(f"ALTER TABLE {quote.format_table(table)} {definition}")
         else:
             connection.execute(sa.schema.AddConstraint(value))
+        completed.append(action)

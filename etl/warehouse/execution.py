@@ -204,6 +204,23 @@ def validate_limits(req, operation, limits):
         raise WarehouseError("invalid_query", "La exportación supera los límites efectivos del ejecutor.")
 
 
+def retry_catalog_read(engine, budget, read):
+    """Reopen the whole read-only snapshot after Oracle invalidates it with DDL."""
+    for attempt in range(5):
+        try:
+            with read_session(engine, budget) as (connection, context):
+                return read(connection, context)
+        except DBAPIError as exc:
+            error = getattr(exc, "orig", None)
+            details = getattr(error, "args", ())
+            code = getattr(details[0], "code", None) if details else None
+            if engine.dialect.name != "oracle" or code != 1466:
+                raise
+            if attempt == 4:
+                raise WarehouseError("catalog_changed", "La estructura de Oracle cambió durante la lectura. Actualiza el catálogo y vuelve a consultar.", 409) from None
+            time.sleep(min(1, budget.remaining_ms() / 1000))
+
+
 def execute(operation, payload, limits=None, engine_factory=None):
     """Validate again on the actual executor, including requests forwarded by backend."""
     limits = effective_limits(limits)
@@ -221,7 +238,7 @@ def execute(operation, payload, limits=None, engine_factory=None):
     budget, engine = Budget(limits, operation == "export"), None
     try:
         engine = (engine_factory or engine_for)(req.connection, limits)
-        with read_session(engine, budget) as (connection, context):
+        def query(connection, context):
             catalog = Catalog(connection, limits)
             meta = {**context, "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(), "execution_time_ms": 0}
             if operation == "catalog":
@@ -233,16 +250,22 @@ def execute(operation, payload, limits=None, engine_factory=None):
                 else:
                     from uuid import uuid4
                     result = {"status": "success", "version": 1, "execution_id": str(uuid4()), "results": []}
+                    prior_zone = None
                     for analysis in req.analyses:
-                        result["results"].append(run_analysis(connection, catalog, analysis, budget, limits, meta))
+                        result["results"].append(run_analysis(connection, catalog, analysis, budget, limits, meta,
+                            restore_default_zone=bool(prior_zone and not analysis.timezone)))
+                        prior_zone = analysis.timezone
                         bounded(result, limits["message_bytes"] - 2048)
             elif operation == "query" or (operation == "export" and req.mode == "aggregate"):
                 result = analytics(connection, catalog, req, budget, limits, meta)
             else:
                 result = detail(connection, catalog, req, budget, limits, meta, operation == "export")
-            budget.remaining_ms()
-            if "meta" in result:
-                result["meta"]["execution_time_ms"] = round((time.monotonic() - started) * 1000, 2)
+            return result
+
+        result = retry_catalog_read(engine, budget, query)
+        budget.remaining_ms()
+        if "meta" in result:
+            result["meta"]["execution_time_ms"] = round((time.monotonic() - started) * 1000, 2)
         if operation == "export":
             from .export import export_file
             result = export_file(result, req, limits)

@@ -122,8 +122,7 @@ async def perform(req, owner, sources, targets):
     async def operation():
         try:
             for config in targets.values():
-                if config.get("db_type") != "postgresql":
-                    raise HTTPException(422, "Los trabajos con esquema explícito requieren PostgreSQL.")
+                load_service.connection_parameters(config)
                 if config.get("use_agent"):
                     await load_service._capabilities(config, require_schema=True)
 
@@ -151,7 +150,7 @@ async def perform(req, owner, sources, targets):
                 target = targets[output.target_ref]
                 try:
                     structure = await persist(node, frame, preview=True)
-                    if "create_indexes" in structure.get("schema_actions", []):
+                    if any(action not in {"preserve_schema", "append_rows"} for action in structure.get("schema_actions", [])):
                         return False
                     actual = await transform_service.load_source_df({**target, "type": "database", "table_name": output.table_name}, typed=True)
                     actual = coerce_frame(actual, output.schema_spec)

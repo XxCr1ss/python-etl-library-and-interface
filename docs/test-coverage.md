@@ -43,16 +43,16 @@ No combinar archivos de revisiones distintas ni reutilizar informes de una suite
 
 ## Protección en CI
 
-El workflow `sonarcloud.yml` inicia su propio PostgreSQL desechable y ejecuta ambas suites Python secuencialmente, con archivos de cobertura separados. Combina los datos antes del escaneo y conserva XML y LCOV en un artefacto identificado por el SHA.
+El workflow `sonarcloud.yml` inicia PostgreSQL, MySQL y Oracle desechables. Ejecuta las pruebas aisladas y los perfiles de integración con archivos de cobertura separados, los combina antes del escaneo y conserva XML y LCOV en un artefacto identificado por el SHA. Las pruebas de navegador aportan evidencia de interacción sin modificar el LCOV de Vitest. [Perfiles Oracle y MySQL](oracle-mysql-schema-analytics.md)
 
 Se espera el Quality Gate de SonarCloud. En pushes a ramas admitidas se ejecuta además:
 
 ```bash
 .venv/bin/python scripts/check_sonar_coverage.py \
-  --branch "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" --minimum 80
+  --branch "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" --minimum 80 --maximum-duplication 3
 ```
 
-El script exige un análisis de esa rama y revisión y una métrica global válida de al menos 80 %. Rechaza análisis antiguos, valores ausentes y porcentajes no finitos o fuera de rango. Usa `SONAR_TOKEN` del workflow; no lo registra.
+El script exige un análisis de esa rama y revisión, cobertura global de al menos 80 % y duplicación global inferior a 3 %. Rechaza análisis antiguos, valores ausentes y porcentajes no finitos o fuera de rango. Usa `SONAR_TOKEN` del workflow.
 
 En pull requests se conserva el Quality Gate, incluyendo sus condiciones de código nuevo. La comprobación adicional de Overall Code se aplica a análisis de rama; no interpreta la cobertura del diff de un PR como cobertura global.
 

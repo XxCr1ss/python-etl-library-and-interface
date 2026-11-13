@@ -1,5 +1,6 @@
 from sqlalchemy import Column, MetaData, Table, inspect, text
 from sqlalchemy import types as t
+from sqlalchemy.dialects.oracle import NUMBER
 from etl.extractors.schema_graph import identity
 from .settings import LIMITS, WarehouseError, capabilities
 
@@ -7,6 +8,8 @@ from .settings import LIMITS, WarehouseError, capabilities
 def family(sql_type):
     if isinstance(sql_type, t.Boolean):
         return "boolean"
+    if isinstance(sql_type, NUMBER):
+        return "integer" if sql_type.scale == 0 else "decimal"
     if isinstance(sql_type, t.Integer):
         return "integer"
     if isinstance(sql_type, t.Float):
@@ -99,4 +102,4 @@ class Catalog:
     def public(self):
         return {"status": "success", "schema": self.schema, "tables": list(self.info.values()),
                 "relationships": self.relationships, "warnings": self.warnings,
-                "capabilities": {"protocol_version": 1, "supported_operations": [a for a in capabilities()["actions"] if self.dialect in {"postgresql", "sqlite"} or a not in {"warehouse_analyze", "warehouse_report"}], "effective_limits": self.limits}}
+                "capabilities": {"protocol_version": 1, "supported_operations": capabilities()["actions"], "effective_limits": self.limits}}

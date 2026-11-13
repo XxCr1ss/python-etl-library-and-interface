@@ -16,7 +16,7 @@ const Chart = dynamic(() => import("./AdvancedChartViewer"), { ssr: false, loadi
 
 export function AdvancedAnalysisPanel() {
   const w = useWarehouse();
-  return w.catalog?.capabilities.supported_operations.includes("warehouse_analyze") && w.connection.db_type === "postgresql" ? <AdvancedWorkspace /> : null;
+  return w.catalog?.capabilities.supported_operations.includes("warehouse_analyze") ? <AdvancedWorkspace /> : null;
 }
 
 function AdvancedWorkspace() {

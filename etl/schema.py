@@ -1,5 +1,7 @@
 """Versioned, serializable load contracts. No implicit schema changes or lossy casts."""
 import datetime as dt
+import hashlib
+from uuid import uuid4
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 
@@ -7,7 +9,10 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 import sqlalchemy as sa
 
-from .load_transport import LoadValidationError
+from .load_transport import LoadReconciliationRequired, LoadValidationError
+from .schema_dialects import (IMPLICIT_DDL, STRUCTURED_ENGINES, column_matches, ensure_transactional_table, lock_existing_table,
+                              physical_type, publication_available, publication_names, publish, storage_values,
+                              verify_column_size, verify_replace_dependencies, write_session)
 
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$", max_length=63)]
 
@@ -29,6 +34,8 @@ class ColumnSpec(Contract):
     def valid_scale(self):
         if self.scale > self.precision:
             raise ValueError("La escala no puede superar la precisión.")
+        if self.timezone and self.type != "datetime":
+            raise ValueError("La zona horaria solo se admite en columnas de fecha y hora.")
         return self
 
     def sql_type(self):
@@ -190,22 +197,34 @@ def check_frame(frame, checks):
 
 
 def persist_schema(frame, engine, name, mode, spec, preview_only=False, validation_references=()):
-    """A single transactional load. PostgreSQL certified; SQLite is a test oracle."""
-    if engine.dialect.name not in {"postgresql", "sqlite"}:
-        raise LoadValidationError("La carga con esquema explícito requiere PostgreSQL en esta versión.")
+    """Plan and persist the same schema contract under each engine's DDL semantics."""
+    dialect = engine.dialect.name
+    if dialect not in (*STRUCTURED_ENGINES, "sqlite"):
+        raise LoadValidationError("El motor no admite carga con esquema explícito.")
     from pydantic import TypeAdapter
     TypeAdapter(Identifier).validate_python(name)
     if mode not in {"fail", "append", "reload", "replace", "schema_only"}:
         raise LoadValidationError("Modo de carga estructurada inválido.")
     frame = coerce_frame(frame, spec)
     checks = check_frame(frame, spec.checks)
-    with engine.begin() as conn:
-        if engine.dialect.name == "postgresql":
+    keyed = {column for key in (spec.primary_key, *spec.unique_keys, *spec.indexes,
+                               *(fk.columns for fk in spec.foreign_keys)) for column in key}
+    frame = storage_values(frame, spec, dialect, keyed)
+    with write_session(engine, name, preview_only) as conn:
+        if dialect == "postgresql":
             conn.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
             conn.exec_driver_sql("SET LOCAL statement_timeout = '90s'")
+        elif dialect in IMPLICIT_DDL:
+            publication_available(conn, name)
         inspector = sa.inspect(conn)
         exists = inspector.has_table(name)
         old = sa.Table(name, sa.MetaData(), autoload_with=conn) if exists else None
+        if old is not None:
+            ensure_transactional_table(conn, old)
+            if mode == "replace" and dialect in IMPLICIT_DDL:
+                verify_replace_dependencies(conn, old)
+            elif not preview_only and mode in {"append", "reload"}:
+                lock_existing_table(conn, old)
         before = int(conn.execute(sa.select(sa.func.count()).select_from(old)).scalar_one()) if exists else 0
         actions = []
         if exists and mode == "fail":
@@ -216,11 +235,15 @@ def persist_schema(frame, engine, name, mode, spec, preview_only=False, validati
             target = metadata.tables[reference.target_table]
             keys = ([inspector.get_pk_constraint(target.name).get("constrained_columns") or []] +
                     [u["column_names"] for u in inspector.get_unique_constraints(target.name)])
-            if not any(set(k) == set(reference.target_columns) for k in keys):
+            if not any(list(k) == reference.target_columns if dialect in IMPLICIT_DDL else set(k) == set(reference.target_columns) for k in keys):
                 raise LoadValidationError("La FK debe apuntar a una PK/UNIQUE completa.")
             from .warehouse.catalog import family
             requested_types = {c.name: c for c in spec.columns}
-            if any(c not in target.c for c in reference.target_columns) or any(family(requested_types[a].sql_type()) != family(target.c[b].type) for a, b in zip(reference.columns, reference.target_columns)):
+            if any(c not in requested_types for c in reference.columns) or any(c not in target.c for c in reference.target_columns) or any(
+                (not column_matches(target.c[b].type, requested_types[a], dialect) if dialect in IMPLICIT_DDL
+                 else family(requested_types[a].sql_type()) != family(target.c[b].type))
+                for a, b in zip(reference.columns, reference.target_columns)
+            ):
                 raise LoadValidationError("La FK tiene columnas inexistentes o tipos incompatibles.")
             values = list({row for row in frame[reference.columns].itertuples(index=False, name=None) if not any(missing(v) for v in row)})
             target_keys = [target.c[c] for c in reference.target_columns]
@@ -231,25 +254,35 @@ def persist_schema(frame, engine, name, mode, spec, preview_only=False, validati
                     raise LoadValidationError("Existen referencias sin correspondencia; no se escribió ningún dato.")
         if name in metadata.tables:
             raise LoadValidationError("Las referencias a la misma tabla no se admiten en esta versión.")
-        table = sa.Table(name, metadata, *[sa.Column(c.name, c.sql_type(), nullable=c.nullable and c.name not in spec.primary_key) for c in spec.columns])
+        stage = dialect in IMPLICIT_DDL and (not exists or mode == "replace")
+        physical_name = publication_names(name)[0] if stage else name
+        options = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_0900_bin"} if dialect == "mysql" else {}
+        table = sa.Table(physical_name, metadata, *[sa.Column(c.name, physical_type(c, dialect, c.name in keyed),
+            nullable=c.nullable and c.name not in spec.primary_key,
+            autoincrement=False if dialect in IMPLICIT_DDL else "auto") for c in spec.columns], **options)
         if spec.primary_key:
             table.append_constraint(sa.PrimaryKeyConstraint(*spec.primary_key))
         for key in spec.unique_keys:
             table.append_constraint(sa.UniqueConstraint(*key))
         for fk in spec.foreign_keys:
             table.append_constraint(sa.ForeignKeyConstraint(fk.columns, [fk.target_table + "." + c for c in fk.target_columns]))
+        if dialect in IMPLICIT_DDL:
+            for c in spec.columns:
+                if c.type == "boolean":
+                    table.append_constraint(sa.CheckConstraint(table.c[c.name].in_([0, 1])))
+        index_name = physical_name + "_" + uuid4().hex[:8] if dialect == "oracle" and stage else physical_name
         for key in spec.indexes:
-            import hashlib
-            suffix = hashlib.sha256((name + "\0" + "\0".join(key)).encode()).hexdigest()[:16]
-            sa.Index(f"ix_{name[:36]}_{suffix}", *[table.c[c] for c in key])
+            suffix = hashlib.sha256((index_name + "\0" + "\0".join(key)).encode()).hexdigest()[:16]
+            sa.Index(f"ix_{name[:10 if dialect == 'oracle' else 36]}_{suffix}", *[table.c[c] for c in key])
         changes = []
         if exists and mode in {"append", "reload", "schema_only"}:
             if set(old.c.keys()) != set(table.c.keys()):
                 raise LoadValidationError("La estructura existente no coincide con el contrato.")
-            from .warehouse.catalog import family
+            if dialect in IMPLICIT_DDL and mode != "schema_only":
+                verify_column_size(old, spec, frame)
             for column in spec.columns:
                 actual_type = old.c[column.name].type
-                if family(actual_type) != column.type or bool(getattr(actual_type, "timezone", False)) != column.timezone:
+                if not column_matches(actual_type, column, dialect):
                     raise LoadValidationError("El tipo existente no coincide con el contrato.")
                 if column.type == "decimal" and (actual_type.precision, actual_type.scale) != (column.precision, column.scale):
                     raise LoadValidationError("La precisión/escala del destino no coincide con el contrato.")
@@ -260,9 +293,13 @@ def persist_schema(frame, engine, name, mode, spec, preview_only=False, validati
             pending_indexes = [index for index in table.indexes if list(index.columns.keys()) not in existing_indexes]
             if pending_indexes:
                 actions.append("create_indexes")
+            if dialect in IMPLICIT_DDL and mode == "reload" and (changes or pending_indexes):
+                raise LoadValidationError("Aplica los cambios de estructura con Solo esquema antes de recargar las filas.")
         else:
             pending_indexes = []
-            actions = (["drop_table"] if exists else []) + ["create_table"] + ([] if mode == "schema_only" else ["insert_rows"])
+            actions = (["drop_table"] if exists and not stage else []) + ["create_table"] + ([] if mode == "schema_only" else ["insert_rows"])
+            if stage:
+                actions += ["publish_table"] + (["replace_table"] if exists else [])
         report = {"status": "success", "message": "Plan de carga comprobado." if preview_only else "Estructura preparada; no se cargaron filas." if mode == "schema_only" else "Carga validada y confirmada.",
                   "table_name": name, "total_rows": before, "previous_rows": before, "submitted_rows": 0 if mode == "schema_only" else len(frame),
                   "preview_data": [], "schema_actions": actions, "checks": checks, "preview_only": preview_only}
@@ -270,25 +307,53 @@ def persist_schema(frame, engine, name, mode, spec, preview_only=False, validati
             return report
         if changes and not spec.allow_add_constraints:
             raise LoadValidationError("Revisa el impacto y habilita agregar restricciones para modificar la estructura existente.")
+        expected = before if mode == "schema_only" else before + len(frame) if exists and mode == "append" else len(frame)
+
+        def insert_and_verify(current):
+            if mode != "schema_only" and not frame.empty:
+                rows = frame.astype(object).where(frame.notna(), None).to_dict("records")
+                for start in range(0, len(rows), 1000):
+                    conn.execute(current.insert(), rows[start:start + 1000])
+            report["total_rows"] = int(conn.execute(sa.select(sa.func.count()).select_from(current)).scalar_one())
+            if report["total_rows"] != expected:
+                raise LoadValidationError("El conteo posterior no coincide; revisa el estado antes de repetir.")
+            from .warehouse.serialization import scalar
+            sample_columns = [sa.func.sys_extract_utc(c).label(c.name)
+                              if dialect == "oracle" and getattr(c.type, "timezone", False) else c for c in current.c]
+            for row in conn.execute(sa.select(*sample_columns).limit(5)).mappings():
+                sample = {}
+                for column in spec.columns:
+                    value = row[column.name]
+                    if dialect in IMPLICIT_DDL and column.timezone and value is not None:
+                        value = value.replace(tzinfo=dt.timezone.utc)
+                    if dialect in IMPLICIT_DDL and column.type in {"boolean", "date", "integer"}:
+                        value = convert_scalar(value, column)
+                    sample[column.name] = scalar(value, column.type)
+                report["preview_data"].append(sample)
+            return report
+
+        if stage:
+            return publish(conn, table, name, old, insert_and_verify)
         if exists and mode == "replace":
             old.drop(conn)  # Never CASCADE: dependencies reject the transaction.
         if not exists or mode == "replace":
             table.create(conn)
         elif mode == "reload":
             conn.execute(old.delete())
-        if changes:
-            from .schema_evolution import apply_additions
-            apply_additions(conn, table, changes)
-        for index in pending_indexes:
-            index.create(conn)
-        if mode != "schema_only":
-            frame.to_sql(name, conn, if_exists="append", index=False, dtype={c.name: c.sql_type() for c in spec.columns})
-        current = sa.Table(name, sa.MetaData(), autoload_with=conn)
-        report["total_rows"] = int(conn.execute(sa.select(sa.func.count()).select_from(current)).scalar_one())
-        expected = before if mode == "schema_only" else before + len(frame) if exists and mode == "append" else len(frame)
-        if report["total_rows"] != expected:
-            raise LoadValidationError("El conteo posterior no coincide; se revierte esta carga.")
-        from .warehouse.serialization import scalar
-        from .warehouse.catalog import family
-        report["preview_data"] = [{k: scalar(v, family(current.c[k].type)) for k, v in row.items()} for row in conn.execute(sa.select(current).limit(5)).mappings()]
-        return report
+        completed = []
+        try:
+            if changes:
+                from .schema_evolution import apply_additions
+                apply_additions(conn, table, changes, completed)
+            for index in pending_indexes:
+                index.create(conn)
+                completed.append("create_indexes")
+            current = sa.Table(name, sa.MetaData(), autoload_with=conn)
+            result = insert_and_verify(current)
+            conn.commit()
+            return result
+        except Exception:
+            if dialect in IMPLICIT_DDL and (completed or changes or pending_indexes):
+                detail = ", ".join(dict.fromkeys(completed)) or "sin confirmar"
+                raise LoadReconciliationRequired(f"Revisa la estructura antes de repetir. Cambios confirmados por la aplicación: {detail}.") from None
+            raise

@@ -10,7 +10,8 @@ from sqlalchemy.pool import StaticPool
 import etl_agent
 from etl import DB_Loader
 from etl.load_execution import persist_and_verify
-from etl.load_transport import encode_dataset
+from etl.agent_protocol import command_error
+from etl.load_transport import LoadReconciliationRequired, encode_dataset
 from services.agent_manager import AgentManager, agent_manager
 from services import load_service
 from test_sources import CONNECTION
@@ -84,6 +85,27 @@ def test_agent_requires_explicit_local_permission_and_protocol():
         etl_agent._execute_load(payload)
     with pytest.raises(ValueError, match="incompatible"):
         etl_agent._execute_load({**payload, "load_protocol_version": 99}, True)
+
+
+def test_older_agent_cannot_receive_structured_oracle_request(monkeypatch):
+    capabilities = etl_agent.load_capabilities(True)
+    capabilities.pop("structured_load_engines")
+
+    async def respond(agent_id, action, payload, **kwargs):
+        assert action == "get_capabilities" and payload == {}
+        return {"status": "success", "data": capabilities}
+
+    monkeypatch.setattr(agent_manager, "connection_id", lambda _: "generation")
+    monkeypatch.setattr(agent_manager, "send_command_and_wait", respond)
+    with pytest.raises(ValueError, match="Actualiza el agente"):
+        asyncio.run(load_service._capabilities({"db_type": "oracle", "agent_id": "local"}, require_schema=True))
+    assert asyncio.run(load_service._capabilities({"db_type": "postgresql", "agent_id": "local"}, require_schema=True))[0] == "local"
+
+
+def test_load_reconciliation_survives_the_agent_transport():
+    response = command_error("test", "execute_load", {}, LoadReconciliationRequired("Publicación por conciliar"))
+    with pytest.raises(LoadReconciliationRequired, match="conciliación"):
+        load_service._result(response)
 
 
 def test_manager_binds_response_and_keeps_timed_out_write_exclusive(monkeypatch):

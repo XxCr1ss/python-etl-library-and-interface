@@ -32,6 +32,10 @@ async def perform(operation, request):
                     not isinstance(caps.get("limits"), dict) or
                     any(type(caps["limits"].get(k)) is not int or caps["limits"][k] <= 0 for k in LIMITS)):
                 raise WarehouseError("agent_incompatible", "Actualiza el agente para usar analítica de solo lectura.", 503)
+            if operation in {"analyze", "report"} and request.connection.db_type != "postgresql":
+                engines = caps.get("advanced_engines")
+                if not isinstance(engines, list) or request.connection.db_type not in engines:
+                    raise WarehouseError("agent_incompatible", "Actualiza el agente para ejecutar análisis avanzados con este motor.", 503)
             limits = effective_limits(caps["limits"])
             bounded(payload, limits["message_bytes"] - 2048)
             response = await agent_manager.send_command_and_wait(agent_id, "warehouse_" + operation,
