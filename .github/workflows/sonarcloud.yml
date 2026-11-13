@@ -92,6 +92,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14"
+
+      - name: Install backend dependencies & test coverage
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r backend/requirements-dev.txt -c backend/constraints.txt
+
+      - name: Measure real MySQL and Oracle integrations
+        run: |
+          for engine in mysql oracle; do
+            COVERAGE_FILE=".coverage.$engine" .venv/bin/python -m pytest -c backend/pytest.ini \
+              backend/tests/integration/test_load_other_engines.py \
+              backend/tests/integration/test_warehouse_other_engines.py \
+              -m integration -k "$engine" --cov --cov-config=.coveragerc --cov-report= \
+              --junitxml="integration-$engine.xml" -q
+          done
+
       - name: Setup Node.js
         uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
@@ -104,17 +125,6 @@ jobs:
       - name: Run tests and generate LCOV coverage report
         working-directory: frontend
         run: npm run test:coverage
-
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.14"
-
-      - name: Install backend dependencies & test coverage
-        run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install -r backend/requirements-dev.txt -c backend/constraints.txt
 
       - name: Measure isolated Python suite
         env:
@@ -132,21 +142,22 @@ jobs:
             --ignore=backend/tests/integration/test_warehouse_other_engines.py \
             --cov --cov-config=.coveragerc --cov-report= -q
 
-      - name: Measure real MySQL and Oracle integrations
-        run: |
-          for engine in mysql oracle; do
-            COVERAGE_FILE=".coverage.$engine" .venv/bin/python -m pytest -c backend/pytest.ini \
-              backend/tests/integration/test_load_other_engines.py \
-              backend/tests/integration/test_warehouse_other_engines.py \
-              -m integration -k "$engine" --cov --cov-config=.coveragerc --cov-report= \
-              --junitxml="integration-$engine.xml" -q
-          done
-
       - name: Combine coverage from this checkout
         run: |
           .venv/bin/python -m coverage combine --keep .coverage.unit .coverage.integration .coverage.mysql .coverage.oracle
           .venv/bin/python -m coverage xml
           .venv/bin/python -m coverage report
+
+      - name: Exercise real Oracle and MySQL browser flows
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e:real -- other-engines.spec.ts
+
+      - name: Verify real integration artifacts
+        run: .venv/bin/python backend/tests/integration/artifact_audit.py frontend/test-results/real integration-mysql.xml integration-oracle.xml
 
       - name: Upload coverage reports from this checkout
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -157,6 +168,9 @@ jobs:
             frontend/coverage/lcov.info
             integration-mysql.xml
             integration-oracle.xml
+            frontend/test-results/real/summary.json
+            frontend/test-results/real/junit.xml
+            frontend/test-results/real/index.html
           if-no-files-found: error
 
       - name: Scan and report to SonarCloud

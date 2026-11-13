@@ -1,7 +1,7 @@
 """Bounded server-side analytical patterns shared by Python, HTTP and the agent."""
 import datetime as dt
 from uuid import uuid4
-from sqlalchemy import select, func, case, literal, and_, or_, cast, union
+from sqlalchemy import select, func, case, literal, and_, or_, cast, union, true
 
 from .compiler import Compiler, invalid, ordered, temporal_expression, parse_value
 from .dialects import calendar_source, completed_years, decimal_type, duration_seconds, set_analysis_timezone, week_start
@@ -12,7 +12,7 @@ from .settings import positive
 
 
 def matching(left, right):
-    return and_(*[a.is_not_distinct_from(b) for a, b in zip(left, right)])
+    return and_(true(), *[a.is_not_distinct_from(b) for a, b in zip(left, right)])
 
 
 def value_expression(compiler, value):

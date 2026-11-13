@@ -60,7 +60,7 @@ def apply_additions(connection, table, changes, completed):
                 definition = f"MODIFY ({column} NOT NULL)"
             elif dialect == "mysql":
                 actual = sa.Table(table.name, sa.MetaData(), autoload_with=connection).c[value]
-                if actual.server_default is not None or actual.computed is not None or actual.comment:
+                if actual.server_default is not None or actual.computed is not None or actual.comment or actual.autoincrement is True:
                     raise LoadValidationError("La columna MySQL tiene atributos que requieren conservarse mediante una migración explícita.")
                 definition = f"MODIFY COLUMN {column} {actual.type.compile(dialect=connection.dialect)} NOT NULL"
             else:

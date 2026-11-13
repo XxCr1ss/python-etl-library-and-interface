@@ -141,6 +141,7 @@ def verify_replace_dependencies(connection, old):
             "SELECT 1 FROM user_triggers WHERE table_name = :name",
             "SELECT 1 FROM user_tab_privs_made WHERE table_name = :name",
             "SELECT 1 FROM user_col_privs_made WHERE table_name = :name",
+            "SELECT 1 FROM all_synonyms WHERE table_owner = USER AND table_name = :name",
         )
     else:
         params["name"] = old.name

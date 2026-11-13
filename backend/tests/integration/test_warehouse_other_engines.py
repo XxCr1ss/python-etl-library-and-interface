@@ -2,13 +2,31 @@
 from decimal import Decimal
 import datetime as dt
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Numeric, String, Table
+from sqlalchemy import Column, Date, Integer, MetaData, Numeric, String, Table, event
 from etl.warehouse.execution import engine_for, execute
 from etl.warehouse.models import Connection
 from etl.warehouse.settings import LIMITS
 from .test_load_other_engines import disposable_engine
 
 pytestmark = pytest.mark.integration
+
+
+def run_warehouse(engine, operation, payload):
+    errors = []
+
+    @event.listens_for(engine, "handle_error")
+    def capture_driver_code(context):
+        error = context.original_exception
+        # Fixtures only use synthetic SQL and values. Emit the driver code for diagnosis.
+        if error.args:
+            errors.append(str(getattr(error.args[0], "full_code", error.args[0])).split("\n", 1)[0])
+
+    try:
+        return execute(operation, payload, engine_factory=lambda *_: engine)
+    except ValueError as exc:
+        pytest.fail(f"{exc} Driver: {', '.join(errors)}", pytrace=False)
+    finally:
+        event.remove(engine, "handle_error", capture_driver_code)
 
 
 def test_real_warehouse_engine(disposable_engine):
@@ -23,7 +41,7 @@ def test_real_warehouse_engine(disposable_engine):
         catalog = execute("catalog", {"connection": config})
         info = next(t for t in catalog["tables"] if t["table_name"].lower() == fact)
         query = {"base_table_id": info["table_id"], "metrics": [{"id": "total", "aggregation": "SUM", "column": "amount"}], "dimensions": [{"id": "category", "field": {"column": "category"}}], "order_by": [{"field_id": "total", "direction": "DESC"}], "limit": 1}
-        result = execute("query", {"connection": config, "query": query})
+        result = run_warehouse(engine, "query", {"connection": config, "query": query})
         assert result["data"][0]["category"] == "B" and Decimal(result["data"][0]["total"]) == 90
         assert Decimal(result["summary_kpis"][0]["value"]) == 120
     finally:
@@ -48,7 +66,7 @@ def test_real_advanced_report(disposable_engine):
                       "measures": [{"id": "median", "aggregation": "PERCENTILE", "percentile": 0.5, "value": {"field": {"column": "amount"}}},
                                    {"id": "days", "aggregation": "SUM", "value": {"field": {"column": "started"},
                                                                                     "duration_end": {"column": "occurred"}, "duration_unit": "days"}}]}
-        report = execute("report", {"connection": config, "analyses": [definition, {**definition, "title": "Calendario",
+        report = run_warehouse(engine, "report", {"connection": config, "analyses": [definition, {**definition, "title": "Calendario",
             "calendar": {"dimension_id": "week", "start": "2021-01-01", "end": "2021-01-17", "bucket": "week", "observed": True}}]})
         first, calendar = report["results"]
         assert first["data"][0]["week"] == "2020-12-28"

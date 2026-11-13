@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import uuid
+from decimal import Decimal
 
 import httpx
 import pandas as pd
@@ -14,6 +15,7 @@ from etl import DB_Extractor
 from etl.load_execution import persist_and_verify
 from etl.load_transport import LoadReconciliationRequired, encode_dataset
 from etl.schema_dialects import publication_names
+from etl.typed_source import read_typed_table
 from .test_agent_integration import ROOT, _wait_for_agent_status, live_backend_server
 
 pytestmark = pytest.mark.integration
@@ -108,6 +110,24 @@ def test_unpublished_stage_blocks_retry_without_modifying_existing_rows(disposab
         with pytest.raises(LoadReconciliationRequired, match=stage):
             persist_and_verify(frame, config, {**request, "if_exists": "replace"})
         assert extractor.get_table(dimension)["id"].tolist() == [1]
+
+
+def test_additive_schema_and_exact_temporal_round_trip(disposable_engine):
+    config, (dimension, _) = disposable_engine
+    instant = pd.Timestamp("2021-01-01T01:02:03.123456-05:00")
+    frame = pd.DataFrame({"id": [1], "occurred": [instant], "amount": [Decimal("9007199254740993.1250")]})
+    schema = {"grain": "una fila por ID", "columns": [{"name": "id", "type": "integer"},
+        {"name": "occurred", "type": "datetime", "timezone": True},
+        {"name": "amount", "type": "decimal", "precision": 24, "scale": 4}]}
+    request = {"table_name": dimension, "table_type": "dimension", "if_exists": "fail", "schema_spec": schema}
+    assert persist_and_verify(frame, config, request)["total_rows"] == 1
+    updated = {**request, "if_exists": "schema_only", "schema_spec": {**schema, "primary_key": ["id"], "allow_add_constraints": True}}
+    plan = persist_and_verify(frame, config, {**updated, "preview_only": True})
+    assert plan["schema_actions"] == ["preserve_schema", "add_primary_key"]
+    assert persist_and_verify(frame, config, updated)["total_rows"] == 1
+    stored = read_typed_table(config, dimension)
+    assert stored.loc[0, "occurred"] == instant
+    assert stored.loc[0, "amount"] == frame.loc[0, "amount"]
 
 
 def test_structured_http_and_live_agent(disposable_engine, live_backend_server, tmp_path):
