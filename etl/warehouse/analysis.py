@@ -138,8 +138,10 @@ class AnalysisCompiler:
             high = func.max(case((eligible.c.position == func.ceil(point), eligible.c.value), else_=None))
             fraction = func.max(point) - func.floor(func.max(point))
             keys = [eligible.c[f"d{i}"] for i in range(len(dims))]
+            ranked = select(*keys, (low + (high - low) * fraction).label("value"),
+                            func.count().label("valid_count")).select_from(eligible).group_by(*keys).subquery()
             observed = c.statement([func.count()]).scalar_subquery()
-            return select(*keys, (low + (high - low) * fraction).label("value"), observed.label("observations"), func.count().label("valid_count")).select_from(eligible).group_by(*keys), "decimal"
+            return select(*ranked.c, observed.label("observations")), "decimal"
         if measure.aggregation != "ENTITY_AVG":
             expression, kind = aggregate_expression(c, measure)
             valid = value_expression(c, measure.value)[0] if measure.value and measure.aggregation != "COUNT_ROWS" else literal(1)
