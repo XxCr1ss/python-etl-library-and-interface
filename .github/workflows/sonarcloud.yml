@@ -39,6 +39,33 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
+      mysql:
+        image: mysql:8.4.10
+        env:
+          MYSQL_DATABASE: etl_test_isolated
+          MYSQL_USER: etl_test_user
+          MYSQL_PASSWORD: etl_test_synthetic_pw
+          MYSQL_ROOT_PASSWORD: etl_test_mysql_root_pw
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=18
+      oracle:
+        image: ghcr.io/gvenzl/oracle-free:23.26.3-slim-faststart
+        env:
+          ORACLE_PASSWORD: etl_test_oracle_admin_pw
+          APP_USER: etl_test_user
+          APP_USER_PASSWORD: etl_test_synthetic_pw
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd=healthcheck.sh
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=24
     env:
       ETL_IGNORE_DOTENV: "1"
       ETL_TEST_DB_TYPE: postgresql
@@ -47,6 +74,18 @@ jobs:
       ETL_TEST_DB_NAME: etl_test_isolated
       ETL_TEST_DB_USER: etl_test_user
       ETL_TEST_DB_PASSWORD: etl_test_synthetic_pw
+      ETL_REQUIRED_TEST_ENGINES: mysql,oracle
+      ETL_TEST_MYSQL_HOST: 127.0.0.1
+      ETL_TEST_MYSQL_PORT: "3306"
+      ETL_TEST_MYSQL_NAME: etl_test_isolated
+      ETL_TEST_MYSQL_USER: etl_test_user
+      ETL_TEST_MYSQL_PASSWORD: etl_test_synthetic_pw
+      ETL_TEST_ORACLE_HOST: 127.0.0.1
+      ETL_TEST_ORACLE_PORT: "1521"
+      ETL_TEST_ORACLE_NAME: etl_test_isolated
+      ETL_TEST_ORACLE_USER: etl_test_user
+      ETL_TEST_ORACLE_PASSWORD: etl_test_synthetic_pw
+      ETL_TEST_ORACLE_SERVICE_NAME: FREEPDB1
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -89,11 +128,23 @@ jobs:
           COVERAGE_FILE: .coverage.integration
         run: |
           .venv/bin/python -m pytest -c backend/pytest.ini backend/tests/integration -m integration \
+            --ignore=backend/tests/integration/test_load_other_engines.py \
+            --ignore=backend/tests/integration/test_warehouse_other_engines.py \
             --cov --cov-config=.coveragerc --cov-report= -q
+
+      - name: Measure real MySQL and Oracle integrations
+        run: |
+          for engine in mysql oracle; do
+            COVERAGE_FILE=".coverage.$engine" .venv/bin/python -m pytest -c backend/pytest.ini \
+              backend/tests/integration/test_load_other_engines.py \
+              backend/tests/integration/test_warehouse_other_engines.py \
+              -m integration -k "$engine" --cov --cov-config=.coveragerc --cov-report= \
+              --junitxml="integration-$engine.xml" -q
+          done
 
       - name: Combine coverage from this checkout
         run: |
-          .venv/bin/python -m coverage combine --keep .coverage.unit .coverage.integration
+          .venv/bin/python -m coverage combine --keep .coverage.unit .coverage.integration .coverage.mysql .coverage.oracle
           .venv/bin/python -m coverage xml
           .venv/bin/python -m coverage report
 
@@ -104,6 +155,8 @@ jobs:
           path: |
             backend-coverage.xml
             frontend/coverage/lcov.info
+            integration-mysql.xml
+            integration-oracle.xml
           if-no-files-found: error
 
       - name: Scan and report to SonarCloud

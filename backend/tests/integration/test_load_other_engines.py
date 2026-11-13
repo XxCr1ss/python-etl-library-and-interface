@@ -19,6 +19,8 @@ def disposable_engine(request):
     prefix = f"ETL_TEST_{engine.upper()}_"
     required = ["HOST", "PORT", "NAME", "USER", "PASSWORD"] + (["SERVICE_NAME"] if engine == "oracle" else [])
     if not any(key.startswith(prefix) for key in os.environ):
+        if engine in os.environ.get("ETL_REQUIRED_TEST_ENGINES", "").split(","):
+            pytest.fail(f"Falta la instancia obligatoria {engine} ({prefix}*).")
         pytest.skip(f"No se configuró una base descartable {engine} ({prefix}*).")
     if any(prefix + key not in os.environ for key in required):
         pytest.fail(f"Configuración de prueba {engine} incompleta.")
